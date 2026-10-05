@@ -135,6 +135,10 @@
 }
 .wrap.done .dot{ display:block; background:#7ac47a; }
 .wrap.err .dot{ display:block; background:#e0705f; }
+/* Parked on the right edge, the ball only shows its LEFT sliver — a dot in the
+   top-right corner would sit off-screen. Keep it on whichever side faces the
+   page, so it is visible in both the docked and the expanded state. */
+.wrap.dock-right .dot{ right:auto; left:-1px; }
 `;
 
   // ---------------------------------------------------------------------------

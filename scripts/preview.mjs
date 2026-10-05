@@ -193,7 +193,7 @@ function buildBallDemo() {
     onStop: function () {}, onToggleOriginal: function () { return false; },
     onOpenSettings: function () {}
   });
-  YTST.page.ball.setStatus({ active: true, status: 'translating', done: 128, total: 442, error: '' });
+  YTST.page.ball.setStatus({ active: true, status: 'done', done: 442, total: 442, error: '' });
   // force the hover panel open for the screenshot
   var wrap = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
   wrap.classList.add('pinned');

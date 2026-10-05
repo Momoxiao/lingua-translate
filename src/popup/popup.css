@@ -3,6 +3,12 @@ body {
   background: var(--paper);
 }
 
+/*
+ * No inset card here. Chrome draws the popup window itself with square corners
+ * and there is no way to round it, so a rounded card floating inside a square
+ * frame reads as a mistake. The popup is edge-to-edge; only the inner elements
+ * carry radius, all of them from the shared theme tokens.
+ */
 .pop {
   padding: 14px 16px 12px;
 }
@@ -38,6 +44,7 @@ body {
   color: var(--ink-2);
   background: transparent;
   border: 0;
+  /* Nested radius: outer --r-md minus the 3px container padding. */
   border-radius: 7px;
   padding: 6px 10px;
   cursor: pointer;
@@ -160,6 +167,7 @@ select {
 }
 
 /* --- state card: mirrors the floating ball exactly ----------------------- */
+/* Radius matches the settings page's .card so the two surfaces feel related. */
 .stateCard {
   display: flex;
   align-items: center;
@@ -167,7 +175,7 @@ select {
   gap: 12px;
   padding: 12px 13px;
   border: 1px solid var(--line);
-  border-radius: var(--r-md);
+  border-radius: var(--r-lg);
   background: var(--surface);
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }

@@ -578,6 +578,26 @@ async function main() {
     (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle')
   );
 
+  // The badge must sit on the side that stays visible once the ball docks to an
+  // edge — docking right hides everything but the left sliver.
+  const dotGeo = JSON.parse(
+    await evalPage(`(function(){
+      var w = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
+      var cs = getComputedStyle(w.querySelector('.dot'));
+      return JSON.stringify({
+        dockRight: w.classList.contains('dock-right'),
+        dockLeft: w.classList.contains('dock-left'),
+        left: cs.left,
+        right: cs.right
+      });
+    })()`)
+  );
+  check(
+    'the badge is anchored to the page-facing side of the ball',
+    dotGeo.dockRight ? dotGeo.left === '-1px' && dotGeo.right === 'auto' : dotGeo.right === '-1px' && dotGeo.left === 'auto',
+    JSON.stringify(dotGeo)
+  );
+
   await clickBall();
   await sleep(500);
   check('clicking the ball on a fresh page starts translation', (await evalIso('YTST.page.state.active')) === true);

@@ -113,14 +113,20 @@
     wrap.innerHTML = '';
     for (const key of Object.keys(PROVIDERS)) {
       const p = PROVIDERS[key];
+      const ready = providerReady({ ...settings, provider: key });
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'providerCard';
       btn.setAttribute('aria-pressed', String(settings.provider === key));
-      btn.dataset.ready = providerReady({ ...settings, provider: key }) ? '1' : '0';
-      btn.innerHTML = `<div class="providerCard__name"><span></span><span class="providerCard__dot"></span></div><div class="providerCard__hint"></div>`;
-      btn.querySelector('span').textContent = p.label;
-      btn.querySelector('.providerCard__hint').textContent = p.hint;
+      btn.dataset.ready = ready ? '1' : '0';
+      btn.innerHTML =
+        '<span class="providerCard__name"></span>' +
+        '<span class="providerCard__short"></span>' +
+        '<span class="providerCard__state"></span>' +
+        '<span class="providerCard__dot"></span>';
+      btn.querySelector('.providerCard__name').textContent = p.label;
+      btn.querySelector('.providerCard__short').textContent = p.short || '';
+      btn.querySelector('.providerCard__state').textContent = ready ? '已配置' : '未配置';
       btn.addEventListener('click', () => {
         save({ provider: key });
         renderFields();
@@ -128,6 +134,23 @@
       });
       wrap.appendChild(btn);
     }
+  }
+
+  /** One-line summary of what is currently in effect, for the pane header. */
+  function activeSummary(providerId) {
+    const cfg = settings.providers[providerId] || {};
+    if (providerId === 'openai') {
+      const model = cfg.model || '未填模型';
+      const host = String(cfg.baseUrl || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+      return host ? `${model} · ${host}` : model;
+    }
+    if (providerId === 'custom') {
+      return String(cfg.url || '').replace(/^https?:\/\//, '').split('/')[0] || '未填请求地址';
+    }
+    if (providerId === 'deepl') return cfg.pro ? 'DeepL Pro' : 'DeepL Free';
+    if (providerId === 'microsoft') return cfg.region ? `区域 ${cfg.region}` : '未填区域';
+    if (providerId === 'google') return cfg.apiKey ? '官方接口' : '免费网页接口';
+    return '';
   }
 
   // ---------------------------------------------------------------------------
@@ -141,6 +164,10 @@
 
     $('paneTitle').textContent = meta.label;
     $('paneHint').textContent = meta.hint;
+    const ready = providerReady(settings);
+    const summary = activeSummary(providerId);
+    $('paneStatus').textContent = ready ? `使用中 · ${summary}` : summary ? `未配置 · ${summary}` : '未配置';
+    $('paneStatus').dataset.state = ready ? 'ready' : 'missing';
 
     // presets
     const presetWrap = $('presets');

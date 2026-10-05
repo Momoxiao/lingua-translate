@@ -73,6 +73,14 @@ body {
   margin-top: 2px;
 }
 
+/* provider line: green when usable, amber when it still needs credentials */
+.hint[data-state="ready"] {
+  color: var(--ok);
+}
+.hint[data-state="missing"] {
+  color: var(--warn);
+}
+
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

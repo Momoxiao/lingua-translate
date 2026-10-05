@@ -709,6 +709,48 @@ async function main() {
   check('no stray placeholders leaked into the DOM', linkInfo.strayMarkers === false, String(linkInfo.dstText));
   check('link-bearing paragraph still got a translation', (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1);
 
+  // --- "show original" means original ONLY, not a bilingual view ------------
+  await evalIso('YTST.page.toggleOriginal()');
+  await sleep(4000);
+  check(
+    'show-original hides every translation',
+    (await evalPage(
+      `(function(){ var d = document.querySelector('.lingua-pg-dst'); return !!d && getComputedStyle(d).display === 'none'; })()`
+    )) === true,
+    await evalPage(`(function(){ var d=document.querySelector('.lingua-pg-dst'); return d ? getComputedStyle(d).display : 'no dst'; })()`)
+  );
+  check(
+    'show-original does NOT leave a bilingual view',
+    (await evalPage(`document.querySelectorAll('.lingua-pg-dst').length`)) > 0 &&
+      (await evalPage(
+        `Array.prototype.every.call(document.querySelectorAll('.lingua-pg-dst'), function(d){ return getComputedStyle(d).display === 'none'; })`
+      )) === true
+  );
+  check(
+    'show-original leaves the source readable',
+    (await evalPage(`document.getElementById('linkp').textContent`)).indexOf('documentation') !== -1,
+    await evalPage(`document.getElementById('linkp').textContent.slice(0, 80)`)
+  );
+  check(
+    'show-original keeps the original link usable',
+    (await evalPage(
+      `(function(){ var a = document.getElementById('doclink'); if(!a) return false; var r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`
+    )) === true
+  );
+  await evalIso('YTST.page.toggleOriginal()');
+  await sleep(4000);
+  check(
+    'toggling back shows the translation again',
+    (await evalPage(
+      `(function(){ var d = document.querySelector('.lingua-pg-dst'); return !!d && getComputedStyle(d).display !== 'none'; })()`
+    )) === true
+  );
+  check(
+    'the page is still fully translated after the round trip',
+    (await evalPage(`document.querySelectorAll('.lingua-pg-dst').length`)) >= 12,
+    `${await evalPage(`document.querySelectorAll('.lingua-pg-dst').length`)} nodes`
+  );
+
   // --- the translation must reuse the REAL link, not a clone ---
   check(
     'the translated link is the very same element as the original',

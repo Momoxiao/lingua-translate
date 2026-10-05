@@ -6,8 +6,9 @@
  *
  * Behaviour
  *   - click        : translate / stop
- *   - hover        : expands a pill with the status and secondary actions
- *   - drag         : moves it; the position is remembered per hostname
+ *   - hover        : slides in from the edge and expands a pill with secondary actions
+ *   - drag         : moves it; the position is remembered per hostname, and it
+ *                    docks to the nearest edge where it rests mostly hidden
  *   - progress     : an arc around the ball, no separate progress bar needed
  *
  * Lives in a shadow root so no site stylesheet can reach it, and it can never
@@ -23,36 +24,45 @@
   const HOST_ID = 'lingua-ball';
   const POS_KEY = 'lingua:ball:positions';
   const SIZE = 44;
-  const MARGIN = 12;
+  const MARGIN = 10;
+  const PEEK = 12; // how much stays visible when docked at an edge
   const DRAG_SLOP = 5;
 
   let host = null;
   let shadow = null;
-  let el = null; // cached refs
+  let el = null;
   let handlers = {};
-  let pos = null; // {x, y} in viewport px, or null = default (right, vertically centred)
+  let pos = null; // {x, y} in viewport px
+  let dock = 'right'; // which edge it is parked against
   let visible = true;
   let labelTimer = 0;
   let drag = null;
   let state = { active: false, status: 'idle', done: 0, total: 0, error: '' };
+  let transient = null; // temporary status override
 
   const CSS = `
 :host{ all:initial; }
 *{ box-sizing:border-box; }
 
-/* The wrap fills the host box. Everything else is absolutely positioned so
-   expanding the pill never pushes the ball around the screen. */
+/* The host IS the ball's box. Everything else is absolutely positioned, so
+   expanding the pill can never push the ball around the screen. */
 .wrap{
-  position:relative; width:100%; height:100%;
+  position:absolute; inset:0;
   font:500 12px/1.4 ui-sans-serif,-apple-system,"Segoe UI",Roboto,"PingFang SC",sans-serif;
   user-select:none; -webkit-user-select:none;
-  transition:opacity .18s ease;
+  transition:transform .22s cubic-bezier(.22,.61,.36,1), opacity .18s ease;
 }
 .wrap[hidden]{ display:none; }
 
+/* --- docked at an edge: rest mostly hidden, slide out on hover --- */
+.wrap.dock-left{ transform:translateX(calc(-100% + ${PEEK}px)); }
+.wrap.dock-right{ transform:translateX(calc(100% - ${PEEK}px)); }
+.wrap.dock-left:hover, .wrap.dock-right:hover, .wrap.dock-left.pinned, .wrap.dock-right.pinned,
+.wrap.dock-left.dragging, .wrap.dock-right.dragging{ transform:translateX(0); }
+
 /* --- pill: opens towards the middle of the screen --- */
 .pill{
-  position:absolute; top:50%; right:calc(100% + 10px);
+  position:absolute; top:50%; right:calc(100% + 8px);
   transform:translateY(-50%) scale(.94);
   transform-origin:right center;
   display:flex; align-items:center; gap:2px;
@@ -63,17 +73,23 @@
   box-shadow:0 8px 26px rgba(0,0,0,.30);
   color:#f6f1ea;
   opacity:0; pointer-events:none;
-  transition:opacity .18s ease, transform .18s ease;
+  transition:opacity .16s ease, transform .16s ease;
   white-space:nowrap;
 }
+/* invisible bridge across the gap, so the pointer can travel from the ball to
+   the pill without leaving the hover area and collapsing it */
+.pill::after{
+  content:''; position:absolute; top:-6px; bottom:-6px; right:-10px; width:12px;
+}
 .wrap.open-right .pill{
-  right:auto; left:calc(100% + 10px);
+  right:auto; left:calc(100% + 8px);
   transform-origin:left center;
 }
-.wrap:hover .pill, .wrap.pinned .pill{
+.wrap.open-right .pill::after{ right:auto; left:-10px; }
+.wrap:hover .pill, .wrap.pinned .pill, .pill:hover{
   opacity:1; pointer-events:auto; transform:translateY(-50%) scale(1);
 }
-.status{ font-size:11.5px; opacity:.82; padding-right:8px; letter-spacing:.01em; }
+.status{ font-size:11.5px; opacity:.82; padding-right:8px; letter-spacing:.01em; max-width:210px; overflow:hidden; text-overflow:ellipsis; }
 .act{
   font:inherit; font-size:11.5px; color:#f6f1ea;
   background:transparent; border:0; border-radius:999px;
@@ -84,7 +100,7 @@
 
 /* --- the ball itself --- */
 .ball{
-  position:relative; width:${SIZE}px; height:${SIZE}px;
+  position:absolute; inset:0;
   border-radius:50%; cursor:pointer;
   background:rgba(22,19,15,.94);
   border:1px solid rgba(255,255,255,.12);
@@ -119,22 +135,6 @@
 }
 .wrap.done .dot{ display:block; background:#7ac47a; }
 .wrap.err .dot{ display:block; background:#e0705f; }
-
-/* transient toast, anchored above the ball */
-.toast{
-  position:absolute; right:0; bottom:calc(100% + 10px);
-  max-width:330px; padding:8px 12px;
-  background:rgba(22,19,15,.96); color:#f6f1ea;
-  border:1px solid rgba(255,255,255,.12); border-left:3px solid #e4572e;
-  border-radius:9px;
-  box-shadow:0 8px 26px rgba(0,0,0,.30);
-  opacity:0; transform:translateY(6px); pointer-events:none;
-  transition:opacity .2s ease, transform .2s ease;
-  white-space:normal;
-}
-.wrap.open-right .toast{ right:auto; left:0; }
-.toast.show{ opacity:1; transform:translateY(0); }
-.toast.err{ border-left-color:#e0705f; }
 `;
 
   // ---------------------------------------------------------------------------
@@ -158,17 +158,20 @@
     const p = clampPos(pos || defaultPos());
     host.style.left = `${p.x}px`;
     host.style.top = `${p.y}px`;
-    // The pill opens towards the middle of the screen so it never runs off-edge.
-    const opensRight = p.x + SIZE / 2 < window.innerWidth / 2;
+
+    dock = p.x + SIZE / 2 > window.innerWidth / 2 ? 'right' : 'left';
+    const opensRight = dock === 'left'; // pill opens towards the middle
+    el.wrap.classList.toggle('dock-left', dock === 'left');
+    el.wrap.classList.toggle('dock-right', dock === 'right');
     el.wrap.classList.toggle('open-right', opensRight);
   }
 
   async function loadPos() {
     try {
-      const host_ = location.hostname.replace(/^www\./, '');
+      const key = location.hostname.replace(/^www\./, '');
       const res = await chrome.storage.local.get(POS_KEY);
       const map = (res && res[POS_KEY]) || {};
-      pos = map[host_] || null;
+      pos = map[key] || null;
     } catch (e) {
       pos = null;
     }
@@ -176,10 +179,10 @@
 
   function savePos() {
     try {
-      const host_ = location.hostname.replace(/^www\./, '');
+      const key = location.hostname.replace(/^www\./, '');
       chrome.storage.local.get(POS_KEY).then((res) => {
         const map = (res && res[POS_KEY]) || {};
-        map[host_] = pos;
+        map[key] = pos;
         chrome.storage.local.set({ [POS_KEY]: map });
       });
     } catch (e) {
@@ -199,17 +202,21 @@
     wrap.classList.toggle('done', state.status === 'done' && state.active);
     wrap.classList.toggle('idle', !state.active);
 
-    let text = '';
-    if (state.status === 'error') text = state.error ? `出错：${state.error}` : '翻译出错';
+    let text;
+    if (transient) text = transient;
+    else if (state.status === 'error') text = state.error ? `出错：${state.error}` : '翻译出错';
     else if (state.status === 'translating') text = `翻译中 ${state.done}/${state.total}`;
     else if (state.status === 'scanning') text = '正在扫描页面…';
     else if (state.active) text = state.total ? `已翻译 ${state.done}/${state.total}` : '已开启';
     else text = '翻译此页面';
     status.textContent = text;
+    status.title = text;
 
     btnOriginal.hidden = !state.active;
     btnRetranslate.hidden = !state.active;
     btnStop.hidden = !state.active;
+    // The label reflects what clicking will do, not the current state.
+    btnOriginal.textContent = state.showSource ? '显示译文' : '显示原文';
 
     // progress arc
     const R = 23.5;
@@ -231,9 +238,6 @@
     host.id = HOST_ID;
     host.setAttribute('translate', 'no');
     host.setAttribute('data-lingua-node', '1');
-    // The host IS the positioned box; the shadow content fills it. (Making the
-    // inner element position:fixed instead leaves the host 0x0, so hit-testing
-    // and getBoundingClientRect disagree with where the ball actually is.)
     host.style.position = 'fixed';
     host.style.width = `${SIZE}px`;
     host.style.height = `${SIZE}px`;
@@ -260,13 +264,11 @@
         </svg>
         <span class="glyph"><span class="a">A</span>文</span>
         <span class="dot"></span>
-      </div>
-      <div class="toast"></div>`;
+      </div>`;
     shadow.appendChild(wrap);
 
     el = {
       wrap,
-      toast: wrap.querySelector('.toast'),
       status: wrap.querySelector('.status'),
       bar: wrap.querySelector('.ring .bar'),
       ball: wrap.querySelector('.ball'),
@@ -289,10 +291,7 @@
       if (!btn) return;
       ev.stopPropagation();
       const act = btn.dataset.act;
-      if (act === 'original' && handlers.onToggleOriginal) {
-        const on = handlers.onToggleOriginal();
-        btn.textContent = on ? '隐藏原文' : '显示原文';
-      }
+      if (act === 'original' && handlers.onToggleOriginal) handlers.onToggleOriginal();
       if (act === 'retranslate' && handlers.onRetranslate) handlers.onRetranslate();
       if (act === 'stop' && handlers.onStop) handlers.onStop();
     });
@@ -343,7 +342,7 @@
     applyPos();
   }
 
-  function onPointerUp(ev) {
+  function onPointerUp() {
     if (!drag) return;
     el.ball.removeEventListener('pointermove', onPointerMove);
     el.ball.removeEventListener('pointerup', onPointerUp);
@@ -352,7 +351,7 @@
     const moved = drag.moved;
     drag = null;
     if (moved) {
-      // snap to whichever horizontal edge is closer
+      // dock to whichever horizontal edge is closer
       const p = clampPos(pos);
       p.x = p.x + SIZE / 2 > window.innerWidth / 2 ? window.innerWidth - SIZE - MARGIN : MARGIN;
       pos = clampPos(p);
@@ -373,13 +372,20 @@
     paint();
   }
 
+  /**
+   * Show a message in the pill for a moment. Deliberately NOT a floating toast —
+   * a bubble hovering over the page was more noise than signal; the ball's own
+   * colour and the pill text carry the state instead.
+   */
   function notify(text, tone, durationMs) {
-    if (!host || !el) return;
-    el.toast.textContent = text;
-    el.toast.classList.toggle('err', tone === 'err');
-    el.toast.classList.add('show');
+    if (!el) return;
+    transient = text;
+    paint();
     clearTimeout(labelTimer);
-    labelTimer = setTimeout(() => el.toast.classList.remove('show'), durationMs || 4000);
+    labelTimer = setTimeout(() => {
+      transient = null;
+      paint();
+    }, durationMs || 3000);
   }
 
   function destroy() {
@@ -390,6 +396,7 @@
     shadow = null;
     el = null;
     drag = null;
+    transient = null;
   }
 
   page.ball = { mount, destroy, setStatus, setVisible, notify, toggle };

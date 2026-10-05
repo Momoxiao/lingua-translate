@@ -244,6 +244,7 @@
       done: state.done,
       total: state.total,
       error: state.error,
+      showSource: state.showOriginal,
     });
   }
 
@@ -426,8 +427,13 @@
     state.status = 'idle';
     state.done = 0;
     state.total = 0;
-    state.showOriginal = false;
     state.error = '';
+    // Stopping means going back to the plain page: drop the "original only" flag
+    // too, otherwise it would linger and hide the next translation.
+    if (state.showOriginal) {
+      state.showOriginal = false;
+      page.render.setShowOriginal(false);
+    }
     syncBall();
   }
 
@@ -471,12 +477,14 @@
     page.render.restyle(renderOpts());
   }
 
+  /** Toggle between "translated" and "original only". */
   function toggleOriginal() {
     state.showOriginal = !state.showOriginal;
     page.render.setShowOriginal(state.showOriginal);
-    // Real links live inside the translation while it is the only visible copy,
-    // so the DOM has to be rebuilt to hand them to whichever copy is on screen.
-    if (state.active && state.mode === 'replace') retranslate();
+    syncBall();
+    // Units that own a hyperlink have to hand it to whichever copy is visible,
+    // so the DOM is rebuilt from the cache (translations are cached: it is fast).
+    if (state.active) retranslate();
     return state.showOriginal;
   }
 

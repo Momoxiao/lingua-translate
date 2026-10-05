@@ -28,7 +28,7 @@
   const SRC_CLASS = 'lingua-pg-src';
   const DST_CLASS = 'lingua-pg-dst';
   const TEXTWRAP_CLASS = 'lingua-pg-textwrap';
-  const ROOT_FLAG = 'lingua-pg-show-src';
+  const ROOT_FLAG = 'lingua-pg-source-only';
   const LINK_MARK = 'linguaLink';
   const LINK_OK = 'linguaLinkKept';
   const MOVED_ATTR = 'data-lingua-moved';
@@ -61,7 +61,11 @@
   background:color-mix(in srgb, currentColor 10%, transparent);
 }
 .lingua-pg-replace > .lingua-pg-src{ display:none; }
-html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
+/* "Show original" means show ONLY the original — not a bilingual view. A pure
+   class flip keeps it instant and lets the caller re-render for link ownership. */
+html.${ROOT_FLAG} .lingua-pg-dst{ display:none !important; }
+html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert !important; }
+html.${ROOT_FLAG} .lingua-pg-src{ display:revert !important; }
 `;
 
   function ensureStyle() {
@@ -396,6 +400,14 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     }
   }
 
+  /**
+   * Toggle "original only" mode.
+   *
+   * This is NOT a bilingual toggle: it hides the translations entirely so the
+   * page reads exactly as it did before translating. The caller re-renders
+   * afterwards, because a unit that owns a hyperlink has to hand it back to the
+   * copy that is currently visible.
+   */
   function setShowOriginal(on) {
     document.documentElement.classList.toggle(ROOT_FLAG, !!on);
     // Attribute units have no room for two values — swap the whole attribute.
@@ -445,8 +457,8 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
         el.removeAttribute(trKey);
       }
     }
-
-    document.documentElement.classList.remove(ROOT_FLAG);
+    // NOTE: the "original only" flag is owned by the caller's state, not by this
+    // function — a re-render must keep it. stop() clears it explicitly.
   }
 
   page.render = {

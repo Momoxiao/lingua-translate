@@ -125,9 +125,12 @@
 
   function renderStatic() {
     const provider = PROVIDERS[settings.provider];
+    const ready = NS.settings.providerReady(settings);
+    const model = modelOf(settings.provider);
     ui.providerName.textContent = provider
-      ? `服务：${provider.label}${NS.settings.providerReady(settings) ? '' : '（未配置）'}`
+      ? `${provider.label}${model ? ' · ' + model : ''}${ready ? '' : ' · 未配置'}`
       : '服务未选择';
+    ui.providerName.dataset.state = ready ? 'ready' : 'missing';
     ui.enabled.checked = !!settings.enabled;
     ui.target.value = settings.targetLang;
     for (const btn of ui.displayMode.querySelectorAll('button')) {
@@ -138,9 +141,20 @@
     ui.pageMode.value = (settings.page && settings.page.displayMode) || 'bilingual';
     ui.pageStyle.value = (settings.page && settings.page.style) || 'underline';
     ui.pageBall.checked = !settings.page || settings.page.showBall !== false;
-    ui.footHint.textContent = provider
-      ? `${provider.label} → ${labelOf(settings.targetLang)}`
-      : '未配置服务';
+    ui.footHint.textContent = provider ? `${provider.label} → ${labelOf(settings.targetLang)}` : '未配置服务';
+  }
+
+  /** Short "which model am I actually using" label for the popup header. */
+  function modelOf(providerId) {
+    const cfg = (settings.providers && settings.providers[providerId]) || {};
+    if (providerId === 'openai') return cfg.model || '';
+    if (providerId === 'custom') {
+      return String(cfg.url || '').replace(/^https?:\/\//, '').split('/')[0] || '';
+    }
+    if (providerId === 'deepl') return cfg.pro ? 'Pro' : 'Free';
+    if (providerId === 'microsoft') return cfg.region || '';
+    if (providerId === 'google') return cfg.apiKey ? '官方接口' : '免费接口';
+    return '';
   }
 
   function labelOf(code) {

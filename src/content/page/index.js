@@ -237,15 +237,45 @@
 
   /** Push the current pipeline state into the floating ball. */
   function syncBall() {
-    if (!page.ball) return;
-    page.ball.setStatus({
-      active: state.active,
-      status: state.status,
-      done: state.done,
-      total: state.total,
-      error: state.error,
-      showSource: state.showOriginal,
-    });
+    if (page.ball) {
+      page.ball.setStatus({
+        active: state.active,
+        status: state.status,
+        done: state.done,
+        total: state.total,
+        error: state.error,
+        showSource: state.showOriginal,
+      });
+    }
+    broadcastState();
+  }
+
+  let lastBroadcastKey = '';
+  let lastBroadcastAt = 0;
+
+  /**
+   * Tell the popup about state changes.
+   *
+   * The popup cannot observe the page directly, and polling alone leaves it
+   * visibly lagging behind the floating ball — which users read as "the popup is
+   * out of sync". Progress ticks are throttled; status changes always go out.
+   */
+  function broadcastState() {
+    const s = status();
+    const key = `${s.active}|${s.status}|${s.done}|${s.total}|${s.showOriginal}|${s.error}`;
+    const now = Date.now();
+    const progressOnly = key.replace(/\|\d+\|\d+\|/, '||') === lastBroadcastKey.replace(/\|\d+\|\d+\|/, '');
+    if (key === lastBroadcastKey && now - lastBroadcastAt < 1500) return;
+    if (progressOnly && now - lastBroadcastAt < 400) return;
+    lastBroadcastKey = key;
+    lastBroadcastAt = now;
+    try {
+      chrome.runtime.sendMessage({ type: 'lingua:page-state', page: s, host: s.host }, () => {
+        void chrome.runtime.lastError; // no popup open — expected
+      });
+    } catch (e) {
+      /* no receiver */
+    }
   }
 
   /**
@@ -498,6 +528,7 @@
       mode: state.mode,
       style: state.style,
       showOriginal: state.showOriginal,
+      showBall: !settings || !settings.page || settings.page.showBall !== false,
       host: hostname(),
       rule: settings ? siteRule(settings) : 'manual',
       auto: settings ? shouldAutoTranslate(settings) : false,

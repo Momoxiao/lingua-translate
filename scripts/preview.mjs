@@ -74,7 +74,7 @@ const STUB = (tabUrl) => `
     },
     page: {
       active: true, status: 'translating', total: 86, done: 34, error: '',
-      mode: 'bilingual', style: 'underline', showOriginal: false,
+      mode: 'bilingual', style: 'underline', showOriginal: false, showBall: true,
       host: 'news.ycombinator.com', rule: 'manual', auto: false
     },
     provider: 'openai', providerReady: true, targetLang: 'zh-Hans', enabled: true
@@ -92,6 +92,7 @@ const STUB = (tabUrl) => `
       lastError: undefined,
       getManifest: () => ({ version: '1.0.0' }),
       openOptionsPage: () => {},
+      onMessage: { addListener: () => {}, removeListener: () => {} },
       // Callbacks are synchronous on purpose: the page then settles inside the
       // microtask queue, i.e. before the load event, so the screenshot reflects
       // the real post-boot state. (With --virtual-time-budget, a setTimeout-based

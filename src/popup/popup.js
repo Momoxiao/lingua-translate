@@ -30,7 +30,9 @@
     retranslate: el('retranslate'),
     // page
     pageHost: el('pageHost'),
-    pageEnabled: el('pageEnabled'),
+    pageToggle: el('pageToggle'),
+    pageStateCard: el('pageStateCard'),
+    pageStateTitle: el('pageStateTitle'),
     pageMode: el('pageMode'),
     pageStyle: el('pageStyle'),
     pageShowOriginal: el('pageShowOriginal'),
@@ -137,7 +139,6 @@
       btn.setAttribute('aria-pressed', String(btn.dataset.mode === settings.displayMode));
     }
 
-    ui.pageEnabled.checked = false;
     ui.pageMode.value = (settings.page && settings.page.displayMode) || 'bilingual';
     ui.pageStyle.value = (settings.page && settings.page.style) || 'underline';
     ui.pageBall.checked = !settings.page || settings.page.showBall !== false;
@@ -194,15 +195,31 @@
     }
   }
 
+  /**
+   * The same wording the floating ball uses, so the two controls always read
+   * identically — a popup that says something different from the ball on the
+   * page is exactly the desync users notice.
+   */
+  function pageStatusText(p) {
+    if (p.status === 'error') return p.error ? `出错：${p.error}` : '翻译出错';
+    if (p.status === 'scanning') return '正在扫描页面…';
+    if (p.status === 'translating') return `翻译中 ${p.done || 0}/${p.total || 0}`;
+    if (p.active) return p.total ? `已翻译 ${p.done || 0}/${p.total || 0}` : '已开启';
+    return '未翻译';
+  }
+
   function renderPagePanel(state) {
     const p = state.page || {};
-    const meta = PAGE_STATUS[p.status] || PAGE_STATUS.idle;
-    if (activeTab === 'page') setStatus(meta.tone, meta.text);
+    const tone = p.status === 'error' ? 'err' : p.active ? 'ok' : 'idle';
+    if (activeTab === 'page') setStatus(tone, pageStatusText(p));
 
-    ui.pageHost.textContent = state.host || location.hostname;
+    ui.pageHost.textContent = state.host || '—';
+    ui.pageStateTitle.textContent = pageStatusText(p);
+    ui.pageStateCard.dataset.tone = p.status === 'error' ? 'err' : p.active ? 'on' : 'idle';
+    ui.pageToggle.textContent = p.active ? '停止' : '开始翻译';
+    ui.pageToggle.disabled = !state.supported && state.supported !== undefined ? !state.supported : false;
 
     syncing = true;
-    ui.pageEnabled.checked = !!p.active;
     ui.pageShowOriginal.checked = !!p.showOriginal;
     if (p.mode) ui.pageMode.value = p.mode;
     if (p.style) ui.pageStyle.value = p.style;
@@ -222,9 +239,11 @@
     if (p.error) {
       setNote(ui.pageNote, p.error, 'err');
     } else if (p.rule === 'skip') {
-      setNote(ui.pageNote, '已把本站设为「不翻译」。', 'info');
+      setNote(ui.pageNote, '已把本站设为「不翻译」。改回「手动翻译」即可恢复。', 'info');
     } else if (!NS.settings.providerReady(settings)) {
       setNote(ui.pageNote, '尚未配置翻译服务，请前往设置填写 API。', 'warn');
+    } else if (!p.active && p.showBall !== false) {
+      setNote(ui.pageNote, '提示：页面上的悬浮球也能直接开始翻译。', 'info');
     } else {
       setNote(ui.pageNote, '');
     }
@@ -256,7 +275,25 @@
 
   function startPolling() {
     clearInterval(pollTimer);
-    pollTimer = setInterval(queryState, 900);
+    // Push updates do the real work; this is only a safety net for the case where
+    // the page script restarts and misses a broadcast.
+    pollTimer = setInterval(queryState, 2500);
+  }
+
+  /**
+   * The content script broadcasts every meaningful state change, so the popup
+   * tracks the floating ball in real time instead of waiting for a poll tick.
+   */
+  function listenForPageState() {
+    try {
+      chrome.runtime.onMessage.addListener((msg) => {
+        if (!msg || msg.type !== 'lingua:page-state') return;
+        lastState = Object.assign({}, lastState || {}, { page: msg.page, host: msg.host });
+        renderPagePanel(lastState);
+      });
+    } catch (e) {
+      /* not available */
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -333,15 +370,17 @@
     });
 
     // ---- page ----
-    ui.pageEnabled.addEventListener('change', async () => {
+    // One button, exactly like clicking the floating ball.
+    ui.pageToggle.addEventListener('click', async () => {
       if (syncing) return;
-      const want = ui.pageEnabled.checked;
+      const wantStop = ui.pageToggle.textContent.trim() === '停止';
+      ui.pageToggle.disabled = true;
       const res = await send('lingua:page-toggle');
       if (!res.ok) {
-        ui.pageEnabled.checked = false;
         setNote(ui.pageNote, res.error || '无法启动网页翻译', 'err');
       }
-      setTimeout(queryState, want ? 300 : 120);
+      ui.pageToggle.disabled = false;
+      setTimeout(queryState, wantStop ? 120 : 250);
     });
 
     ui.pageMode.addEventListener('change', async () => {
@@ -399,6 +438,7 @@
 
     if (supported) {
       tabId = tab.id;
+      listenForPageState();
       // Default to the panel that is useful for this page.
       switchTab(/youtube(-nocookie)?\.com\/(watch|shorts|live|embed)/.test(url) ? 'video' : 'page');
       queryState();
@@ -407,7 +447,7 @@
       switchTab('page');
       setStatus('warn', '不支持');
       setNote(ui.pageNote, '当前页面不支持翻译（仅支持 http/https 网页）。', 'info');
-      ui.pageEnabled.disabled = true;
+      ui.pageToggle.disabled = true;
       ui.pageRetranslate.disabled = true;
       ui.retranslate.disabled = true;
     }

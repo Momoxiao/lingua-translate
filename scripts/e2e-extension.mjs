@@ -831,6 +831,40 @@ async function main() {
   check('ball survives stop (it is a permanent control)', (await evalPage(`!!document.getElementById('lingua-ball')`)) === true);
   check('page fully restored after using the ball', (await evalPage(`document.querySelectorAll('.lingua-pg-dst').length`)) === 0);
 
+  // --- the page pushes its state, so the popup never lags behind -----------
+  const patched = await evalIso(`(function(){
+    window.__linguaBroadcasts = [];
+    try {
+      var orig = chrome.runtime.sendMessage;
+      chrome.runtime.sendMessage = function (msg, cb) {
+        if (msg && msg.type === 'lingua:page-state') window.__linguaBroadcasts.push(msg.page.status);
+        if (typeof cb === 'function') cb({ ok: true });
+        return Promise.resolve();
+      };
+      window.__linguaOrigSend = orig;
+      return 'patched';
+    } catch (e) { return 'failed: ' + e.message; }
+  })()`);
+  check('page state broadcasts can be observed', patched === 'patched', String(patched));
+
+  await clickBall();
+  await sleep(1800);
+  const bcasts = JSON.parse(await evalIso('JSON.stringify(window.__linguaBroadcasts || [])'));
+  check('the page broadcasts its state for the popup', bcasts.length > 0, JSON.stringify(bcasts.slice(0, 8)));
+  check(
+    'the broadcast reports the pipeline becoming active',
+    bcasts.some((s) => s === 'scanning' || s === 'translating' || s === 'done'),
+    JSON.stringify(bcasts.slice(0, 8))
+  );
+  check(
+    'the broadcast carries a state the popup can render',
+    (await evalIso(`(function(){ var m = window.__linguaBroadcasts; return typeof m === 'object' && m.length > 0; })()`)) === true
+  );
+  await clickBall();
+  await sleep(800);
+  const afterStop = JSON.parse(await evalIso('JSON.stringify(window.__linguaBroadcasts || [])'));
+  check('stopping also broadcasts (so the popup flips back)', afterStop.length > bcasts.length, `${bcasts.length} -> ${afterStop.length}`);
+
   // --- screenshot (reload so auto-translate runs again from a clean state) ---
   await cdp.send('Runtime.evaluate', { expression: 'location.reload()', returnByValue: true }, pageSession).catch(() => {});
   await sleep(4500);

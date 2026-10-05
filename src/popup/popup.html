@@ -76,61 +76,13 @@
 
       <!-- ================= 网页翻译 ================= -->
       <section class="panel" data-panel="page" hidden>
-        <div class="pop__row">
-          <div>
-            <div class="pop__rowTitle">翻译此页面</div>
-            <div class="hint" id="pageHost">—</div>
+        <!-- state card: mirrors the floating ball exactly -->
+        <div class="stateCard" id="pageStateCard" data-tone="idle">
+          <div class="stateCard__text">
+            <div class="stateCard__title" id="pageStateTitle">未翻译</div>
+            <div class="stateCard__sub" id="pageHost">—</div>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="pageEnabled" />
-            <span class="switch__track"></span>
-          </label>
-        </div>
-
-        <div class="grid2">
-          <div class="field">
-            <label class="label" for="pageMode">显示方式</label>
-            <select id="pageMode">
-              <option value="bilingual">原文 + 译文</option>
-              <option value="replace">仅译文</option>
-            </select>
-          </div>
-          <div class="field">
-            <label class="label" for="pageStyle">译文样式</label>
-            <select id="pageStyle">
-              <option value="underline">左侧标记</option>
-              <option value="plain">纯文本</option>
-              <option value="highlight">底色高亮</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="pop__row pop__row--tight">
-          <div class="pop__rowTitle">显示原文</div>
-          <label class="switch">
-            <input type="checkbox" id="pageShowOriginal" />
-            <span class="switch__track"></span>
-          </label>
-        </div>
-
-        <div class="field">
-          <label class="label" for="siteRule">本站规则</label>
-          <select id="siteRule">
-            <option value="manual">手动翻译</option>
-            <option value="auto">自动翻译</option>
-            <option value="skip">不翻译</option>
-          </select>
-        </div>
-
-        <div class="pop__row pop__row--tight">
-          <div>
-            <div class="pop__rowTitle">页面悬浮球</div>
-            <div class="hint">可拖动，点一下即翻译</div>
-          </div>
-          <label class="switch">
-            <input type="checkbox" id="pageBall" />
-            <span class="switch__track"></span>
-          </label>
+          <button class="btn btn--primary" id="pageToggle" type="button">开始翻译</button>
         </div>
 
         <div class="pop__progress" id="pageProgressBox" hidden>
@@ -142,6 +94,59 @@
         </div>
 
         <div class="pop__note" id="pageNote" hidden></div>
+
+        <div class="pop__group">
+          <div class="pop__groupTitle">显示</div>
+          <div class="grid2">
+            <div class="field">
+              <label class="label" for="pageMode">显示方式</label>
+              <select id="pageMode">
+                <option value="bilingual">原文 + 译文</option>
+                <option value="replace">仅译文</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="label" for="pageStyle">译文样式</label>
+              <select id="pageStyle">
+                <option value="underline">左侧标记</option>
+                <option value="plain">纯文本</option>
+                <option value="highlight">底色高亮</option>
+              </select>
+            </div>
+          </div>
+          <div class="pop__row pop__row--tight">
+            <div>
+              <div class="pop__rowTitle">只显示原文</div>
+              <div class="hint">暂时收起译文，页面恢复原样</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="pageShowOriginal" />
+              <span class="switch__track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="pop__group">
+          <div class="pop__groupTitle">本站</div>
+          <div class="field">
+            <label class="label" for="siteRule">打开本页时</label>
+            <select id="siteRule">
+              <option value="manual">手动翻译</option>
+              <option value="auto">自动翻译</option>
+              <option value="skip">不翻译</option>
+            </select>
+          </div>
+          <div class="pop__row pop__row--tight">
+            <div>
+              <div class="pop__rowTitle">页面悬浮球</div>
+              <div class="hint">贴边隐藏，点一下即翻译</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="pageBall" />
+              <span class="switch__track"></span>
+            </label>
+          </div>
+        </div>
 
         <div class="pop__actions">
           <button class="btn btn--ghost" id="pageRetranslate" type="button">重新翻译</button>

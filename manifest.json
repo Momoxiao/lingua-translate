@@ -1,0 +1,90 @@
+{
+  "manifest_version": 3,
+  "name": "Lingua — YouTube 双语字幕翻译",
+  "version": "1.0.0",
+  "description": "高性能 YouTube 字幕翻译。接入自定义云端 API（OpenAI 兼容 / DeepL / Google / 微软 / 自定义模板），全片预翻译 + 缓存 + 并发，双语字幕实时同步。",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.youtube-nocookie.com/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "src/background/sw.js"
+  },
+  "action": {
+    "default_title": "Lingua 字幕翻译",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"],
+      "js": ["src/content/inject.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"],
+      "js": [
+        "src/shared/constants.js",
+        "src/shared/utils.js",
+        "src/shared/settings.js",
+        "src/shared/subtitles.js",
+        "src/content/store.js",
+        "src/content/overlay.js",
+        "src/content/bridge.js",
+        "src/content/youtube.js",
+        "src/content/live.js",
+        "src/content/page/units.js",
+        "src/content/page/render.js",
+        "src/content/page/indicator.js",
+        "src/content/page/index.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["<all_urls>"],
+      "exclude_matches": ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*"],
+      "js": [
+        "src/shared/constants.js",
+        "src/shared/utils.js",
+        "src/shared/settings.js",
+        "src/shared/subtitles.js",
+        "src/content/store.js",
+        "src/content/overlay.js",
+        "src/content/bridge.js",
+        "src/content/youtube.js",
+        "src/content/live.js",
+        "src/content/page/units.js",
+        "src/content/page/render.js",
+        "src/content/page/indicator.js",
+        "src/content/page/index.js",
+        "src/content/main.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ]
+}

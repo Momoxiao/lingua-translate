@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lingua</title>
+    <link rel="stylesheet" href="../ui/theme.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="pop">
+      <header class="pop__head">
+        <div class="brand">
+          <div class="brand__mark" aria-hidden="true"></div>
+          <div>
+            <div class="brand__name">Lingua</div>
+            <div class="brand__sub">翻译</div>
+          </div>
+        </div>
+        <span class="pill" id="statusPill" data-tone="idle">
+          <span class="pill__dot"></span>
+          <span id="statusText">读取中</span>
+        </span>
+      </header>
+
+      <div class="tabs" id="tabs" role="tablist">
+        <button type="button" data-tab="video" role="tab" aria-selected="true">视频字幕</button>
+        <button type="button" data-tab="page" role="tab" aria-selected="false">网页翻译</button>
+      </div>
+
+      <!-- ================= 视频字幕 ================= -->
+      <section class="panel" data-panel="video">
+        <div class="pop__row">
+          <div>
+            <div class="pop__rowTitle">启用字幕翻译</div>
+            <div class="hint" id="providerName">—</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="enabled" />
+            <span class="switch__track"></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="label" for="target">翻译为</label>
+          <select id="target"></select>
+        </div>
+
+        <div class="field">
+          <span class="label">显示方式</span>
+          <div class="segmented" id="displayMode" role="group" aria-label="字幕显示方式">
+            <button type="button" data-mode="bilingual" aria-pressed="false">双语</button>
+            <button type="button" data-mode="translated" aria-pressed="false">仅译文</button>
+            <button type="button" data-mode="original" aria-pressed="false">仅原文</button>
+          </div>
+        </div>
+
+        <div class="field" id="trackField" hidden>
+          <label class="label" for="track">字幕来源</label>
+          <select id="track"></select>
+        </div>
+
+        <div class="pop__progress" id="progressBox" hidden>
+          <div class="pop__progressTop">
+            <span class="pop__progressLabel" id="progressLabel">翻译中</span>
+            <span class="pop__progressNum" id="progressNum">0 / 0</span>
+          </div>
+          <div class="progress"><div class="progress__bar" id="progressBar"></div></div>
+        </div>
+
+        <div class="pop__note" id="note" hidden></div>
+
+        <div class="pop__actions">
+          <button class="btn btn--ghost" id="retranslate" type="button">重新翻译</button>
+        </div>
+      </section>
+
+      <!-- ================= 网页翻译 ================= -->
+      <section class="panel" data-panel="page" hidden>
+        <div class="pop__row">
+          <div>
+            <div class="pop__rowTitle">翻译此页面</div>
+            <div class="hint" id="pageHost">—</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="pageEnabled" />
+            <span class="switch__track"></span>
+          </label>
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label class="label" for="pageMode">显示方式</label>
+            <select id="pageMode">
+              <option value="bilingual">原文 + 译文</option>
+              <option value="replace">仅译文</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="pageStyle">译文样式</label>
+            <select id="pageStyle">
+              <option value="underline">左侧标记</option>
+              <option value="plain">纯文本</option>
+              <option value="highlight">底色高亮</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pop__row pop__row--tight">
+          <div class="pop__rowTitle">显示原文</div>
+          <label class="switch">
+            <input type="checkbox" id="pageShowOriginal" />
+            <span class="switch__track"></span>
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="label" for="siteRule">本站规则</label>
+          <select id="siteRule">
+            <option value="manual">手动翻译</option>
+            <option value="auto">自动翻译</option>
+            <option value="skip">不翻译</option>
+          </select>
+        </div>
+
+        <div class="pop__progress" id="pageProgressBox" hidden>
+          <div class="pop__progressTop">
+            <span class="pop__progressLabel" id="pageProgressLabel">翻译中</span>
+            <span class="pop__progressNum" id="pageProgressNum">0 / 0</span>
+          </div>
+          <div class="progress"><div class="progress__bar" id="pageProgressBar"></div></div>
+        </div>
+
+        <div class="pop__note" id="pageNote" hidden></div>
+
+        <div class="pop__actions">
+          <button class="btn btn--ghost" id="pageRetranslate" type="button">重新翻译</button>
+        </div>
+      </section>
+
+      <hr class="rule" />
+
+      <footer class="pop__foot">
+        <span class="pop__footHint" id="footHint"></span>
+        <button class="btn btn--ghost" id="openOptions" type="button">设置</button>
+      </footer>
+    </div>
+
+    <script src="../shared/constants.js"></script>
+    <script src="../shared/utils.js"></script>
+    <script src="../shared/settings.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

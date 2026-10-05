@@ -1,0 +1,15 @@
+{
+  "name": "lingua-yt-subtitles",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "高性能 YouTube 双语字幕翻译浏览器扩展，可接入自定义云端 API",
+  "scripts": {
+    "test": "node scripts/test-core.mjs",
+    "test:dom": "node scripts/test-dom.mjs",
+    "test:e2e": "node scripts/e2e-extension.mjs",
+    "inspect": "node scripts/inspect-live.mjs",
+    "preview": "node scripts/preview.mjs",
+    "icons": "python3 scripts/make-icons.py"
+  }
+}

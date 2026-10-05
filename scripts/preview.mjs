@@ -135,6 +135,10 @@ const PAGES = [
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },
   { build: buildBallDemo, state: 'translating', width: 760, height: 420, name: 'ball' },
+  // dark-mode variants: headless Chrome defaults to light, so these force the
+  // dark palette to prove the theme actually switches
+  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options-dark', dark: true },
+  { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 560, name: 'popup-page-dark', dark: true },
 ];
 
 /**
@@ -287,6 +291,19 @@ function buildPageDemo({ mode, style }) {
 
 let bad = 0;
 
+/**
+ * Headless Chrome always reports `prefers-color-scheme: light`, so a dark
+ * preview has to force the dark palette. Extract it from theme.css rather than
+ * duplicating the values here — otherwise the preview silently drifts from the
+ * real theme.
+ */
+function darkOverride() {
+  const css = fs.readFileSync(path.join(ROOT, 'src/ui/theme.css'), 'utf8');
+  const m = css.match(/@media \(prefers-color-scheme: dark\)\s*\{([\s\S]*?)\n\}/);
+  if (!m) throw new Error('could not extract the dark theme block from theme.css');
+  return `<style id="__force-dark">\n${m[1]}\n</style>`;
+}
+
 for (const page of PAGES) {
   if (ONLY && page.name !== ONLY) continue;
   let srcPath;
@@ -294,13 +311,16 @@ for (const page of PAGES) {
 
   if (page.build) {
     tmpPath = path.join(ROOT, '__preview-' + page.name + '.html');
-    fs.writeFileSync(tmpPath, page.build(page));
+    let html = page.build(page);
+    if (page.dark) html = html.replace(/<\/head>/i, `${darkOverride()}</head>`);
+    fs.writeFileSync(tmpPath, html);
   } else {
     srcPath = path.join(ROOT, page.html);
     const dir = path.dirname(srcPath);
     tmpPath = path.join(dir, '__preview.html');
     let html = fs.readFileSync(srcPath, 'utf8');
     html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n${STUB(page.tabUrl || 'https://example.com/')}`);
+    if (page.dark) html = html.replace(/<\/head>/i, `${darkOverride()}</head>`);
     fs.writeFileSync(tmpPath, html);
   }
 

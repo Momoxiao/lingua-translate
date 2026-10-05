@@ -6,6 +6,12 @@
    ========================================================================== */
 
 :root {
+  /* Declare which scheme these variables are in. Without it the browser keeps
+     rendering native widgets (button text, select popups, scrollbars, range
+     tracks, checkboxes) with the LIGHT default — in dark mode that means black
+     button text on a dark card, i.e. an unreadable provider list. */
+  color-scheme: light;
+
   --paper: #fbf8f4;
   --paper-2: #f5f0e8;
   --surface: #ffffff;
@@ -42,6 +48,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
+
     --paper: #16130f;
     --paper-2: #1c1814;
     --surface: #211d18;
@@ -66,6 +74,32 @@
 
 * {
   box-sizing: border-box;
+}
+
+/*
+ * Form controls do NOT inherit colour by default — a bare <button> falls back to
+ * the UA's black text, which is invisible on our dark surfaces. Inherit instead,
+ * and let the accent colour drive the native bits.
+ */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="range"],
+input[type="checkbox"],
+input[type="radio"],
+progress {
+  accent-color: var(--accent);
+}
+
+/* Native range tracks ignore most styling; give the thumb a usable hit area. */
+input[type="range"] {
+  height: 20px;
+  cursor: pointer;
 }
 
 html,

@@ -201,6 +201,13 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  color: var(--ink); /* explicit: a bare <button> would otherwise use UA black */
+}
+.providerCard__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
 }
 .providerCard__short {
   font-size: 11.5px;

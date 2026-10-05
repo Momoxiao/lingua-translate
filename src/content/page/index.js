@@ -88,7 +88,7 @@
     return {
       mode: state.mode,
       style: state.style,
-      keepLinks: !(settings && settings.page && settings.page.replacePreservesLinks === false),
+      linkMode: (settings && settings.page && settings.page.replaceLinkMode) || 'translate',
     };
   }
 
@@ -404,6 +404,8 @@
   /** React to settings changes without re-scanning. */
   function update(s) {
     if (!s) return;
+    const prevMode = state.mode;
+    const prevLinkMode = renderOpts().linkMode;
     settings = s;
     state.mode = (s.page && s.page.displayMode) || 'bilingual';
     state.style = (s.page && s.page.style) || 'underline';
@@ -411,7 +413,16 @@
       if (state.active) stop();
       return;
     }
-    if (state.active) page.render.restyle(renderOpts());
+    if (!state.active) return;
+
+    if (state.mode !== prevMode || renderOpts().linkMode !== prevLinkMode) {
+      // Switching between bilingual and "translated only" changes the DOM shape
+      // (source wrapper, link placeholders), so rebuild from the cache rather
+      // than trying to patch the existing nodes in place.
+      retranslate();
+      return;
+    }
+    page.render.restyle(renderOpts());
   }
 
   function toggleOriginal() {

@@ -159,7 +159,7 @@
       skipSites: [], // hostnames the extension never touches
       skipSelectors: '', // extra CSS selectors to ignore, comma separated
       translateInputs: false, // also translate placeholder/alt/title attributes
-      replacePreservesLinks: true, // in "translated only" mode keep blocks that contain links
+      replaceLinkMode: 'translate', // translate | keep | strict — how "translated only" treats blocks with links
     },
     providers: {
       openai: {

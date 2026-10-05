@@ -30,6 +30,16 @@
   const TEXTWRAP_CLASS = 'lingua-pg-textwrap';
   const ROOT_FLAG = 'lingua-pg-show-src';
   const LINK_MARK = 'linguaLink';
+  const LINK_OK = 'linguaLinkKept';
+
+  const MARK_RE = /⟦(\d+)⟧([\s\S]*?)⟦\/\1⟧/g;
+  /**
+   * Tolerant cleanup for placeholder residue. Models occasionally emit a mangled
+   * marker (observed in the wild: `⟦1⟧X⟦/1⟧` came back as `X⟧/1⟧`, losing the
+   * opening bracket). A strict pattern would leave that on screen, so match any
+   * bracket run that still looks like a marker.
+   */
+  const MARK_ANY_RE = /⟦\s*\/?\s*\d*\s*⟧?|⟧\s*\/?\s*\d*\s*⟧?|\/\s*\d+\s*⟧/g;
 
   const CSS = `
 .lingua-pg-dst{
@@ -139,6 +149,61 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     return parent;
   }
 
+  /** Remove any leftover placeholders (used for bilingual display and safety). */
+  function stripMarks(text) {
+    return String(text || '').replace(MARK_ANY_RE, '');
+  }
+
+  /**
+   * Split a translated block back into text runs and link runs using the
+   * placeholders the scanner inserted. Returns null when the model dropped,
+   * duplicated or renumbered a marker — the caller then keeps the original
+   * visible instead of silently losing the links.
+   *
+   * @returns {Array<{type:'text'|'link', value:string, index?:number}>|null}
+   */
+  function parseMarked(text, expected) {
+    const src = String(text || '');
+    if (!expected) return null;
+    const parts = [];
+    const seen = new Set();
+    let last = 0;
+    let m;
+    MARK_RE.lastIndex = 0;
+    while ((m = MARK_RE.exec(src))) {
+      const idx = Number(m[1]);
+      if (!(idx >= 1 && idx <= expected) || seen.has(idx)) return null;
+      seen.add(idx);
+      if (m.index > last) parts.push({ type: 'text', value: src.slice(last, m.index) });
+      parts.push({ type: 'link', index: idx, value: m[2] });
+      last = m.index + m[0].length;
+    }
+    if (last < src.length) parts.push({ type: 'text', value: src.slice(last) });
+    if (seen.size !== expected) return null;
+    return parts;
+  }
+
+  /** Rebuild the translated block, cloning the real links so they stay clickable. */
+  function buildMarked(parts, marks) {
+    const frag = document.createDocumentFragment();
+    for (const p of parts) {
+      if (p.type === 'text') {
+        const value = stripMarks(p.value);
+        if (value.trim()) frag.appendChild(document.createTextNode(value));
+        continue;
+      }
+      const src = marks[p.index - 1];
+      if (!src) continue;
+      // Shallow clone: keeps href/class/target so the link looks and works right.
+      const clone = src.cloneNode(false);
+      clone.setAttribute('translate', 'no');
+      clone.setAttribute('data-lingua-node', '1');
+      clone.textContent = stripMarks(p.value);
+      frag.appendChild(clone);
+    }
+    return frag;
+  }
+
   /**
    * @param {object} unit   from units.collect()
    * @param {string} text   translated text
@@ -161,10 +226,22 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     }
 
     const el = unit.el;
-    // Replace mode hides the original — which would take any hyperlink with it.
-    // A unit that contains a real link therefore always keeps its source,
-    // unless the user explicitly opted out.
-    const replacing = mode === 'replace' && !(unit.hasLink && opts.keepLinks !== false);
+    const linkMode = (opts && opts.linkMode) || 'translate';
+
+    // Decide whether the source can be hidden.
+    let replacing = mode === 'replace';
+    let parts = null;
+    if (replacing && unit.hasLink) {
+      if (linkMode === 'keep') {
+        replacing = false; // keep the original so its links stay usable
+      } else if (linkMode === 'translate') {
+        // Rebuild the translation with its own links; if the model broke the
+        // placeholders we cannot, so fall back to keeping the original.
+        parts = unit.marks && unit.marks.length ? parseMarked(text, unit.marks.length) : null;
+        if (!parts) replacing = false;
+      }
+      // linkMode === 'strict': replace and accept that the links are lost
+    }
 
     const host = unit.wrap ? ensureTextWrap(el) : el;
     if (!host) return;
@@ -177,10 +254,20 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     if (!unit.wrap && replacing) ensureSrc(el, dst);
 
     el.classList.toggle('lingua-pg-replace', replacing);
-    if (unit.hasLink && el.dataset) el.dataset[LINK_MARK] = '1';
+    if (unit.hasLink && el.dataset) {
+      el.dataset[LINK_MARK] = '1';
+      if (parts) el.dataset[LINK_OK] = '1';
+      else delete el.dataset[LINK_OK];
+    }
 
     dst.className = DST_CLASS + (unit.inline ? ' lingua-pg-inline' : '') + styleClass(style);
-    if (dst.textContent !== text) dst.textContent = text;
+    if (parts) {
+      dst.textContent = '';
+      dst.appendChild(buildMarked(parts, unit.marks));
+    } else {
+      const plain = stripMarks(text);
+      if (dst.textContent !== plain) dst.textContent = plain;
+    }
     if (el.dataset) el.dataset.lingua = 'done';
   }
 
@@ -204,16 +291,19 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
   function restyle(opts) {
     const mode = (opts && opts.mode) || 'bilingual';
     const style = (opts && opts.style) || 'underline';
-    const keepLinks = !opts || opts.keepLinks !== false;
+    const linkMode = (opts && opts.linkMode) || 'translate';
 
     for (const node of document.querySelectorAll('.' + DST_CLASS)) {
       const inline = node.classList.contains('lingua-pg-inline');
       node.className = DST_CLASS + (inline ? ' lingua-pg-inline' : '') + styleClass(style);
       const el = unitElementOf(node);
       if (!el) continue;
-      // Units holding a link deliberately stay bilingual — never hide them.
+      // A linked unit may only be hidden when the translation itself carries the
+      // links (or the user asked for strict replacement).
       const linked = el.dataset && el.dataset[LINK_MARK] === '1';
-      el.classList.toggle('lingua-pg-replace', mode === 'replace' && !(linked && keepLinks));
+      const keptLinks = el.dataset && el.dataset[LINK_OK] === '1';
+      const canHide = !linked || linkMode === 'strict' || (linkMode === 'translate' && keptLinks);
+      el.classList.toggle('lingua-pg-replace', mode === 'replace' && canHide);
     }
 
     if (mode === 'replace') {
@@ -253,6 +343,8 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
 
     for (const el of document.querySelectorAll('[data-lingua]')) {
       delete el.dataset.lingua;
+      delete el.dataset[LINK_MARK];
+      delete el.dataset[LINK_OK];
       el.classList.remove('lingua-pg-replace');
     }
 

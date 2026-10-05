@@ -36,6 +36,7 @@
         '5. Translate UI labels, buttons, menus and navigation items concisely — match the tone of the surrounding product.',
         '6. Keep the register of the original: marketing copy stays persuasive, docs stay neutral and precise.',
         '7. If a block is untranslatable (a code snippet, a symbol, a bare number), output it unchanged.',
+        '8. Link markers look like ⟦1⟧link text⟦/1⟧. Keep every marker pair EXACTLY as it is: never translate, rename, renumber, reorder, drop or duplicate them, and keep each ⟦n⟧ matched with its ⟦/n⟧. Translate only the text between them, and keep the markers where that link belongs in the translated sentence.',
       ].join('\n');
     }
 

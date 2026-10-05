@@ -267,6 +267,9 @@ check('page prompt says web page translator', /web page translator/i.test(pagePr
 check('page prompt differs from subtitle prompt', subPrompt !== pagePrompt);
 check('page prompt keeps the numbering contract', /SAME index/.test(pagePrompt));
 check('prompt names the target language', /Simplified Chinese/.test(pagePrompt));
+check('page prompt documents the link placeholders', /⟦1⟧/.test(pagePrompt) && /⟦\/1⟧/.test(pagePrompt));
+check('page prompt tells the model to keep the markers intact', /never translate, rename, renumber/.test(pagePrompt));
+check('subtitle prompt does NOT mention link placeholders', !/⟦/.test(subPrompt));
 
 // openai provider must send the page prompt when kind === 'page'
 let lastSystem = '';

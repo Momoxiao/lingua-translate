@@ -284,6 +284,7 @@ const FIXTURE = `<!doctype html>
   <p id="para">This paragraph mixes <b>inline markup</b>, a <a href="#">link</a> and plain text.</p>
   <p id="linkp">Read the <a href="https://example.com/docs" id="doclink">documentation</a> for details.</p>
   <p id="plainp">No links in this paragraph at all.</p>
+  <p id="brokenmark">A <a href="https://example.com/mangled">mangled link</a> the model will corrupt.</p>
   <div class="cards" id="cards">
     <div class="card"><b id="c1t">Flex &amp; grid</b><span id="c1s">Containers are never rewritten.</span></div>
     <div class="card"><b id="c2t">Nested blocks</b><span id="c2s">Each leaf block is its own unit.</span></div>
@@ -346,7 +347,15 @@ function startServer(port) {
         });
         const out = lines.map((l) => {
           const m = l.match(/^(\d+)\.\s*([\s\S]*)$/);
-          return m ? `${m[1]}. 【译】${m[2].trim()}` : `【译】${l}`;
+          const idx = m ? m[1] : '';
+          const body = (m ? m[2] : l).trim();
+          // Transform the content INSIDE each link placeholder too, so the test
+          // can prove the marker content was routed into the link element.
+          let marked = body.replace(/⟦(\d+)⟧([\s\S]*?)⟦\/\1⟧/g, (all, n, inner) => `⟦${n}⟧译:${inner.trim()}⟦/${n}⟧`);
+          // Simulate a model that corrupts a placeholder (seen in the wild: the
+          // opening bracket gets dropped), to prove we never leak residue.
+          if (/mangle/i.test(body)) marked = marked.replace(/⟦(\d+)⟧/g, '⟧$1⟧');
+          return `${idx}. 【译】${marked}`;
         });
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(
@@ -557,6 +566,13 @@ async function main() {
   const paraDst = await evalPage(`(document.querySelector('#para .lingua-pg-dst')||{}).textContent || ''`);
   check('inline-markup paragraph is one unit', paraDst.includes('inline markup') && paraDst.includes('link'), paraDst);
 
+  // bilingual display must never leak the raw link placeholders
+  check(
+    'bilingual rendering strips the link placeholders',
+    (await evalPage(`!/[⟦⟧]/.test(document.querySelector('#linkp .lingua-pg-dst').textContent)`)) === true,
+    await evalPage(`document.querySelector('#linkp .lingua-pg-dst').textContent`)
+  );
+
   check('code block left untouched', (await evalPage(`document.getElementById('code').querySelectorAll('.lingua-pg-dst').length`)) === 0);
   check('footer text translated', (await evalPage(`(document.querySelector('#footer .lingua-pg-dst')||{}).textContent||''`)).includes('【译】'));
 
@@ -617,22 +633,56 @@ async function main() {
   }
   check(
     'replace mode hides the source on a plain paragraph',
-    (await evalPage(`document.getElementById('plainp') && document.getElementById('plainp').classList.contains('lingua-pg-replace')`)) === true,
+    (await evalPage(`document.getElementById('plainp').classList.contains('lingua-pg-replace')`)) === true,
     await evalPage(`(document.getElementById('plainp')||{}).className`)
   );
   check(
-    'replace mode keeps a link-bearing paragraph visible',
-    (await evalPage(`document.getElementById('linkp').classList.contains('lingua-pg-replace')`)) === false,
+    'replace mode also hides a link paragraph when the translation carries the links',
+    (await evalPage(`document.getElementById('linkp').classList.contains('lingua-pg-replace')`)) === true,
     await evalPage(`document.getElementById('linkp').className`)
   );
-  check(
-    'the hyperlink is still rendered and clickable',
-    (await evalPage(`(function(){var a=document.getElementById('doclink');var r=a.getBoundingClientRect();return r.width>0&&r.height>0&&!!a.getAttribute('href');})()`)) === true
+  const linkInfo = JSON.parse(
+    await evalPage(`(function(){
+      var dst = document.querySelector('#linkp .lingua-pg-dst');
+      var a = dst && dst.querySelector('a[href]');
+      var src = document.querySelector('#linkp > .lingua-pg-src');
+      var orig = src && src.querySelector('a[href]');
+      return JSON.stringify({
+        dstText: dst ? dst.textContent : null,
+        hasLink: !!a,
+        href: a ? a.getAttribute('href') : null,
+        linkText: a ? a.textContent : null,
+        linkVisible: a ? (function(){var r=a.getBoundingClientRect();return r.width>0&&r.height>0;})() : false,
+        originalPreserved: !!orig,
+        strayMarkers: dst ? /[⟦⟧]/.test(dst.textContent) : false
+      });
+    })()`)
   );
-  check(
-    'link-bearing paragraph still got a translation',
-    (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1
+  check('the translation contains a real link', linkInfo.hasLink === true, JSON.stringify(linkInfo));
+  check('the translated link keeps the original href', linkInfo.href === 'https://example.com/docs', String(linkInfo.href));
+  check('the link text was translated too', linkInfo.linkText && linkInfo.linkText !== 'documentation', String(linkInfo.linkText));
+  check('the translated link is visible/clickable', linkInfo.linkVisible === true);
+  check('no stray placeholders leaked into the DOM', linkInfo.strayMarkers === false, String(linkInfo.dstText));
+  check('the original link is still recoverable (non-destructive)', linkInfo.originalPreserved === true);
+  check('link-bearing paragraph still got a translation', (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1);
+
+  // --- a corrupted placeholder must degrade gracefully, never leak residue ---
+  const broken = JSON.parse(
+    await evalPage(`(function(){
+      var el = document.getElementById('brokenmark');
+      var dst = el.querySelector('.lingua-pg-dst');
+      return JSON.stringify({
+        keptSource: !el.classList.contains('lingua-pg-replace'),
+        dstText: dst ? dst.textContent : null,
+        residue: /[\\u27e6\\u27e7]/.test(el.textContent),
+        linkVisible: (function(){var a=el.querySelector('a[href]');if(!a)return false;var r=a.getBoundingClientRect();return r.width>0&&r.height>0;})()
+      });
+    })()`)
   );
+  check('a corrupted placeholder falls back to keeping the source', broken.keptSource === true, JSON.stringify(broken));
+  check('no placeholder residue leaks into the page', broken.residue === false, String(broken.dstText));
+  check('the link stays usable after the fallback', broken.linkVisible === true);
+
   check('still no runtime errors after the replace pass', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | '));
 
   // --- screenshot (reload so auto-translate runs again from a clean state) ---

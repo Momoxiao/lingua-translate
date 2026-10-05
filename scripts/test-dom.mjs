@@ -78,6 +78,7 @@ const FIXTURE = `<!doctype html>
   <button type="button" class="flex" id="ghbtn" aria-expanded="false" aria-controls="_R_nd_">Platform<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-triangle-right" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="m6.427 4.427 3.396 3.396a.25.25 0 0 1 0 .354l-3.396 3.396A.25.25 0 0 1 6 11.396V4.604a.25.25 0 0 1 .427-.177Z"></path></svg></button>
   <div class="flex" id="flexdiv">Direct text in a flex box<span id="flexspan">child span</span></div>
   <p id="linkp">Read the <a href="https://example.com">documentation</a> for details</p>
+  <p id="twolinks">See <a href="https://en.wikipedia.org">Wikipedia</a> and <a href="https://developer.mozilla.org">MDN</a> for background.</p>
   <p id="plainp">No links in this paragraph at all</p>
   <div id="cls1" class="lingua-pg-dst">our own node</div>
   <script>window.__noise = 1;</script>
@@ -94,7 +95,7 @@ function buildPage(unitsSource) {
   const units = YTST.page.units.collect(document.body, { skipSelectors: '' });
   const attrs = YTST.page.units.collectAttributes(document.body, { skipSelectors: '' });
   const payload = {
-    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display, wrap: !!u.wrap, hasLink: !!u.hasLink }; }),
+    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display, wrap: !!u.wrap, hasLink: !!u.hasLink, marks: u.marks ? u.marks.length : 0 }; }),
     attrs: attrs.map(function (u) { return { id: u.el.id || u.el.tagName, attr: u.attr, text: u.text }; })
   };
   document.getElementById('out').textContent =
@@ -239,6 +240,15 @@ function check(name, cond, detail) {
   check('unit containing a link is flagged', byId.has('linkp') && byId.get('linkp').hasLink === true, JSON.stringify(byId.get('linkp')));
   check('unit without a link is not flagged', byId.has('plainp') && byId.get('plainp').hasLink === false);
   check('link unit still captures the whole run', byId.has('linkp') && byId.get('linkp').text.indexOf('documentation') !== -1);
+  check('link text is wrapped in placeholders', byId.has('linkp') && byId.get('linkp').text.indexOf('⟦1⟧documentation⟦/1⟧') !== -1, JSON.stringify(byId.get('linkp')));
+  check('the link element is recorded as a mark', byId.has('linkp') && byId.get('linkp').marks === 1);
+  check('non-link units carry no marks', byId.has('plainp') && byId.get('plainp').marks === 0);
+  check(
+    'multiple links are numbered in document order',
+    byId.has('twolinks') && byId.get('twolinks').text === 'See ⟦1⟧Wikipedia⟦/1⟧ and ⟦2⟧MDN⟦/2⟧ for background.',
+    JSON.stringify(byId.get('twolinks'))
+  );
+  check('both links recorded', byId.has('twolinks') && byId.get('twolinks').marks === 2);
   check('display:none block skipped', !byId.has('hidden1'));
   check('inline-block element is a unit', byId.has('ib1'));
   check(

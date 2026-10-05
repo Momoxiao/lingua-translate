@@ -139,11 +139,18 @@
             <span>同时翻译表单占位符、title、alt 等提示文字</span>
           </label>
 
-          <label class="switch field">
-            <input type="checkbox" id="pageKeepLinks" />
-            <span class="switch__track"></span>
-            <span>「仅译文」模式下保留含链接的段落原文（避免链接失效）</span>
-          </label>
+          <div class="field">
+            <label class="label" for="pageLinkMode">「仅译文」模式如何处理含链接的段落</label>
+            <select id="pageLinkMode">
+              <option value="translate">译文里保留链接（推荐）</option>
+              <option value="keep">保留原文 + 译文（链接用原链接）</option>
+              <option value="strict">严格替换（链接会丢失）</option>
+            </select>
+            <div class="hint">
+              「译文里保留链接」会把链接包成占位符一起送去翻译，回来再重建，因此译文里的链接也能点。
+              若模型弄坏了占位符，会自动退回「保留原文 + 译文」。
+            </div>
+          </div>
 
           <div class="field">
             <label class="label" for="pageSkipSelectors">忽略选择器（逗号分隔）</label>

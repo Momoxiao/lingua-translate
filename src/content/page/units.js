@@ -292,6 +292,39 @@
   }
 
   /**
+   * Walk up from a link to the outermost inline wrapper that exists only to hold
+   * it. Wikipedia's citation marker is the canonical case:
+   *
+   *   <sup class="reference"><a href="#cite_note-1">[1]</a></sup>
+   *
+   * Moving just the <a> leaves the <sup> behind in the (hidden) source, so the
+   * whole citation marker — including the hover/preview behaviour bound to the
+   * <sup> — disappears. Moving the <sup> keeps the marker intact.
+   */
+  function atomicInline(node) {
+    let el = node;
+    for (let depth = 0; depth < 3; depth++) {
+      const parent = el.parentElement;
+      if (!parent) break;
+      if (BLOCK_TAGS.has(parent.tagName) || STRUCTURAL.has(parent.tagName) || SKIP_TAGS.has(parent.tagName)) break;
+      // Only ascend when the parent wraps this child and nothing else.
+      let meaningful = 0;
+      const kids = parent.childNodes;
+      for (let i = 0; i < kids.length && meaningful < 2; i++) {
+        const c = kids[i];
+        if (c.nodeType === 3) {
+          if (c.nodeValue && c.nodeValue.trim()) meaningful++;
+        } else if (c.nodeType === 1) {
+          meaningful++;
+        }
+      }
+      if (meaningful !== 1) break;
+      el = parent;
+    }
+    return el;
+  }
+
+  /**
    * Build the text of a link-bearing unit with inline placeholders around each
    * link, e.g. `Read the ⟦1⟧documentation⟦/1⟧ for details.`
    *
@@ -316,14 +349,15 @@
         const tag = n.tagName;
         if (classNameOf(n).indexOf('lingua-') !== -1) continue;
         if (tag === 'A' && n.getAttribute('href')) {
-          const inner = (n.textContent || '').replace(/\s+/g, ' ').trim();
+          const unit = atomicInline(n);
+          const inner = (unit.textContent || '').replace(/\s+/g, ' ').trim();
           if (!inner) continue;
           const idx = marks.length + 1;
           if (idx > MAX_MARKS) {
             out += inner + ' '; // too many links — keep the text, drop the marker
             continue;
           }
-          marks.push(n);
+          marks.push(unit);
           out += `${MARK_OPEN}${idx}${MARK_CLOSE}${inner}${MARK_OPEN}/${idx}${MARK_CLOSE}`;
           continue;
         }

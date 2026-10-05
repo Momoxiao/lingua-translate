@@ -88,6 +88,7 @@
     return {
       mode: state.mode,
       style: state.style,
+      showOriginal: state.showOriginal,
       linkMode: (settings && settings.page && settings.page.replaceLinkMode) || 'translate',
     };
   }
@@ -428,6 +429,9 @@
   function toggleOriginal() {
     state.showOriginal = !state.showOriginal;
     page.render.setShowOriginal(state.showOriginal);
+    // Real links live inside the translation while it is the only visible copy,
+    // so the DOM has to be rebuilt to hand them to whichever copy is on screen.
+    if (state.active && state.mode === 'replace') retranslate();
     return state.showOriginal;
   }
 

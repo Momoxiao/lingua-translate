@@ -253,6 +253,21 @@ function readActivePortFile() {
 
 /** Connect to a running Chrome DevTools endpoint and return { cdp, ws, wsUrl }. */
 export async function connect(port = 9222, host = '127.0.0.1') {
+  let lastErr = null;
+  // Chrome occasionally drops the first upgrade attempt (observed as a handshake
+  // timeout), so retry a few times before giving up.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await connectOnce(port, host);
+    } catch (err) {
+      lastErr = err;
+      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+    }
+  }
+  throw lastErr || new Error('could not connect to Chrome');
+}
+
+async function connectOnce(port, host) {
   let wsUrl = null;
 
   // Preferred: the HTTP discovery endpoint (present when Chrome was started with

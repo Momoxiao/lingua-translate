@@ -31,6 +31,10 @@
   const ROOT_FLAG = 'lingua-pg-show-src';
   const LINK_MARK = 'linguaLink';
   const LINK_OK = 'linguaLinkKept';
+  const MOVED_ATTR = 'data-lingua-moved';
+
+  /** Links we relocated into a translation, so they can be put back exactly. */
+  const movedLinks = new WeakMap();
 
   const MARK_RE = /⟦(\d+)⟧([\s\S]*?)⟦\/\1⟧/g;
   /**
@@ -183,7 +187,7 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     return parts;
   }
 
-  /** Rebuild the translated block, cloning the real links so they stay clickable. */
+  /** Rebuild the translated block, reusing the REAL links so they stay live. */
   function buildMarked(parts, marks) {
     const frag = document.createDocumentFragment();
     for (const p of parts) {
@@ -193,15 +197,85 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
         continue;
       }
       const src = marks[p.index - 1];
-      if (!src) continue;
-      // Shallow clone: keeps href/class/target so the link looks and works right.
-      const clone = src.cloneNode(false);
-      clone.setAttribute('translate', 'no');
-      clone.setAttribute('data-lingua-node', '1');
-      clone.textContent = stripMarks(p.value);
-      frag.appendChild(clone);
+      if (src) frag.appendChild(takeLink(src, stripMarks(p.value)));
     }
     return frag;
+  }
+
+  /**
+   * Move a real link into the translation instead of cloning it.
+   *
+   * `cloneNode()` copies attributes but NOT event listeners, which silently kills
+   * everything attached to the element: Wikipedia's hover previews, SPA routers,
+   * analytics handlers. Moving the original keeps all of it working. The original
+   * position and text are recorded so `restoreMovedLinks()` can undo it exactly.
+   */
+  function takeLink(src, value) {
+    if (!movedLinks.has(src)) {
+      const nodes = collectTextNodes(src);
+      movedLinks.set(src, {
+        parent: src.parentElement,
+        next: src.nextSibling,
+        texts: nodes.map((n) => n.nodeValue),
+        addedTextNode: nodes.length === 0,
+      });
+    }
+    setLinkText(src, value);
+    src.setAttribute(MOVED_ATTR, '1');
+    return src;
+  }
+
+  function collectTextNodes(root) {
+    const out = [];
+    (function walk(node) {
+      const kids = node.childNodes;
+      for (let i = 0; i < kids.length; i++) {
+        if (kids[i].nodeType === 3) out.push(kids[i]);
+        else if (kids[i].nodeType === 1) walk(kids[i]);
+      }
+    })(root);
+    return out;
+  }
+
+  /**
+   * Replace an element's visible text without touching nested markup.
+   *
+   * When the text is unchanged (citation markers like `[7]`, numbers, code) this
+   * does nothing at all — the internal structure and every listener stay exactly
+   * as the page built them.
+   */
+  function setLinkText(a, value) {
+    if ((a.textContent || '') === value) return;
+    const nodes = collectTextNodes(a);
+    if (!nodes.length) {
+      a.appendChild(document.createTextNode(value));
+      return;
+    }
+    nodes[0].nodeValue = value;
+    for (let i = 1; i < nodes.length; i++) nodes[i].nodeValue = '';
+  }
+
+  /** Put every moved link back where it came from, with its original text. */
+  function restoreMovedLinks(root) {
+    const links = (root || document).querySelectorAll(`[${MOVED_ATTR}]`);
+    for (const a of links) {
+      a.removeAttribute(MOVED_ATTR);
+      const rec = movedLinks.get(a);
+      if (!rec) continue;
+      movedLinks.delete(a);
+
+      const nodes = collectTextNodes(a);
+      if (rec.addedTextNode) {
+        if (nodes.length) nodes[0].remove();
+      } else {
+        for (let i = 0; i < nodes.length && i < rec.texts.length; i++) nodes[i].nodeValue = rec.texts[i];
+      }
+
+      if (rec.parent && rec.parent.isConnected) {
+        if (rec.next && rec.next.parentElement === rec.parent) rec.parent.insertBefore(a, rec.next);
+        else rec.parent.appendChild(a);
+      }
+    }
   }
 
   /**
@@ -227,9 +301,11 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
 
     const el = unit.el;
     const linkMode = (opts && opts.linkMode) || 'translate';
+    const showOriginal = !!(opts && opts.showOriginal);
 
-    // Decide whether the source can be hidden.
-    let replacing = mode === 'replace';
+    // Decide whether the source can be hidden. "Show original" always means both
+    // copies are on screen, which is exactly bilingual rendering.
+    let replacing = mode === 'replace' && !showOriginal;
     let parts = null;
     if (replacing && unit.hasLink) {
       if (linkMode === 'keep') {
@@ -247,7 +323,11 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     if (!host) return;
 
     let dst = directDst(host);
-    if (!dst) {
+    if (dst) {
+      // A previous render may have relocated real links into this translation.
+      // Put them back before rebuilding, otherwise they would be stranded.
+      restoreMovedLinks(dst);
+    } else {
       dst = createDst(unit);
       host.appendChild(dst);
     }
@@ -292,6 +372,7 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     const mode = (opts && opts.mode) || 'bilingual';
     const style = (opts && opts.style) || 'underline';
     const linkMode = (opts && opts.linkMode) || 'translate';
+    const showOriginal = !!(opts && opts.showOriginal);
 
     for (const node of document.querySelectorAll('.' + DST_CLASS)) {
       const inline = node.classList.contains('lingua-pg-inline');
@@ -303,7 +384,7 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
       const linked = el.dataset && el.dataset[LINK_MARK] === '1';
       const keptLinks = el.dataset && el.dataset[LINK_OK] === '1';
       const canHide = !linked || linkMode === 'strict' || (linkMode === 'translate' && keptLinks);
-      el.classList.toggle('lingua-pg-replace', mode === 'replace' && canHide);
+      el.classList.toggle('lingua-pg-replace', mode === 'replace' && !showOriginal && canHide);
     }
 
     if (mode === 'replace') {
@@ -332,6 +413,9 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
 
   /** Remove everything we injected and restore the page. */
   function removeAll() {
+    // Put relocated links back BEFORE the translations holding them disappear.
+    restoreMovedLinks(document);
+
     for (const node of document.querySelectorAll('.' + DST_CLASS)) node.remove();
 
     for (const wrap of document.querySelectorAll('.' + SRC_CLASS)) {

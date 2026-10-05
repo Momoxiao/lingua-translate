@@ -285,6 +285,7 @@ const FIXTURE = `<!doctype html>
   <p id="linkp">Read the <a href="https://example.com/docs" id="doclink">documentation</a> for details.</p>
   <p id="plainp">No links in this paragraph at all.</p>
   <p id="brokenmark">A <a href="https://example.com/mangled">mangled link</a> the model will corrupt.</p>
+  <p id="hoverp">Hover me: <a href="https://example.com/hover" id="hoverlink">preview link</a> here.</p>
   <div class="cards" id="cards">
     <div class="card"><b id="c1t">Flex &amp; grid</b><span id="c1s">Containers are never rewritten.</span></div>
     <div class="card"><b id="c2t">Nested blocks</b><span id="c2s">Each leaf block is its own unit.</span></div>
@@ -299,6 +300,15 @@ const FIXTURE = `<!doctype html>
 </main>
 <footer id="footer">Footer text should also be translated.</footer>
 <script>
+  // Listeners attached to the ORIGINAL link, mirroring Wikipedia's hover
+  // previews / SPA routers. They must keep working after translation.
+  window.__linkClicks = 0;
+  window.__linkHovers = 0;
+  (function () {
+    var a = document.getElementById('hoverlink');
+    a.addEventListener('click', function (e) { e.preventDefault(); window.__linkClicks++; });
+    a.addEventListener('mouseover', function () { window.__linkHovers++; });
+  })();
   // dynamic content, injected later — exercises the MutationObserver path
   setTimeout(function () {
     var d = document.createElement('p');
@@ -663,8 +673,21 @@ async function main() {
   check('the link text was translated too', linkInfo.linkText && linkInfo.linkText !== 'documentation', String(linkInfo.linkText));
   check('the translated link is visible/clickable', linkInfo.linkVisible === true);
   check('no stray placeholders leaked into the DOM', linkInfo.strayMarkers === false, String(linkInfo.dstText));
-  check('the original link is still recoverable (non-destructive)', linkInfo.originalPreserved === true);
   check('link-bearing paragraph still got a translation', (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1);
+
+  // --- the translation must reuse the REAL link, not a clone ---
+  check(
+    'the translated link is the very same element as the original',
+    (await evalPage(`document.querySelector('#hoverp .lingua-pg-dst a[href]') === document.getElementById('hoverlink')`)) === true
+  );
+  await evalPage(
+    `(function(){ var a = document.querySelector('#hoverp .lingua-pg-dst a[href]');
+       a.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+       a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+       return 1; })()`
+  );
+  check('a click listener on the original link still fires', (await evalPage(`window.__linkClicks`)) === 1, `clicks=${await evalPage(`window.__linkClicks`)}`);
+  check('a hover listener on the original link still fires', (await evalPage(`window.__linkHovers`)) === 1, `hovers=${await evalPage(`window.__linkHovers`)}`);
 
   // --- a corrupted placeholder must degrade gracefully, never leak residue ---
   const broken = JSON.parse(
@@ -684,6 +707,30 @@ async function main() {
   check('the link stays usable after the fallback', broken.linkVisible === true);
 
   check('still no runtime errors after the replace pass', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | '));
+
+  // --- restoring must hand the real link back, untouched -------------------
+  await evalIso('YTST.page.stop()');
+  await sleep(250);
+  check(
+    'restore puts the link back inside its own paragraph',
+    (await evalPage(`document.querySelector('#linkp > a[href]') === document.getElementById('doclink')`)) === true,
+    await evalPage(`document.getElementById('linkp').outerHTML.slice(0, 160)`)
+  );
+  check(
+    'restore returns the original link text',
+    (await evalPage(`document.getElementById('doclink').textContent`)) === 'documentation',
+    await evalPage(`document.getElementById('doclink').textContent`)
+  );
+  check(
+    'the very same link element survived the whole round trip',
+    (await evalPage(
+      `(function(){ var a = document.getElementById('hoverlink');
+         a.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+         return window.__linkClicks; })()`
+    )) === 2,
+    `clicks=${await evalPage(`window.__linkClicks`)}`
+  );
+  check('no injected nodes remain after the final restore', (await evalPage(`document.querySelectorAll('.lingua-pg-dst,.lingua-pg-src').length`)) === 0);
 
   // --- screenshot (reload so auto-translate runs again from a clean state) ---
   await cdp.send('Runtime.evaluate', { expression: 'location.reload()', returnByValue: true }, pageSession).catch(() => {});

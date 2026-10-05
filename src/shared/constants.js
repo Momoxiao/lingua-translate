@@ -160,6 +160,7 @@
       skipSelectors: '', // extra CSS selectors to ignore, comma separated
       translateInputs: false, // also translate placeholder/alt/title attributes
       replaceLinkMode: 'translate', // translate | keep | strict — how "translated only" treats blocks with links
+      showBall: true, // floating action ball on the page
     },
     providers: {
       openai: {

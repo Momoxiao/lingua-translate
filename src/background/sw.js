@@ -139,6 +139,12 @@ importScripts(
             }
             sendResponse({ ok: true });
             break;
+          case 'lingua:open-options':
+            // Triggered from the page's floating ball (content scripts cannot
+            // call chrome.runtime.openOptionsPage directly).
+            chrome.runtime.openOptionsPage();
+            sendResponse({ ok: true });
+            break;
           default:
             sendResponse({ ok: false, error: `未知消息类型：${msg.type}` });
         }

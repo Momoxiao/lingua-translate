@@ -169,12 +169,20 @@ export class TinyWS {
   }
 
   close() {
+    // Tear the socket down immediately. Sending only a close frame and exiting
+    // leaves half-open connections behind, and Chrome's DevTools endpoint stops
+    // accepting new ones after enough of them pile up.
     try {
       this._sendFrame(Buffer.alloc(0), 0x8);
-      this.socket.end();
     } catch (e) {
       /* ignore */
     }
+    try {
+      this.socket.destroy();
+    } catch (e) {
+      /* ignore */
+    }
+    this.open = false;
   }
 }
 

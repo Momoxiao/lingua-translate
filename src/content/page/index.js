@@ -185,7 +185,8 @@
         if (err && err.code === bridge.CODE_CONTEXT_LOST) {
           state.status = 'error';
           state.error = err.message;
-          page.indicator.fail(err.message);
+          syncBall();
+          page.ball.notify(err.message, 'err', 8000);
           teardown({ keepIndicator: true });
           return;
         }
@@ -198,7 +199,8 @@
         }
         if (failures >= MAX_FAILURES) {
           state.status = 'error';
-          page.indicator.fail(state.error);
+          syncBall();
+          page.ball.notify(state.error, 'err', 8000);
           teardown({ keepIndicator: true });
         }
       })
@@ -224,15 +226,56 @@
   }
 
   function report() {
-    if (state.status !== 'translating') return;
-    const total = state.total || 1;
-    const pct = Math.min(100, Math.round((state.done / total) * 100));
-    page.indicator.show('Lingua 翻译中', pct);
+    syncBall();
   }
 
   function finish() {
     state.status = 'done';
-    page.indicator.done(`已翻译 ${state.done} 段`);
+    syncBall();
+    page.ball.notify(`已翻译 ${state.done} 段`, 'ok', 2600);
+  }
+
+  /** Push the current pipeline state into the floating ball. */
+  function syncBall() {
+    if (!page.ball) return;
+    page.ball.setStatus({
+      active: state.active,
+      status: state.status,
+      done: state.done,
+      total: state.total,
+      error: state.error,
+    });
+  }
+
+  /**
+   * Mount or remove the floating ball. The ball is a permanent page control —
+   * it stays put when translation stops, because clicking it is how you start
+   * translation in the first place.
+   */
+  function ensureBall(s) {
+    if (!page.ball) return;
+    // Remember the settings: clicking the ball is the very first interaction on a
+    // page, and toggle() -> start() needs them before anything else has run.
+    if (s) settings = s;
+    const allowed = s && s.enabled !== false && supportedScheme() && !isBlocked(s) && !(s.page && s.page.showBall === false);
+    if (!allowed) {
+      page.ball.destroy();
+      return;
+    }
+    page.ball.mount({
+      onToggle: () => toggle(),
+      onRetranslate: () => retranslate(),
+      onStop: () => stop(),
+      onToggleOriginal: () => toggleOriginal(),
+      onOpenSettings: () => {
+        try {
+          chrome.runtime.sendMessage({ type: 'lingua:open-options' });
+        } catch (e) {
+          /* context gone */
+        }
+      },
+    });
+    syncBall();
   }
 
   // ---------------------------------------------------------------------------
@@ -311,7 +354,9 @@
     if (!bridge.isAlive()) {
       state.status = 'error';
       state.error = bridge.contextError().message;
-      page.indicator.fail(state.error);
+      ensureBall(settings);
+      syncBall();
+      page.ball.notify(state.error, 'err', 8000);
       return;
     }
     if (!settings.enabled) return;
@@ -331,12 +376,8 @@
     inflight = 0;
     failures = 0;
 
-    page.indicator.mount();
-    page.indicator.setHandlers({
-      onStop: () => stop(),
-      onToggleOriginal: () => toggleOriginal(),
-    });
-    page.indicator.show('Lingua 扫描中', 0);
+    ensureBall(settings);
+    syncBall();
 
     await nextFrame();
     if (gen !== generation || !state.active) return;
@@ -345,7 +386,8 @@
     if (!body) {
       state.status = 'error';
       state.error = '页面尚未就绪';
-      page.indicator.fail(state.error);
+      syncBall();
+      page.ball.notify(state.error, 'err', 6000);
       teardown({ keepIndicator: true });
       return;
     }
@@ -355,7 +397,8 @@
 
     if (!units.length) {
       state.status = 'done';
-      page.indicator.done('没有可翻译的内容');
+      syncBall();
+      page.ball.notify('没有可翻译的内容', 'ok', 3000);
       teardown({ keepIndicator: true });
       return;
     }
@@ -372,9 +415,8 @@
     units = [];
     pending = new Set();
     inflight = 0;
-    if (!opts || !opts.keepIndicator) {
-      page.indicator.destroy();
-    }
+    // The floating ball is deliberately NOT destroyed here — it is the page's
+    // permanent control, and stopping a translation must not remove it.
   }
 
   /** Stop and restore the original page. */
@@ -385,6 +427,8 @@
     state.done = 0;
     state.total = 0;
     state.showOriginal = false;
+    state.error = '';
+    syncBall();
   }
 
   function toggle(s) {
@@ -410,6 +454,7 @@
     settings = s;
     state.mode = (s.page && s.page.displayMode) || 'bilingual';
     state.style = (s.page && s.page.style) || 'underline';
+    ensureBall(s);
     if (!s.enabled) {
       if (state.active) stop();
       return;
@@ -464,4 +509,6 @@
   page.siteRule = siteRule;
   page.hostname = hostname;
   page.supportedScheme = supportedScheme;
+  page.ensureBall = ensureBall;
+  page.syncBall = syncBall;
 })(typeof globalThis !== 'undefined' ? globalThis : self);

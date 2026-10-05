@@ -291,6 +291,7 @@
     $('pageMaxChars').value = p.maxChars;
     $('pageConcurrency').value = p.concurrency;
     $('pageInputs').checked = !!p.translateInputs;
+    $('pageBall').checked = p.showBall !== false;
     $('pageLinkMode').value = p.replaceLinkMode || 'translate';
     $('pageSkipSelectors').value = p.skipSelectors || '';
     $('pageAutoSites').value = (p.autoSites || []).join('\n');
@@ -327,6 +328,7 @@
     $('pageMode').addEventListener('change', () => save({ page: { displayMode: $('pageMode').value } }));
     $('pageStyle').addEventListener('change', () => save({ page: { style: $('pageStyle').value } }));
     $('pageInputs').addEventListener('change', () => save({ page: { translateInputs: $('pageInputs').checked } }));
+    $('pageBall').addEventListener('change', () => save({ page: { showBall: $('pageBall').checked } }));
     $('pageLinkMode').addEventListener('change', () => save({ page: { replaceLinkMode: $('pageLinkMode').value } }));
     $('pageSkipSelectors').addEventListener('input', () =>
       saveDebounced({ page: { skipSelectors: $('pageSkipSelectors').value } })

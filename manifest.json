@@ -57,7 +57,7 @@
         "src/content/live.js",
         "src/content/page/units.js",
         "src/content/page/render.js",
-        "src/content/page/indicator.js",
+        "src/content/page/ball.js",
         "src/content/page/index.js",
         "src/content/main.js"
       ],
@@ -79,7 +79,7 @@
         "src/content/live.js",
         "src/content/page/units.js",
         "src/content/page/render.js",
-        "src/content/page/indicator.js",
+        "src/content/page/ball.js",
         "src/content/page/index.js",
         "src/content/main.js"
       ],

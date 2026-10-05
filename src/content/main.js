@@ -114,6 +114,9 @@
       hintIfUnconfigured();
     }
 
+    // The floating ball is the page's permanent translation control.
+    if (NS.page) NS.page.ensureBall(settings);
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', startPageAuto, { once: true });
     } else {
@@ -140,8 +143,10 @@
         if (NS.page) {
           if (!next.enabled || NS.page.isBlocked(next)) {
             if (NS.page.state.active) NS.page.stop();
+            NS.page.ensureBall(next);
           } else {
             NS.page.update(next);
+            NS.page.ensureBall(next);
             if (!NS.page.state.active) startPageAuto();
           }
         }

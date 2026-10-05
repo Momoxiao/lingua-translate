@@ -481,7 +481,7 @@ async function main() {
     sourceLang: 'auto',
     targetLang: 'zh-Hans',
     page: {
-      autoTranslate: true,
+      autoTranslate: false,
       displayMode: 'bilingual',
       style: 'underline',
       batchSize: 6,
@@ -552,6 +552,40 @@ async function main() {
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);
     return r.result.value;
   };
+
+  // --- start translation the way a user does: click the floating ball --------
+  // This is the very first interaction on the page, which also covers the
+  // "pipeline has no settings yet" path that an explicit page.start() would mask.
+  const clickBall = () =>
+    evalPage(`(function(){
+      var b = document.getElementById('lingua-ball').shadowRoot.querySelector('.ball');
+      var o = { bubbles: true, button: 0, pointerId: 1, clientX: 120, clientY: 120 };
+      b.dispatchEvent(new PointerEvent('pointerdown', o));
+      b.dispatchEvent(new PointerEvent('pointerup', o));
+      return 1;
+    })()`);
+
+  check('floating ball is mounted on the page', (await evalPage(`!!document.getElementById('lingua-ball')`)) === true);
+  check(
+    'ball host has a real hit-testable box',
+    (await evalPage(
+      `(function(){ var r = document.getElementById('lingua-ball').getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`
+    )) === true,
+    await evalPage(`JSON.stringify(document.getElementById('lingua-ball').getBoundingClientRect())`)
+  );
+  check(
+    'ball starts in the idle state',
+    (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle')
+  );
+
+  await clickBall();
+  await sleep(500);
+  check('clicking the ball on a fresh page starts translation', (await evalIso('YTST.page.state.active')) === true);
+  check(
+    'ball switches to the active state',
+    (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('on'),
+    await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)
+  );
 
   // --- wait for translation to land ---
   let count = 0;
@@ -731,6 +765,29 @@ async function main() {
     `clicks=${await evalPage(`window.__linkClicks`)}`
   );
   check('no injected nodes remain after the final restore', (await evalPage(`document.querySelectorAll('.lingua-pg-dst,.lingua-pg-src').length`)) === 0);
+
+  // --- the ball is a permanent control: it must survive stop() --------------
+  // The restore above already stopped the pipeline, so the ball is idle here.
+  check('ball is idle after the restore', (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle'));
+  await clickBall();
+  await sleep(500);
+  check('the ball can start translation again after a stop', (await evalIso('YTST.page.state.active')) === true);
+
+  for (let i = 0; i < 60; i++) {
+    const s = JSON.parse(await evalIso('JSON.stringify(YTST.page.status())'));
+    if (s.status === 'done' || s.status === 'error') break;
+    await sleep(500);
+  }
+  await clickBall();
+  await sleep(700);
+  check('clicking again stops translation', (await evalIso('YTST.page.state.active')) === false);
+  check(
+    'ball returns to the idle state',
+    (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle'),
+    await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)
+  );
+  check('ball survives stop (it is a permanent control)', (await evalPage(`!!document.getElementById('lingua-ball')`)) === true);
+  check('page fully restored after using the ball', (await evalPage(`document.querySelectorAll('.lingua-pg-dst').length`)) === 0);
 
   // --- screenshot (reload so auto-translate runs again from a clean state) ---
   await cdp.send('Runtime.evaluate', { expression: 'location.reload()', returnByValue: true }, pageSession).catch(() => {});

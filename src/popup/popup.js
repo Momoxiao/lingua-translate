@@ -34,6 +34,7 @@
     pageMode: el('pageMode'),
     pageStyle: el('pageStyle'),
     pageShowOriginal: el('pageShowOriginal'),
+    pageBall: el('pageBall'),
     siteRule: el('siteRule'),
     pageProgressBox: el('pageProgressBox'),
     pageProgressBar: el('pageProgressBar'),
@@ -136,6 +137,7 @@
     ui.pageEnabled.checked = false;
     ui.pageMode.value = (settings.page && settings.page.displayMode) || 'bilingual';
     ui.pageStyle.value = (settings.page && settings.page.style) || 'underline';
+    ui.pageBall.checked = !settings.page || settings.page.showBall !== false;
     ui.footHint.textContent = provider
       ? `${provider.label} → ${labelOf(settings.targetLang)}`
       : '未配置服务';
@@ -347,6 +349,12 @@
     ui.siteRule.addEventListener('change', async () => {
       if (syncing) return;
       await send('lingua:site-rule', { rule: ui.siteRule.value });
+      setTimeout(queryState, 200);
+    });
+
+    ui.pageBall.addEventListener('change', async () => {
+      if (syncing) return;
+      settings = await setSettings({ page: { showBall: ui.pageBall.checked } });
       setTimeout(queryState, 200);
     });
 

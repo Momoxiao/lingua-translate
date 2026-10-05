@@ -133,7 +133,68 @@ const PAGES = [
   { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options' },
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },
+  { build: buildBallDemo, state: 'translating', width: 760, height: 420, name: 'ball' },
 ];
+
+/**
+ * Demo page for the floating ball. The ball lives in a shadow root, so it can
+ * only be previewed by actually mounting it — hence a generated page.
+ */
+function buildBallDemo() {
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Lingua floating ball</title>
+<style>
+  body{margin:0;background:#fbf8f4;color:#1a1714;
+    font:15px/1.7 ui-sans-serif,-apple-system,"Segoe UI",Roboto,"PingFang SC",sans-serif;}
+  .page{max-width:620px;margin:0 auto;padding:30px 28px}
+  h1{font:600 23px/1.3 "Iowan Old Style",Palatino,Georgia,serif;margin:0 0 10px}
+  p{color:#332e28;margin:0 0 14px}
+  .hint{font-size:12.5px;color:#8a7f74;border-top:1px solid #e6ddd1;padding-top:14px;margin-top:22px}
+</style></head>
+<body>
+<div class="page">
+  <h1>悬浮球（Hover 展开状态）</h1>
+  <p>常驻在页面右侧，点击即翻译，可拖动，位置按站点记住。翻译时外圈显示进度环，不需要额外的进度条。</p>
+  <p>悬停会向左展开操作面板：显示原文 / 重新翻译 / 关闭。右键直接打开设置。</p>
+  <p class="hint">下面是状态预览（静态截图，实际可交互）</p>
+</div>
+<script src="src/content/page/ball.js"></script>
+<script>
+(function () {
+  // minimal chrome stub so ball.js can read its saved position
+  window.chrome = {
+    storage: { local: {
+      get: function () { return Promise.resolve({}); },
+      set: function () { return Promise.resolve(); }
+    } },
+    runtime: { id: 'preview', lastError: undefined, sendMessage: function () {} }
+  };
+  function report(e) {
+    var el = document.getElementById('__errs');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '__errs';
+      el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;' +
+        'font:11px/1.5 ui-monospace,monospace;padding:6px 8px;white-space:pre-wrap');
+      document.body.appendChild(el);
+    }
+    el.textContent += 'ERR ' + String(e) + '\\n';
+  }
+  window.addEventListener('error', function (e) { report(e.message); });
+
+  YTST.page.ball.mount({
+    onToggle: function () {}, onRetranslate: function () {},
+    onStop: function () {}, onToggleOriginal: function () { return false; },
+    onOpenSettings: function () {}
+  });
+  YTST.page.ball.setStatus({ active: true, status: 'translating', done: 128, total: 442, error: '' });
+  // force the hover panel open for the screenshot
+  var wrap = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
+  wrap.classList.add('pinned');
+})();
+</script>
+</body></html>`;
+}
 
 /**
  * A generated demo page: loads the real units.js + render.js against a

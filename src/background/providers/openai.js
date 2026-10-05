@@ -21,6 +21,29 @@
     return `${base}/chat/completions`;
   }
 
+  /**
+   * "Don't deliberate, just translate."
+   *
+   * Reasoning models waste most of their latency thinking about a task that has
+   * no ambiguity. Measured on DeepSeek with a 16-line batch:
+   *   no hints      3252ms / 544 reasoning tokens
+   *   hints below   1193ms /   0 reasoning tokens   (~2.7x faster)
+   *
+   * Every vendor spells the switch differently, and an unknown field makes some
+   * gateways answer HTTP 400 — so we send the two most widely accepted spellings
+   * and, if the endpoint rejects them, drop them for the rest of the session
+   * rather than breaking translation outright.
+   */
+  const REASONING_OFF = {
+    reasoning_effort: 'none',
+    thinking: { type: 'disabled' },
+  };
+  let reasoningHintsAccepted = true;
+
+  function postJson(url, headers, body, signal) {
+    return requestJson(url, { method: 'POST', headers, body: JSON.stringify(body), signal }, 'OpenAI 兼容接口');
+  }
+
   async function translateBatch(texts, ctx) {
     const { settings, from, to, signal } = ctx;
     const cfg = settings.providers.openai;
@@ -40,11 +63,28 @@
       ],
     };
 
-    const json = await requestJson(url, { method: 'POST', headers, body: JSON.stringify(body), signal }, 'OpenAI 兼容接口');
-    const content =
-      (json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '';
+    const withHints = cfg.reasoning !== 'auto' && reasoningHintsAccepted;
+    let json;
+    try {
+      json = await postJson(url, headers, withHints ? Object.assign({}, body, REASONING_OFF) : body, signal);
+    } catch (err) {
+      const rejected = withHints && err && (err.status === 400 || err.status === 422);
+      if (!rejected) throw err;
+      // This endpoint does not understand the hints — retry without them and
+      // stop sending them from now on.
+      reasoningHintsAccepted = false;
+      json = await postJson(url, headers, body, signal);
+    }
+
+    const choice = json && json.choices && json.choices[0];
+    const msg = (choice && choice.message) || {};
+    const content = msg.content || '';
     if (!content) {
-      const err = new Error('接口返回为空（检查模型名是否正确）');
+      const err = new Error(
+        msg.reasoning_content
+          ? '模型只输出了推理过程、没有输出译文。请在设置里确认「模型推理」为关闭，或换用非推理模型'
+          : '接口返回为空（检查模型名是否正确）'
+      );
       err.retriable = true;
       throw err;
     }

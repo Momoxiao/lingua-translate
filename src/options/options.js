@@ -23,6 +23,16 @@
       { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...' },
       { key: 'model', label: '模型', type: 'text', placeholder: 'gpt-4o-mini' },
       { key: 'temperature', label: '温度', type: 'number', min: 0, max: 2, step: 0.1, placeholder: '0' },
+      {
+        key: 'reasoning',
+        label: '模型推理',
+        type: 'select',
+        options: [
+          { value: 'off', label: '关闭（推荐，快约 2.7 倍）' },
+          { value: 'auto', label: '跟随模型默认' },
+        ],
+        hint: '翻译任务没有歧义，推理只会浪费时间。关闭后会向接口发送“不要思考”的参数；若接口不认识这些参数会自动回退，不影响使用。',
+      },
       { key: 'prompt', label: '系统提示词（留空使用内置字幕翻译提示词）', type: 'textarea', rows: 5, full: true },
     ],
     deepl: [
@@ -169,11 +179,12 @@
         input = document.createElement('select');
         for (const opt of f.options) {
           const o = document.createElement('option');
-          o.value = opt;
-          o.textContent = opt;
+          // options may be plain strings or { value, label } pairs
+          o.value = typeof opt === 'string' ? opt : opt.value;
+          o.textContent = typeof opt === 'string' ? opt : opt.label;
           input.appendChild(o);
         }
-        input.value = cfg[f.key] || f.options[0];
+        input.value = cfg[f.key] != null ? cfg[f.key] : typeof f.options[0] === 'string' ? f.options[0] : f.options[0].value;
       } else {
         input = document.createElement('input');
         input.type = f.type;

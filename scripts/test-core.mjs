@@ -305,6 +305,64 @@ check('skip list covers code/pre/script', ['CODE', 'PRE', 'SCRIPT', 'STYLE', 'SV
 check('block list covers the usual containers', ['DIV', 'P', 'LI', 'TD', 'H1'].every((t) => U.BLOCK_TAGS.has(t)));
 
 // ---------------------------------------------------------------------------
+console.log('\nreasoning control (default off, with graceful fallback)');
+// ---------------------------------------------------------------------------
+const rSettings = await NS.settings.getSettings();
+rSettings.provider = 'openai';
+rSettings.providers.openai.baseUrl = 'https://example.test/v1';
+rSettings.providers.openai.model = 'm';
+rSettings.providers.openai.apiKey = 'k';
+rSettings.cacheEnabled = false;
+
+let lastBody = null;
+const okReply = (b) => {
+  const lines = b.messages[1].content.split('\n').filter((l) => l.trim());
+  const out = lines.map((l) => l.replace(/^(\d+)\.\s*/, '$1. 译'));
+  return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: out.join('\n') } }] }), { status: 200 });
+};
+
+globalThis.fetch = async (url, opts) => {
+  lastBody = JSON.parse(opts.body);
+  return okReply(lastBody);
+};
+
+rSettings.providers.openai.reasoning = 'off';
+await NS.bg.translator.translate(['alpha one', 'beta two'], { settings: rSettings, from: 'en', to: 'zh-Hans' });
+check('reasoning=off sends reasoning_effort=none', lastBody.reasoning_effort === 'none', JSON.stringify(lastBody.reasoning_effort));
+check('reasoning=off sends thinking.type=disabled', !!lastBody.thinking && lastBody.thinking.type === 'disabled', JSON.stringify(lastBody.thinking));
+check('reasoning=off still sends the normal payload', lastBody.model === 'm' && Array.isArray(lastBody.messages));
+
+rSettings.providers.openai.reasoning = 'auto';
+await NS.bg.translator.translate(['gamma three'], { settings: rSettings, from: 'en', to: 'zh-Hans' });
+check('reasoning=auto omits reasoning_effort', lastBody.reasoning_effort === undefined);
+check('reasoning=auto omits thinking', lastBody.thinking === undefined);
+
+// An endpoint that rejects unknown fields must not break translation.
+const seen = [];
+globalThis.fetch = async (url, opts) => {
+  const b = JSON.parse(opts.body);
+  seen.push(b.reasoning_effort !== undefined);
+  if (b.reasoning_effort !== undefined) {
+    return new Response(JSON.stringify({ error: { message: 'Unrecognized field: reasoning_effort' } }), { status: 400 });
+  }
+  return okReply(b);
+};
+rSettings.providers.openai.reasoning = 'off';
+const fallbackOut = await NS.bg.translator.translate(['delta four'], { settings: rSettings, from: 'en', to: 'zh-Hans' });
+check('a 400 on the hints triggers exactly one retry without them', seen.length === 2 && seen[0] === true && seen[1] === false, JSON.stringify(seen));
+check('the retry still returns a translation', !!(fallbackOut.results[0] || '').includes('译'), fallbackOut.results[0]);
+
+// once rejected, later requests skip the hints entirely
+const seen2 = [];
+globalThis.fetch = async (url, opts) => {
+  const b = JSON.parse(opts.body);
+  seen2.push(b.reasoning_effort !== undefined);
+  return okReply(b);
+};
+await NS.bg.translator.translate(['epsilon five'], { settings: rSettings, from: 'en', to: 'zh-Hans' });
+check('the hints are not retried again in the same session', seen2.length === 1 && seen2[0] === false, JSON.stringify(seen2));
+
+// ---------------------------------------------------------------------------
 console.log('\nlanguage mapping + settings merge');
 // ---------------------------------------------------------------------------
 check('normalizeLang zh-CN -> zh-Hans', S.normalizeLang('zh-CN') === 'zh-Hans');

@@ -44,7 +44,7 @@
       id: 'openai',
       label: 'OpenAI 兼容',
       hint: '适用于 OpenAI、DeepSeek、Kimi、智谱、通义、硅基流动、OpenRouter、Groq、Ollama、LM Studio、one-api / new-api 等所有 /chat/completions 接口',
-      fields: ['baseUrl', 'apiKey', 'model', 'temperature', 'prompt'],
+      fields: ['baseUrl', 'apiKey', 'model', 'temperature', 'reasoning', 'prompt'],
     },
     deepl: {
       id: 'deepl',
@@ -168,6 +168,8 @@
         model: 'gpt-4o-mini',
         temperature: 0,
         prompt: '',
+        /** 'off' = ask the model not to deliberate (much faster); 'auto' = leave it alone */
+        reasoning: 'off',
       },
       deepl: {
         baseUrl: 'https://api-free.deepl.com/v2/translate',

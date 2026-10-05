@@ -241,6 +241,12 @@
   }
 
   async function extractCues(track) {
+    // Start the player-fetch path FIRST: on a cold load our own request is
+    // guaranteed to come back empty, so waiting for it before nudging the player
+    // costs a full round trip of dead time. Kick both off together.
+    const wirePromise = waitForWireCaptions(10000);
+    forceCaptionRequest(track);
+
     // 1. plain page-context fetch of the track the player advertised
     let cues = await tryFetch(track.baseUrl);
     if (cues.length) return { cues, source: 'direct' };
@@ -252,10 +258,8 @@
       if (cues.length) return { cues, source: 'pot-reuse' };
     }
 
-    // 3. force a fresh player request and reuse the pot it just minted
-    const wire = waitForWireCaptions(10000);
-    forceCaptionRequest(track);
-    const sniffed = await wire;
+    // 3. whatever the player just fetched for us (it was nudged above)
+    const sniffed = await wirePromise;
     if (sniffed.url) signedTemplate = sniffed.url;
 
     signed = potParamsFrom(sniffed.url);
@@ -294,7 +298,15 @@
     }
     if (!candidates.length) return [];
     candidates.sort((a, b) => dist(a, cur) - dist(b, cur));
-    return candidates.slice(0, size);
+
+    // The very first batch is deliberately small: the user is looking at an
+    // empty overlay, and 4 lines on screen in ~1s beats 16 lines in ~3s.
+    let take = size;
+    if (!firstChunkSent) {
+      firstChunkSent = true;
+      take = Math.min(size, 4);
+    }
+    return candidates.slice(0, take);
   }
 
   function dist(i, cur) {
@@ -310,6 +322,7 @@
   const MAX_INFLIGHT = 2;
   const MAX_CONSECUTIVE_FAILURES = 3;
   let consecutiveFailures = 0;
+  let firstChunkSent = false;
 
   function pump() {
     if (!started || !settings || !settings.enabled) return;
@@ -511,6 +524,7 @@
     }
 
     store.setCues(cues);
+    firstChunkSent = false;
     store.emit('loaded', { cues, source: meta.source, sniffedLang: meta.sniffedLang, langMismatch: meta.langMismatch });
     store.setStatus(settings.autoTranslate ? store.STATUS.TRANSLATING : store.STATUS.READY);
     if (settings.autoTranslate) {

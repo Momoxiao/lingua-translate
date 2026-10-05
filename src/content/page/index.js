@@ -83,6 +83,15 @@
     return user ? `${BUILTIN_SKIP}, ${user}` : BUILTIN_SKIP;
   }
 
+  /** Render options derived from the current settings. */
+  function renderOpts() {
+    return {
+      mode: state.mode,
+      style: state.style,
+      keepLinks: !(settings && settings.page && settings.page.replacePreservesLinks === false),
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Scanning
   // ---------------------------------------------------------------------------
@@ -163,7 +172,7 @@
           const u = units[chunk[k]];
           const t = results[k];
           if (t && u.el && u.el.isConnected) {
-            page.render.apply(u, t, { mode: state.mode, style: state.style });
+            page.render.apply(u, t, renderOpts());
             state.done++;
           } else {
             page.render.unmark(u);
@@ -402,7 +411,7 @@
       if (state.active) stop();
       return;
     }
-    if (state.active) page.render.restyle({ mode: state.mode, style: state.style });
+    if (state.active) page.render.restyle(renderOpts());
   }
 
   function toggleOriginal() {

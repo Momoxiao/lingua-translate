@@ -266,6 +266,7 @@ const FIXTURE = `<!doctype html>
   body{margin:0;background:#fbf8f4;color:#1a1714;font:15px/1.65 system-ui,-apple-system,sans-serif}
   nav{display:flex;gap:20px;padding:14px 28px;border-bottom:1px solid #e6ddd1;background:#fff}
   nav a{color:#4a423a;text-decoration:none;font-weight:600}
+  .navbtn{display:flex;align-items:center;gap:4px;border:0;background:none;font:600 15px system-ui;color:#4a423a;cursor:pointer}
   main{max-width:720px;margin:0 auto;padding:30px 28px 60px}
   h1{font-size:28px;margin:0 0 10px}
   .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0 22px}
@@ -277,10 +278,12 @@ const FIXTURE = `<!doctype html>
   footer{border-top:1px solid #e6ddd1;padding:18px 28px;color:#7d7368;background:#fff}
 </style></head>
 <body>
-<nav id="nav"><a href="#">Home</a><a href="#">Docs</a><a href="#">Pricing</a></nav>
+<nav id="nav"><a href="#">Home</a><a href="#">Docs</a><a href="#">Pricing</a><button type="button" class="navbtn" id="flexnav" aria-expanded="false">Platform<svg data-component="Octicon" aria-hidden="true" focusable="false" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="m6.427 4.427 3.396 3.396a.25.25 0 0 1 0 .354l-3.396 3.396A.25.25 0 0 1 6 11.396V4.604a.25.25 0 0 1 .427-.177Z"></path></svg></button></nav>
 <main>
   <h1 id="title">A translation extension must survive real pages</h1>
   <p id="para">This paragraph mixes <b>inline markup</b>, a <a href="#">link</a> and plain text.</p>
+  <p id="linkp">Read the <a href="https://example.com/docs" id="doclink">documentation</a> for details.</p>
+  <p id="plainp">No links in this paragraph at all.</p>
   <div class="cards" id="cards">
     <div class="card"><b id="c1t">Flex &amp; grid</b><span id="c1s">Containers are never rewritten.</span></div>
     <div class="card"><b id="c2t">Nested blocks</b><span id="c2s">Each leaf block is its own unit.</span></div>
@@ -565,6 +568,23 @@ async function main() {
     `${await evalPage(`document.querySelectorAll('#cards .lingua-pg-dst').length`)} nodes`
   );
 
+  // --- flex container holding its own text (GitHub's nav button shape) ---
+  check(
+    'flex nav button got a translation',
+    (await evalPage(`document.querySelectorAll('#flexnav .lingua-pg-dst').length`)) === 1,
+    await evalPage(`document.getElementById('flexnav').outerHTML.slice(0, 200)`)
+  );
+  check(
+    'flex button kept its original label and its flex layout',
+    (await evalPage(`document.getElementById('flexnav').textContent`)).includes('Platform') &&
+      (await evalPage(`getComputedStyle(document.getElementById('flexnav')).display`)) === 'flex',
+    await evalPage(`getComputedStyle(document.getElementById('flexnav')).display`)
+  );
+  // Bilingual mode inevitably makes text longer, so a nav button may wrap to a
+  // second line. What must NOT happen is the flex layout collapsing.
+  const flexBtnH = await evalPage(`document.getElementById('flexnav').getBoundingClientRect().height`);
+  check('flex button did not collapse or explode', flexBtnH > 0 && flexBtnH < 64, `height=${flexBtnH}px`);
+
   // dynamic content must be picked up by the MutationObserver
   let dynOk = false;
   for (let i = 0; i < 20 && !dynOk; i++) {
@@ -587,6 +607,33 @@ async function main() {
   check('original text fully recovered', (await evalPage(`document.getElementById('title').textContent`)) === 'A translation extension must survive real pages');
 
   check('no runtime errors in the page', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));
+
+  // --- replace mode must not swallow hyperlinks -----------------------------
+  await evalIso(`YTST.settings.setSettings({ page: { displayMode: 'replace' } }).then(function () { return YTST.page.retranslate(); })`);
+  for (let i = 0; i < 40; i++) {
+    const s = JSON.parse(await evalIso('JSON.stringify(YTST.page.status())'));
+    if (s.status === 'done' || s.status === 'error') break;
+    await sleep(500);
+  }
+  check(
+    'replace mode hides the source on a plain paragraph',
+    (await evalPage(`document.getElementById('plainp') && document.getElementById('plainp').classList.contains('lingua-pg-replace')`)) === true,
+    await evalPage(`(document.getElementById('plainp')||{}).className`)
+  );
+  check(
+    'replace mode keeps a link-bearing paragraph visible',
+    (await evalPage(`document.getElementById('linkp').classList.contains('lingua-pg-replace')`)) === false,
+    await evalPage(`document.getElementById('linkp').className`)
+  );
+  check(
+    'the hyperlink is still rendered and clickable',
+    (await evalPage(`(function(){var a=document.getElementById('doclink');var r=a.getBoundingClientRect();return r.width>0&&r.height>0&&!!a.getAttribute('href');})()`)) === true
+  );
+  check(
+    'link-bearing paragraph still got a translation',
+    (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1
+  );
+  check('still no runtime errors after the replace pass', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | '));
 
   // --- screenshot (reload so auto-translate runs again from a clean state) ---
   await cdp.send('Runtime.evaluate', { expression: 'location.reload()', returnByValue: true }, pageSession).catch(() => {});

@@ -280,6 +280,7 @@
     $('pageMaxChars').value = p.maxChars;
     $('pageConcurrency').value = p.concurrency;
     $('pageInputs').checked = !!p.translateInputs;
+    $('pageKeepLinks').checked = p.replacePreservesLinks !== false;
     $('pageSkipSelectors').value = p.skipSelectors || '';
     $('pageAutoSites').value = (p.autoSites || []).join('\n');
     $('pageSkipSites').value = (p.skipSites || []).join('\n');
@@ -315,6 +316,9 @@
     $('pageMode').addEventListener('change', () => save({ page: { displayMode: $('pageMode').value } }));
     $('pageStyle').addEventListener('change', () => save({ page: { style: $('pageStyle').value } }));
     $('pageInputs').addEventListener('change', () => save({ page: { translateInputs: $('pageInputs').checked } }));
+    $('pageKeepLinks').addEventListener('change', () =>
+      save({ page: { replacePreservesLinks: $('pageKeepLinks').checked } })
+    );
     $('pageSkipSelectors').addEventListener('input', () =>
       saveDebounced({ page: { skipSelectors: $('pageSkipSelectors').value } })
     );

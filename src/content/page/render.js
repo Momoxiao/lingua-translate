@@ -8,6 +8,12 @@
  *                     <span class="lingua-pg-src"> and hidden with CSS, so the
  *                     "show original" toggle is a pure class flip (no DOM churn)
  *
+ * Two special cases:
+ *   - `unit.wrap`: the unit is a flex/grid container whose own text nodes are
+ *     the target. Only those text nodes get wrapped, so the layout is untouched.
+ *   - `unit.hasLink`: replace mode would hide the hyperlink along with the text,
+ *     so such units always keep their source visible.
+ *
  * Colours are derived from `currentColor`, so translated text stays readable on
  * any site theme (light, dark, or a custom one) without us knowing the palette.
  *
@@ -21,7 +27,9 @@
   const STYLE_ID = 'lingua-page-style';
   const SRC_CLASS = 'lingua-pg-src';
   const DST_CLASS = 'lingua-pg-dst';
+  const TEXTWRAP_CLASS = 'lingua-pg-textwrap';
   const ROOT_FLAG = 'lingua-pg-show-src';
+  const LINK_MARK = 'linguaLink';
 
   const CSS = `
 .lingua-pg-dst{
@@ -56,33 +64,60 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     return '';
   }
 
-  /** Create or reuse the translation node for a text unit. */
-  function ensureDst(el, unit) {
-    let dst = null;
-    const kids = el.children;
-    for (let i = kids.length - 1; i >= 0; i--) {
-      if (kids[i].classList && kids[i].classList.contains(DST_CLASS)) {
-        dst = kids[i];
-        break;
-      }
-    }
-    if (dst) return dst;
-
-    dst = document.createElement('span');
+  function createDst(unit) {
+    const dst = document.createElement('span');
     dst.className = DST_CLASS;
     dst.setAttribute('translate', 'no');
     dst.setAttribute('data-lingua-node', '1');
     if (unit && unit.inline) dst.classList.add('lingua-pg-inline');
-    el.appendChild(dst);
     return dst;
   }
 
-  /** Wrap the original children so they can be hidden without losing them. */
-  function ensureSrc(el, dst) {
+  /** The dst that is a direct child of `host`, if any. */
+  function directDst(host) {
+    const kids = host.children;
+    for (let i = kids.length - 1; i >= 0; i--) {
+      if (kids[i].classList && kids[i].classList.contains(DST_CLASS)) return kids[i];
+    }
+    return null;
+  }
+
+  function directSrc(el) {
     const kids = el.children;
     for (let i = 0; i < kids.length; i++) {
       if (kids[i].classList && kids[i].classList.contains(SRC_CLASS)) return kids[i];
     }
+    return null;
+  }
+
+  /**
+   * Wrap ONLY the element's own text nodes into an inline span. This is
+   * layout-neutral inside a flex/grid container: the span simply takes the place
+   * of the anonymous flex item that used to hold the text.
+   */
+  function ensureTextWrap(el) {
+    const existing = directSrc(el);
+    if (existing) return existing;
+    const nodes = [];
+    const kids = el.childNodes;
+    for (let i = 0; i < kids.length; i++) {
+      const n = kids[i];
+      if (n.nodeType === 3 && n.nodeValue && n.nodeValue.trim()) nodes.push(n);
+    }
+    if (!nodes.length) return null;
+    const wrap = document.createElement('span');
+    wrap.className = SRC_CLASS + ' ' + TEXTWRAP_CLASS;
+    wrap.setAttribute('translate', 'no');
+    wrap.setAttribute('data-lingua-node', '1');
+    el.insertBefore(wrap, nodes[0]);
+    for (const n of nodes) wrap.appendChild(n);
+    return wrap;
+  }
+
+  /** Wrap every child except the translation, so the source can be hidden. */
+  function ensureSrc(el, dst) {
+    const existing = directSrc(el);
+    if (existing) return existing;
     const wrap = document.createElement('span');
     wrap.className = SRC_CLASS;
     wrap.setAttribute('translate', 'no');
@@ -94,6 +129,14 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     }
     el.insertBefore(wrap, el.firstChild);
     return wrap;
+  }
+
+  /** Walk up from a dst node to the element the unit belongs to. */
+  function unitElementOf(dst) {
+    const parent = dst.parentElement;
+    if (!parent) return null;
+    if (parent.classList.contains(SRC_CLASS)) return parent.parentElement;
+    return parent;
   }
 
   /**
@@ -118,9 +161,23 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     }
 
     const el = unit.el;
-    let dst = ensureDst(el, unit);
-    if (mode === 'replace') ensureSrc(el, dst);
-    el.classList.toggle('lingua-pg-replace', mode === 'replace');
+    // Replace mode hides the original — which would take any hyperlink with it.
+    // A unit that contains a real link therefore always keeps its source,
+    // unless the user explicitly opted out.
+    const replacing = mode === 'replace' && !(unit.hasLink && opts.keepLinks !== false);
+
+    const host = unit.wrap ? ensureTextWrap(el) : el;
+    if (!host) return;
+
+    let dst = directDst(host);
+    if (!dst) {
+      dst = createDst(unit);
+      host.appendChild(dst);
+    }
+    if (!unit.wrap && replacing) ensureSrc(el, dst);
+
+    el.classList.toggle('lingua-pg-replace', replacing);
+    if (unit.hasLink && el.dataset) el.dataset[LINK_MARK] = '1';
 
     dst.className = DST_CLASS + (unit.inline ? ' lingua-pg-inline' : '') + styleClass(style);
     if (dst.textContent !== text) dst.textContent = text;
@@ -147,18 +204,23 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
   function restyle(opts) {
     const mode = (opts && opts.mode) || 'bilingual';
     const style = (opts && opts.style) || 'underline';
-    const nodes = document.querySelectorAll('.' + DST_CLASS);
-    for (const node of nodes) {
+    const keepLinks = !opts || opts.keepLinks !== false;
+
+    for (const node of document.querySelectorAll('.' + DST_CLASS)) {
       const inline = node.classList.contains('lingua-pg-inline');
       node.className = DST_CLASS + (inline ? ' lingua-pg-inline' : '') + styleClass(style);
-      const parent = node.parentElement;
-      if (parent) parent.classList.toggle('lingua-pg-replace', mode === 'replace');
+      const el = unitElementOf(node);
+      if (!el) continue;
+      // Units holding a link deliberately stay bilingual — never hide them.
+      const linked = el.dataset && el.dataset[LINK_MARK] === '1';
+      el.classList.toggle('lingua-pg-replace', mode === 'replace' && !(linked && keepLinks));
     }
+
     if (mode === 'replace') {
       // Make sure every replace-mode unit has its source wrapper.
-      for (const parent of document.querySelectorAll('.lingua-pg-replace')) {
-        const dst = parent.querySelector(':scope > .' + DST_CLASS);
-        if (dst && !parent.querySelector(':scope > .' + SRC_CLASS)) ensureSrc(parent, dst);
+      for (const el of document.querySelectorAll('.lingua-pg-replace')) {
+        const dst = directDst(el);
+        if (dst && !directSrc(el)) ensureSrc(el, dst);
       }
     }
   }
@@ -211,5 +273,16 @@ html.${ROOT_FLAG} .lingua-pg-replace > .lingua-pg-src{ display:revert; }
     document.documentElement.classList.remove(ROOT_FLAG);
   }
 
-  page.render = { ensureStyle, apply, markPending, unmark, restyle, setShowOriginal, removeAll, DST_CLASS, SRC_CLASS };
+  page.render = {
+    ensureStyle,
+    apply,
+    markPending,
+    unmark,
+    restyle,
+    setShowOriginal,
+    removeAll,
+    DST_CLASS,
+    SRC_CLASS,
+    TEXTWRAP_CLASS,
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

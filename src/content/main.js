@@ -88,8 +88,10 @@
     if (!pageWanted(settings)) return;
     if (NS.page.state.active) return;
     clearTimeout(pageBootTimer);
-    // Give SPAs a moment to paint their real content before we scan.
-    const delay = document.readyState === 'complete' ? 600 : 0;
+    // Start right after the DOM is parsed instead of waiting for `load`: on a
+    // heavy page `load` can be seconds later, and the MutationObserver already
+    // picks up whatever content arrives afterwards.
+    const delay = document.readyState === 'complete' ? 300 : 150;
     pageBootTimer = setTimeout(() => {
       if (!pageWanted(settings) || NS.page.state.active) return;
       NS.page.start(settings).catch(() => {});
@@ -112,8 +114,11 @@
       hintIfUnconfigured();
     }
 
-    if (document.readyState === 'complete') startPageAuto();
-    else window.addEventListener('load', startPageAuto, { once: true });
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', startPageAuto, { once: true });
+    } else {
+      startPageAuto();
+    }
 
     NS.settings.onChanged((next) => {
       const prev = settings;

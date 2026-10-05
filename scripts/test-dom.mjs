@@ -74,6 +74,11 @@ const FIXTURE = `<!doctype html>
   <div class="contents" id="ct1">contents text</div>
   <div id="card1"><b id="card1t" style="display:block">Card title</b><span id="card1s">Card body</span></div>
   <div id="card2"><b id="card2t">Inline title</b><span id="card2s">Inline body</span></div>
+  <button class="flex" id="flexbtn">Platform<svg width="16" height="16" viewBox="0 0 16 16"><path d="M0 0h16v16H0z"></path></svg></button>
+  <button type="button" class="flex" id="ghbtn" aria-expanded="false" aria-controls="_R_nd_">Platform<svg data-component="Octicon" aria-hidden="true" focusable="false" class="octicon octicon-triangle-right" viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="m6.427 4.427 3.396 3.396a.25.25 0 0 1 0 .354l-3.396 3.396A.25.25 0 0 1 6 11.396V4.604a.25.25 0 0 1 .427-.177Z"></path></svg></button>
+  <div class="flex" id="flexdiv">Direct text in a flex box<span id="flexspan">child span</span></div>
+  <p id="linkp">Read the <a href="https://example.com">documentation</a> for details</p>
+  <p id="plainp">No links in this paragraph at all</p>
   <div id="cls1" class="lingua-pg-dst">our own node</div>
   <script>window.__noise = 1;</script>
   <pre id="out"></pre>
@@ -89,7 +94,7 @@ function buildPage(unitsSource) {
   const units = YTST.page.units.collect(document.body, { skipSelectors: '' });
   const attrs = YTST.page.units.collectAttributes(document.body, { skipSelectors: '' });
   const payload = {
-    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display }; }),
+    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display, wrap: !!u.wrap, hasLink: !!u.hasLink }; }),
     attrs: attrs.map(function (u) { return { id: u.el.id || u.el.tagName, attr: u.attr, text: u.text }; })
   };
   document.getElementById('out').textContent =
@@ -211,6 +216,29 @@ function check(name, cond, detail) {
     byId.has('ul3li') && !byId.has('ul3s') && !byId.has('ul3'),
     JSON.stringify(ids)
   );
+
+  // --- flex/grid containers that hold their OWN text (GitHub's nav button) ---
+  check(
+    'flex button with direct text becomes a wrap unit',
+    byId.has('flexbtn') && byId.get('flexbtn').wrap === true && byId.get('flexbtn').text === 'Platform',
+    JSON.stringify(byId.get('flexbtn'))
+  );
+  check('wrap unit is rendered inline', byId.has('flexbtn') && byId.get('flexbtn').inline === true);
+  check(
+    'real GitHub nav button markup is picked up',
+    byId.has('ghbtn') && byId.get('ghbtn').wrap === true && byId.get('ghbtn').text === 'Platform',
+    JSON.stringify(byId.get('ghbtn'))
+  );
+  check(
+    'flex container with direct text and an element child yields both',
+    byId.has('flexdiv') && byId.get('flexdiv').text === 'Direct text in a flex box' && byId.has('flexspan'),
+    JSON.stringify(ids)
+  );
+
+  // --- hyperlink preservation ---
+  check('unit containing a link is flagged', byId.has('linkp') && byId.get('linkp').hasLink === true, JSON.stringify(byId.get('linkp')));
+  check('unit without a link is not flagged', byId.has('plainp') && byId.get('plainp').hasLink === false);
+  check('link unit still captures the whole run', byId.has('linkp') && byId.get('linkp').text.indexOf('documentation') !== -1);
   check('display:none block skipped', !byId.has('hidden1'));
   check('inline-block element is a unit', byId.has('ib1'));
   check(
@@ -223,7 +251,7 @@ function check(name, cond, detail) {
     byId.has('card2') && !byId.has('card2t') && !byId.has('card2s'),
     JSON.stringify(ids)
   );
-  check('display:contents container rejected', !byId.has('ct1'));
+  check('display:contents container is translated via a text wrapper', byId.has('ct1') && byId.get('ct1').wrap === true, JSON.stringify(byId.get('ct1')));
   check('our own injected node skipped', !byId.has('cls1'));
   check('no duplicate ids in the result', new Set(ids).size === ids.length, JSON.stringify(ids));
 

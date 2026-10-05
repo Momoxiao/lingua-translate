@@ -152,13 +152,14 @@
       autoTranslate: false, // off by default — the user opts in per site
       displayMode: 'bilingual', // bilingual | replace
       style: 'underline', // underline | plain | highlight
-      batchSize: 12, // blocks per request
-      maxChars: 1400, // characters per request
-      concurrency: 3,
+      batchSize: 24, // blocks per request
+      maxChars: 2400, // characters per request
+      concurrency: 3, // chunks in flight (each fans out further in the worker)
       autoSites: [], // hostnames where translation starts automatically
       skipSites: [], // hostnames the extension never touches
       skipSelectors: '', // extra CSS selectors to ignore, comma separated
       translateInputs: false, // also translate placeholder/alt/title attributes
+      replacePreservesLinks: true, // in "translated only" mode keep blocks that contain links
     },
     providers: {
       openai: {

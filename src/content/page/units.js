@@ -41,6 +41,8 @@
     'LI', 'MAIN', 'NAV', 'OL', 'P', 'SECTION', 'SUMMARY', 'TABLE', 'TBODY', 'TD',
     'TFOOT', 'TH', 'THEAD', 'TR', 'UL', 'COLGROUP', 'OPTGROUP', 'OPTION', 'MENU',
     'DETAILS', 'SEARCH', 'DIALOG',
+    // Skipped, but they still separate content from their siblings.
+    'PRE', 'TEXTAREA', 'SELECT', 'IFRAME', 'OBJECT', 'EMBED',
   ]);
 
   /**
@@ -125,11 +127,26 @@
     const containers = new WeakSet();
     (function dfs(el) {
       let has = false;
+      // Inside a flex/grid container every child is blockified by CSS (an inline
+      // <span> computes to `display:block` once it becomes a flex item). That is
+      // the parent's doing, not the child's authoring, so the computed display
+      // must NOT be used to decide whether the child separates content —
+      // otherwise the container is wrongly treated as a container itself and its
+      // own text run is skipped.
+      const parentIsFlex = /^(inline-)?(flex|grid)$/.test(display(el));
       const kids = el.children;
       for (let i = 0; i < kids.length; i++) {
         const c = kids[i];
+        if (SKIP_TAGS.has(c.tagName)) {
+          // A skipped child still separates content when it is block-level
+          // (<pre>, <textarea>), but an inline skipped node must NOT break the
+          // parent's text run — `<button>Platform<svg/></button>` is the classic
+          // case.
+          if (BLOCK_TAGS.has(c.tagName) || (!parentIsFlex && BLOCK_LIKE.test(display(c)))) has = true;
+          continue;
+        }
         dfs(c);
-        if (BLOCK_TAGS.has(c.tagName) || containers.has(c) || BLOCK_LIKE.test(display(c))) has = true;
+        if (BLOCK_TAGS.has(c.tagName) || containers.has(c) || (!parentIsFlex && BLOCK_LIKE.test(display(c)))) has = true;
       }
       if (has) containers.add(el);
     })(root);
@@ -196,16 +213,38 @@
           } catch (e) {
             cs = null;
           }
-          if (cs && cs.display !== 'none' && cs.visibility !== 'hidden' && !LAYOUT_CRITICAL.test(cs.display)) {
-            out.push({
-              type: 'text',
-              el,
-              text,
-              display: cs.display,
-              inline: cs.display.indexOf('inline') === 0,
-              top: rectTop(el, scrollY),
-            });
-            return;
+          if (cs && cs.display !== 'none' && cs.visibility !== 'hidden') {
+            if (!LAYOUT_CRITICAL.test(cs.display)) {
+              out.push({
+                type: 'text',
+                el,
+                text,
+                display: cs.display,
+                inline: cs.display.indexOf('inline') === 0,
+                hasLink: hasLinkChild(el),
+                top: rectTop(el, scrollY),
+              });
+              return;
+            }
+            // A flex/grid container cannot host an appended block, but it very
+            // often holds its own text: <button>Platform<svg/></button> is the
+            // canonical case (GitHub's nav). Wrapping ONLY those direct text
+            // nodes in an inline span is layout-neutral — the span takes the
+            // place of the anonymous flex item that held the text — so the
+            // container's own text is translatable after all.
+            const direct = directText(el);
+            if (isTranslatable(direct)) {
+              out.push({
+                type: 'text',
+                el,
+                text: direct,
+                display: cs.display,
+                inline: true,
+                wrap: true,
+                top: rectTop(el, scrollY),
+              });
+              // keep descending: inline children may be units of their own
+            }
           }
         }
       }
@@ -214,6 +253,26 @@
     })(root, 0);
 
     return out;
+  }
+
+  /** Text that belongs to this element directly, not to its descendants. */
+  function directText(el) {
+    let out = '';
+    const kids = el.childNodes;
+    for (let i = 0; i < kids.length; i++) {
+      if (kids[i].nodeType === 3) out += kids[i].nodeValue + ' ';
+    }
+    return out.replace(/\s+/g, ' ').trim();
+  }
+
+  /** Does this unit contain a real hyperlink? Hiding it would break navigation. */
+  function hasLinkChild(el) {
+    if (!el.children.length) return false;
+    try {
+      return !!el.querySelector('a[href]');
+    } catch (e) {
+      return false;
+    }
   }
 
   /** Elements that carry no translatable text of their own. */

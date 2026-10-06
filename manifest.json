@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lingua — 视频字幕与网页翻译",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "YouTube 双语字幕 + 网页翻译。接入你自己的翻译服务（OpenAI 兼容 / DeepL / Google / 微软 / 自定义供应商）：全片预取、并发翻译、缓存加速；网页译文不破坏原文，随时可还原。",
   "minimum_chrome_version": "111",
   "permissions": [

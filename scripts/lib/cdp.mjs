@@ -352,7 +352,7 @@ export async function attach(cdp, targetId, { collectConsole = true } = {}) {
      * Other installed extensions inject their own worlds into the same frame, so
      * picking "the first isolated context" is not good enough — probe instead.
      */
-    findWorld: async (probe = "typeof YTST !== 'undefined' && !!YTST.store") => {
+    findWorld: async (probe = "typeof Lingua !== 'undefined' && !!Lingua.store") => {
       for (const c of contexts.filter((x) => x.auxData && x.auxData.isDefault === false && x.name !== '')) {
         try {
           if (await evalIn(probe, c.id)) return c;

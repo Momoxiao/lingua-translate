@@ -6,7 +6,7 @@
  */
 (function () {
   'use strict';
-  const NS = globalThis.YTST;
+  const NS = globalThis.Lingua;
   const { LANGUAGES, PROVIDERS } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
 
@@ -14,6 +14,7 @@
   const ui = {
     statusPill: el('statusPill'),
     statusText: el('statusText'),
+    modeLabel: el('modeLabel'),
     tabs: el('tabs'),
     // video
     enabled: el('enabled'),
@@ -38,10 +39,11 @@
     pageShowOriginal: el('pageShowOriginal'),
     pageBall: el('pageBall'),
     siteRule: el('siteRule'),
+    pageProfileValue: el('pageProfileValue'),
+    // The page progress is a hairline inside the state card: the card's title
+    // already carries "翻译中 34/86", so a second labelled bar is redundant.
     pageProgressBox: el('pageProgressBox'),
     pageProgressBar: el('pageProgressBar'),
-    pageProgressLabel: el('pageProgressLabel'),
-    pageProgressNum: el('pageProgressNum'),
     pageNote: el('pageNote'),
     pageRetranslate: el('pageRetranslate'),
     // foot
@@ -53,7 +55,8 @@
   let tabId = null;
   let supported = false;
   let lastState = null;
-  let activeTab = 'video';
+  /** which panel is on screen: 'video' | 'page' — decided once, from the URL */
+  let activeTab = 'page';
   let pollTimer = 0;
   let syncing = false; // guard so programmatic checkbox writes don't fire handlers
 
@@ -217,7 +220,7 @@
     ui.pageStateTitle.textContent = pageStatusText(p);
     ui.pageStateCard.dataset.tone = p.status === 'error' ? 'err' : p.active ? 'on' : 'idle';
     ui.pageToggle.textContent = p.active ? '停止' : '开始翻译';
-    ui.pageToggle.disabled = !state.supported && state.supported !== undefined ? !state.supported : false;
+    ui.pageToggle.disabled = false;
 
     syncing = true;
     ui.pageShowOriginal.checked = !!p.showOriginal;
@@ -230,11 +233,19 @@
       ui.pageProgressBox.hidden = false;
       const pct = Math.round(((p.done || 0) / p.total) * 100);
       ui.pageProgressBar.style.width = `${pct}%`;
-      ui.pageProgressNum.textContent = `${p.done || 0} / ${p.total}`;
-      ui.pageProgressLabel.textContent = (p.done || 0) >= p.total ? '翻译完成' : '翻译中';
     } else {
       ui.pageProgressBox.hidden = true;
     }
+
+    // Show which "translation expert" the page was assigned, so the adaptive
+    // behaviour is something the user can see and disagree with. Only the
+    // override is annotated: "自动识别" on every page would be noise.
+    const prof = p.profile;
+    ui.pageProfileValue.textContent = prof
+      ? prof.confidence === 'manual'
+        ? `${prof.label} · 手动`
+        : prof.label
+      : '';
 
     if (p.error) {
       setNote(ui.pageNote, p.error, 'err');
@@ -297,22 +308,36 @@
   }
 
   // ---------------------------------------------------------------------------
-  // Tabs
+  // Panel
   // ---------------------------------------------------------------------------
-  function switchTab(name) {
+  /**
+   * Show exactly one panel.
+   *
+   * The two halves of the product never apply at the same time: subtitles only
+   * exist on a YouTube video page, web-page translation applies to everything
+   * else. Presenting both as tabs meant one was always a dead end — and on
+   * YouTube the dead end was the one selected by default.
+   */
+  function showPanel(name) {
     activeTab = name;
-    for (const btn of ui.tabs.querySelectorAll('button')) {
-      btn.setAttribute('aria-selected', String(btn.dataset.tab === name));
-    }
     for (const panel of document.querySelectorAll('.panel')) {
       panel.hidden = panel.dataset.panel !== name;
     }
+    for (const btn of ui.tabs.querySelectorAll('button')) {
+      btn.setAttribute('aria-selected', String(btn.dataset.tab === name));
+    }
+    ui.modeLabel.textContent = name === 'video' ? '视频字幕' : '网页翻译';
     if (lastState) {
       renderVideoPanel(lastState);
       renderPagePanel(lastState);
     } else {
       queryState();
     }
+  }
+
+  /** A YouTube URL that actually carries a video. */
+  function isVideoPage(url) {
+    return /(^|\.)youtube(-nocookie)?\.com\/(watch|shorts|live|embed)/.test(url);
   }
 
   function send(type, payload) {
@@ -335,7 +360,7 @@
   function bindEvents() {
     ui.tabs.addEventListener('click', (ev) => {
       const btn = ev.target.closest('button[data-tab]');
-      if (btn) switchTab(btn.dataset.tab);
+      if (btn) showPanel(btn.dataset.tab);
     });
 
     // ---- video ----
@@ -439,12 +464,17 @@
     if (supported) {
       tabId = tab.id;
       listenForPageState();
-      // Default to the panel that is useful for this page.
-      switchTab(/youtube(-nocookie)?\.com\/(watch|shorts|live|embed)/.test(url) ? 'video' : 'page');
+      // A YouTube video page is the one place where BOTH halves apply: the video
+      // has captions to translate and the page around it (description, comments,
+      // sidebar) has prose. Everywhere else there is nothing to switch between,
+      // so the switcher stays hidden rather than offering a dead end.
+      const videoMode = isVideoPage(url);
+      ui.tabs.hidden = !videoMode;
+      showPanel(videoMode ? 'video' : 'page');
       queryState();
       startPolling();
     } else {
-      switchTab('page');
+      showPanel('page');
       setStatus('warn', '不支持');
       setNote(ui.pageNote, '当前页面不支持翻译（仅支持 http/https 网页）。', 'info');
       ui.pageToggle.disabled = true;

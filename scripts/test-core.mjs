@@ -93,11 +93,12 @@ for (const f of [
   'src/background/providers/custom.js',
   'src/background/translator.js',
   'src/content/page/units.js',
+  'src/content/page/profile.js',
 ]) {
   load(f);
 }
 
-const NS = globalThis.YTST;
+const NS = globalThis.Lingua;
 const S = NS.subtitles;
 
 // ---------------------------------------------------------------------------
@@ -379,6 +380,134 @@ check('deepMerge merges nested', merged.a.b === 1 && merged.a.c === 9 && merged.
 
 check('getPath dot path', NS.utils.getPath({ a: { b: { c: 7 } } }, 'a.b.c') === 7);
 check('getPath bracket index', NS.utils.getPath({ r: [{ t: 'hi' }] }, 'r[0].t') === 'hi');
+
+// ---------------------------------------------------------------------------
+console.log('\nprovider readiness matches what each service really needs');
+// ---------------------------------------------------------------------------
+const D = NS.constants.DEFAULT_SETTINGS;
+const readyFor = (provider, cfg) =>
+  NS.settings.providerReady({
+    provider,
+    providers: Object.assign({}, D.providers, { [provider]: Object.assign({}, D.providers[provider], cfg) }),
+  });
+
+check('google needs nothing (free endpoint)', readyFor('google', {}) === true);
+check('deepl needs a key', readyFor('deepl', { apiKey: '' }) === false && readyFor('deepl', { apiKey: 'k' }) === true);
+check(
+  'openai needs baseUrl + model (local endpoints need no key)',
+  readyFor('openai', { baseUrl: '', model: '' }) === false &&
+    readyFor('openai', { baseUrl: 'http://localhost:11434/v1', model: 'qwen2.5:7b', apiKey: '' }) === true
+);
+check('custom needs a url', readyFor('custom', { url: '' }) === false && readyFor('custom', { url: 'https://x' }) === true);
+// Azure's region header is only mandatory for a regional resource, so requiring
+// it here would lock out anyone on a global one. A missing region is surfaced in
+// the pane instead of gating the pipeline.
+check(
+  'microsoft needs a key, but not a region (global resources omit it)',
+  readyFor('microsoft', { apiKey: '', region: 'eastasia' }) === false &&
+    readyFor('microsoft', { apiKey: 'k', region: '' }) === true
+);
+
+// ---------------------------------------------------------------------------
+console.log('\nadaptive translation profile');
+// ---------------------------------------------------------------------------
+const apProf = NS.page.profile;
+const apBase = { host: '', path: '/', lang: 'en', ogType: '', jsonLd: [], codeBlocks: 0, inlineCode: 0, mathNodes: 0, citations: 0, timeStamps: 0, articles: 0, comments: 0, prices: 0 };
+const apSig = (over) => Object.assign({}, apBase, over);
+const apWinner = (over) => {
+  const s = apProf.score(apSig(over));
+  let best = 'general';
+  let top = 0;
+  for (const id of ['tech', 'academic', 'news', 'forum', 'commerce']) {
+    if (s[id] > top) {
+      top = s[id];
+      best = id;
+    }
+  }
+  return top >= apProf.CONFIDENCE_THRESHOLD ? best : 'general';
+};
+
+check('a docs site with code blocks reads as technical', apWinner({ host: 'vuejs.org', path: '/guide/introduction.html', codeBlocks: 8, inlineCode: 40 }) === 'tech');
+check('a /docs path alone is enough to lean technical', apWinner({ host: 'example.com', path: '/docs/api/overview', codeBlocks: 0 }) === 'tech');
+check('a docs subdomain alone is enough', apWinner({ host: 'docs.example.com', path: '/', codeBlocks: 0 }) === 'tech');
+check('a code-heavy tutorial reads as technical', apWinner({ host: 'blog.example.com', path: '/post/1', codeBlocks: 4 }) === 'tech');
+check('a paper on arxiv reads as academic', apWinner({ host: 'arxiv.org', path: '/abs/2401.00001', mathNodes: 30, citations: 5 }) === 'academic');
+check('a NewsArticle schema reads as news', apWinner({ host: 'example.com', jsonLd: ['NewsArticle'], ogType: 'article', timeStamps: 4, articles: 1 }) === 'news');
+check('a comment-heavy thread reads as forum', apWinner({ host: 'news.ycombinator.com', comments: 25 }) === 'forum');
+check('a Product schema with prices reads as commerce', apWinner({ host: 'shop.example.com', jsonLd: ['Product'], ogType: 'product', prices: 3 }) === 'commerce');
+
+// The interesting failure mode is over-triggering: a blog post with one code
+// sample must NOT be treated as API documentation.
+check('a single code block does not make a page technical', apWinner({ host: 'blog.example.com', path: '/post/1', codeBlocks: 1 }) === 'general');
+check('an ordinary page stays general', apWinner({ host: 'example.com', path: '/about' }) === 'general');
+check('no signals at all is safe', apWinner({}) === 'general');
+
+check('an explicit mode wins over detection', apProf.detect('academic').id === 'academic' && apProf.detect('academic').confidence === 'manual');
+check('an unknown mode falls back to detection', apProf.detect('nonsense').id === 'general');
+check('detect() without a DOM degrades to general', apProf.detect().id === 'general');
+check('detect() always reports a label', !!apProf.detect().label && !!apProf.detect('tech').label);
+
+const apP = NS.bg.prompts;
+check('the neutral profile adds nothing to the prompt', apP.profileLines({ id: 'general' }).length === 0);
+check('a user note alone is still injected', apP.profileLines({ id: 'general', notes: '保留英文术语' }).join('\n').indexOf('保留英文术语') !== -1);
+const apTechLines = apP.profileLines({ id: 'tech' }).join('\n');
+check('the technical profile names the context', apTechLines.indexOf('technical documentation') !== -1, apTechLines);
+check('the technical profile carries its directives', apTechLines.indexOf('code identifiers') !== -1, apTechLines);
+
+const apPagePrompt = apP.systemPrompt('en', 'zh-Hans', 'page', { id: 'tech' });
+check('the page prompt includes the profile', apPagePrompt.indexOf('technical documentation') !== -1);
+check(
+  'the output-format rules still come last',
+  apPagePrompt.indexOf('technical documentation') < apPagePrompt.indexOf('Rules:'),
+  `profile@${apPagePrompt.indexOf('technical documentation')} rules@${apPagePrompt.indexOf('Rules:')}`
+);
+check('the subtitle prompt is untouched by default', apP.systemPrompt('en', 'zh-Hans', 'subtitle').indexOf('Context:') === -1);
+check('profileSuffix is empty for the neutral profile', apP.profileSuffix({ id: 'general' }) === '');
+check('profileSuffix starts a new paragraph', apP.profileSuffix({ id: 'tech' }).indexOf('\n\n') === 0);
+
+// ---------------------------------------------------------------------------
+console.log('\ntypography is one system across four surfaces');
+// ---------------------------------------------------------------------------
+// The popup and options page read their stacks from theme.css custom
+// properties; the floating ball and the subtitle overlay build styles in a JS
+// template string inside a shadow root and read them from constants.js. A CSS
+// custom property cannot be imported into a JS string, so the duplication is
+// unavoidable — what is avoidable is letting the two drift apart.
+const themeCss = fs.readFileSync(path.join(ROOT, 'src/ui/theme.css'), 'utf8');
+const cssFont = (name) => {
+  const m = new RegExp(`--font-${name}\\s*:([\\s\\S]*?);`).exec(themeCss);
+  return m ? m[1].replace(/\s+/g, ' ').trim() : null;
+};
+const norm = (s) => String(s).replace(/\s+/g, ' ').trim();
+check('theme.css defines --font-body', !!cssFont('body'));
+check(
+  'theme.css --font-body matches constants.FONTS.body',
+  cssFont('body') === norm(NS.constants.FONTS.body),
+  `css=${cssFont('body')}\n         js =${norm(NS.constants.FONTS.body)}`
+);
+check(
+  'theme.css --font-display matches constants.FONTS.display',
+  cssFont('display') === norm(NS.constants.FONTS.display),
+  `css=${cssFont('display')}`
+);
+check(
+  'theme.css --font-mono matches constants.FONTS.mono',
+  cssFont('mono') === norm(NS.constants.FONTS.mono),
+  `css=${cssFont('mono')}`
+);
+
+// The content-script surfaces must actually use the shared stack, not a
+// hand-written near-copy of it (ui-sans-serif vs system-ui is exactly the kind
+// of difference that goes unnoticed until the two look subtly off).
+const ballSrc = fs.readFileSync(path.join(ROOT, 'src/content/page/ball.js'), 'utf8');
+const overlaySrc = fs.readFileSync(path.join(ROOT, 'src/content/overlay.js'), 'utf8');
+check('the floating ball uses the shared stack', ballSrc.indexOf('${FONTS.body}') !== -1);
+check('the subtitle overlay uses the shared stack', overlaySrc.indexOf('${FONTS.body}') !== -1);
+check(
+  'no surface hard-codes its own sans stack any more',
+  !/(system-ui|ui-sans-serif),-apple-system/.test(ballSrc + overlaySrc),
+  'found a hand-written stack'
+);
 
 // ---------------------------------------------------------------------------
 console.log(`\n${passed} passed, ${failed} failed`);

@@ -309,13 +309,10 @@ const FIXTURE = `<!doctype html>
     a.addEventListener('click', function (e) { e.preventDefault(); window.__linkClicks++; });
     a.addEventListener('mouseover', function () { window.__linkHovers++; });
   })();
-  // dynamic content, injected later — exercises the MutationObserver path
-  setTimeout(function () {
-    var d = document.createElement('p');
-    d.id = 'dynamic';
-    d.textContent = 'This paragraph arrived after the initial scan.';
-    document.querySelector('main').appendChild(d);
-  }, 1200);
+  // Dynamic content is injected by the test itself (see addDynamicParagraph),
+  // not on a timer: a timer made the assertion depend on how long the earlier
+  // steps happened to take, so the paragraph sometimes existed before the first
+  // scan and stopped being "dynamic" at all.
 </script>
 </body></html>`;
 
@@ -410,6 +407,35 @@ if (!chromePath) {
 
 const HTTP_PORT = 8799 + Math.floor(Math.random() * 60);
 const PROFILE = path.join(os.tmpdir(), `lingua-e2e-profile-${process.pid}`);
+
+/**
+ * Sweep profiles left behind by earlier runs.
+ *
+ * The cleanup below only runs on a graceful exit, so a killed or interrupted run
+ * (which happens a lot while iterating) strands a 40MB Chrome profile in the
+ * system temp dir. This is self-healing: anything matching our own naming that
+ * is not the profile for the current process is ours and safe to drop.
+ */
+function sweepStaleProfiles() {
+  const tmp = os.tmpdir();
+  let removed = 0;
+  try {
+    for (const name of fs.readdirSync(tmp)) {
+      if (!name.startsWith('lingua-e2e-profile-')) continue;
+      if (path.join(tmp, name) === PROFILE) continue;
+      try {
+        fs.rmSync(path.join(tmp, name), { recursive: true, force: true });
+        removed++;
+      } catch (e) {
+        /* in use — leave it */
+      }
+    }
+  } catch (e) {
+    /* temp dir unreadable — nothing to sweep */
+  }
+  if (removed) console.log(`[e2e] cleared ${removed} stale profile(s) from earlier runs`);
+}
+sweepStaleProfiles();
 
 let chrome = null;
 let server = null;
@@ -530,7 +556,7 @@ async function main() {
   await cdp.send('Page.enable', {}, pageSession);
 
   // The content script runs in an isolated world: a non-default execution
-  // context on the same frame. Find it so we can talk to the real YTST object.
+  // context on the same frame. Find it so we can talk to the real Lingua object.
   let isoCtx = null;
   for (let i = 0; i < 40 && !isoCtx; i++) {
     isoCtx = contexts.find((c) => c.auxData && c.auxData.isDefault === false && c.name !== '');
@@ -565,7 +591,15 @@ async function main() {
       return 1;
     })()`);
 
-  check('floating ball is mounted on the page', (await evalPage(`!!document.getElementById('lingua-ball')`)) === true);
+  // The isolated world appears as soon as the content script starts evaluating,
+  // but the ball is mounted by boot() after an async storage read. Asserting on
+  // the instant the context shows up is a race — poll instead.
+  let ballMounted = false;
+  for (let i = 0; i < 25 && !ballMounted; i++) {
+    ballMounted = await evalPage(`!!document.getElementById('lingua-ball')`);
+    if (!ballMounted) await sleep(100);
+  }
+  check('floating ball is mounted on the page', ballMounted);
   check(
     'ball host has a real hit-testable box',
     (await evalPage(
@@ -598,13 +632,133 @@ async function main() {
     JSON.stringify(dotGeo)
   );
 
+  // --- the docked ball must not stutter under a resting pointer --------------
+  // Docking is a transform, so hovering slides the ball out from under the
+  // cursor. If the pointer sits in the strip the ball vacates, the hover is lost,
+  // the ball docks, the pointer is over it again… a visible flicker at ~4Hz.
+  // This drives a real pointer with CDP because CSS :hover only follows real
+  // mouse input.
+  const wrapTransform = () =>
+    evalPage(
+      `getComputedStyle(document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap')).transform`
+    );
+  const ballBox = JSON.parse(
+    await evalPage(`(function () {
+      var r = document.getElementById('lingua-ball').getBoundingClientRect();
+      return JSON.stringify({ x: r.left, y: r.top, w: r.width, h: r.height, vw: window.innerWidth });
+    })()`)
+  );
+  check('the ball starts docked against an edge', dotGeo.dockRight || dotGeo.dockLeft, JSON.stringify(dotGeo));
+
+  // The strip between the ball's resting position and the screen edge: the
+  // popped-out ball no longer covers it, but the pointer is still "on" the ball
+  // as far as the user is concerned.
+  const stripX = dotGeo.dockRight ? ballBox.vw - 4 : 4;
+  const stripY = Math.round(ballBox.y + ballBox.h / 2);
+  // A single synthetic move cannot reproduce the stutter: Chrome only
+  // re-evaluates :hover when the pointer MOVES, and a hand resting on a mouse
+  // still jitters by a pixel or two. With one move and then nothing, the stale
+  // hover simply persists and the ball looks perfectly stable. So drive the
+  // pointer the way a real hand does.
+  const jitter = (i) =>
+    cdp.send(
+      'Input.dispatchMouseEvent',
+      {
+        type: 'mouseMoved',
+        x: stripX + (i % 2 === 0 ? 0 : -2),
+        y: stripY + (i % 3 === 0 ? 1 : 0),
+        button: 'none',
+        buttons: 0,
+      },
+      pageSession
+    );
+
+  // Warm-up: let the 220ms slide-out finish. Sampling through it would just
+  // record the animation, which is not the bug.
+  for (let i = 0; i < 16; i++) {
+    await jitter(i);
+    await sleep(70);
+  }
+  const frames = [];
+  for (let i = 0; i < 8; i++) {
+    await jitter(i);
+    await sleep(90);
+    frames.push(await wrapTransform());
+  }
+  const distinct = Array.from(new Set(frames));
+  check(
+    'the docked ball does not stutter while the pointer rests in the strip it vacates',
+    distinct.length === 1,
+    distinct.join('  |  ')
+  );
+  check(
+    'the ball stays slid out while hovered',
+    distinct[0] === 'matrix(1, 0, 0, 1, 0, 0)',
+    distinct[0]
+  );
+
+  // The progress ring is drawn 3px outside the ball, so that band used to be a
+  // dead zone: grazing it dropped the hover and the ball slid back. Probe the
+  // TOP edge, which the dock bridge above does not cover — a right-side probe
+  // would be inside the strip that bridge already protects.
+  const ringPoint = JSON.parse(
+    await evalPage(`(function () {
+      var w = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
+      var r = w.getBoundingClientRect();
+      return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top - 2) });
+    })()`)
+  );
+  const ringFrames = [];
+  for (let i = 0; i < 6; i++) {
+    await cdp.send(
+      'Input.dispatchMouseEvent',
+      { type: 'mouseMoved', x: ringPoint.x + (i % 2), y: ringPoint.y, button: 'none', buttons: 0 },
+      pageSession
+    );
+    await sleep(90);
+    ringFrames.push(await wrapTransform());
+  }
+  const ringDistinct = Array.from(new Set(ringFrames));
+  check(
+    'grazing the progress ring does not collapse the ball',
+    ringDistinct.length === 1 && ringDistinct[0] === 'matrix(1, 0, 0, 1, 0, 0)',
+    ringDistinct.join('  |  ')
+  );
+
+  // Move the pointer well away so the rest of the run starts from a clean state.
+  await cdp.send(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: Math.round(ballBox.vw / 2), y: Math.round(ballBox.h + 40), button: 'none', buttons: 0 },
+    pageSession
+  );
+  await sleep(350);
+
   await clickBall();
   await sleep(500);
-  check('clicking the ball on a fresh page starts translation', (await evalIso('YTST.page.state.active')) === true);
+  check('clicking the ball on a fresh page starts translation', (await evalIso('Lingua.page.state.active')) === true);
   check(
     'ball switches to the active state',
     (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('on'),
     await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)
+  );
+
+  // The progress ring must be concentric with the ball. It used to drift by
+  // (+1,+1): the SVG's width/height attributes made the `inset` over-constrained,
+  // so right/bottom were dropped and the ring anchored at the top-left, leaving
+  // a visibly uneven gap around the ball.
+  const ringOffset = await evalPage(`(function () {
+    var sr = document.getElementById('lingua-ball').shadowRoot;
+    var b = sr.querySelector('.ball').getBoundingClientRect();
+    var r = sr.querySelector('.ring').getBoundingClientRect();
+    return [
+      (r.left + r.width / 2) - (b.left + b.width / 2),
+      (r.top + r.height / 2) - (b.top + b.height / 2)
+    ];
+  })()`);
+  check(
+    'progress ring is concentric with the ball',
+    Math.abs(ringOffset[0]) < 0.5 && Math.abs(ringOffset[1]) < 0.5,
+    `offset ${ringOffset.map((n) => n.toFixed(2)).join(',')}`
   );
 
   // --- wait for translation to land ---
@@ -618,7 +772,7 @@ async function main() {
   console.log('\nreal-browser end-to-end');
   check('translated nodes rendered into the page', count >= 12, `${count} nodes`);
 
-  const status = await evalIso('JSON.stringify(YTST.page.status())');
+  const status = await evalIso('JSON.stringify(Lingua.page.status())');
   const st = JSON.parse(status);
   check('page pipeline reports done', st.status === 'done', status);
   check('unit discovery found a realistic number of blocks', st.total >= 12, `${st.total} units`);
@@ -666,12 +820,42 @@ async function main() {
   check('flex button did not collapse or explode', flexBtnH > 0 && flexBtnH < 64, `height=${flexBtnH}px`);
 
   // dynamic content must be picked up by the MutationObserver
+  const addDynamicParagraph = () =>
+    evalPage(`(function () {
+      var d = document.createElement('p');
+      d.id = 'dynamic';
+      d.textContent = 'This paragraph arrived after the initial scan.';
+      document.querySelector('main').appendChild(d);
+      return 1;
+    })()`);
+  await addDynamicParagraph();
   let dynOk = false;
   for (let i = 0; i < 20 && !dynOk; i++) {
     dynOk = await evalPage(`!!document.querySelector('#dynamic .lingua-pg-dst')`);
     if (!dynOk) await sleep(500);
   }
   check('dynamically added paragraph got translated', dynOk);
+
+  // --- progress accounting ---------------------------------------------------
+  // `done` used to be a running counter, which drifted out of sync with the unit
+  // list and produced "已翻译 391/381" on real sites. Progress is now derived
+  // from per-unit flags, so this invariant must hold at every moment.
+  const snap = JSON.parse(
+    await evalIso(
+      `JSON.stringify(Object.assign({}, Lingua.page.status(), { nodes: document.querySelectorAll('.lingua-pg-dst').length }))`
+    )
+  );
+  check(
+    'progress never reports more finished units than exist',
+    snap.done <= snap.total,
+    `done=${snap.done} total=${snap.total}`
+  );
+  check('dynamically added content grew the total', snap.total > st.total, `${st.total} -> ${snap.total}`);
+  check(
+    'the reported progress matches what is on screen',
+    snap.done >= snap.nodes && snap.nodes > 0,
+    `done=${snap.done} rendered=${snap.nodes}`
+  );
 
   // --- batching / provider contract ---
   const log = await (await fetch(`http://127.0.0.1:${HTTP_PORT}/__log`)).json();
@@ -680,7 +864,7 @@ async function main() {
   check('mock endpoint received no subtitle-kind requests', !log.requests.some((r) => r.kind === 'subtitle'));
 
   // --- restore ---
-  await evalIso('YTST.page.stop()');
+  await evalIso('Lingua.page.stop()');
   await sleep(300);
   check('restore removed every injected node', (await evalPage(`document.querySelectorAll('.lingua-pg-dst,.lingua-pg-src').length`)) === 0);
   check('restore cleared the processed markers', (await evalPage(`document.querySelectorAll('[data-lingua]').length`)) === 0);
@@ -689,9 +873,9 @@ async function main() {
   check('no runtime errors in the page', consoleErrors.length === 0, consoleErrors.slice(0, 3).join(' | '));
 
   // --- replace mode must not swallow hyperlinks -----------------------------
-  await evalIso(`YTST.settings.setSettings({ page: { displayMode: 'replace' } }).then(function () { return YTST.page.retranslate(); })`);
+  await evalIso(`Lingua.settings.setSettings({ page: { displayMode: 'replace' } }).then(function () { return Lingua.page.retranslate(); })`);
   for (let i = 0; i < 40; i++) {
-    const s = JSON.parse(await evalIso('JSON.stringify(YTST.page.status())'));
+    const s = JSON.parse(await evalIso('JSON.stringify(Lingua.page.status())'));
     if (s.status === 'done' || s.status === 'error') break;
     await sleep(500);
   }
@@ -730,7 +914,7 @@ async function main() {
   check('link-bearing paragraph still got a translation', (await evalPage(`document.querySelectorAll('#linkp .lingua-pg-dst').length`)) === 1);
 
   // --- "show original" means original ONLY, not a bilingual view ------------
-  await evalIso('YTST.page.toggleOriginal()');
+  await evalIso('Lingua.page.toggleOriginal()');
   await sleep(4000);
   check(
     'show-original hides every translation',
@@ -757,7 +941,7 @@ async function main() {
       `(function(){ var a = document.getElementById('doclink'); if(!a) return false; var r = a.getBoundingClientRect(); return r.width > 0 && r.height > 0; })()`
     )) === true
   );
-  await evalIso('YTST.page.toggleOriginal()');
+  await evalIso('Lingua.page.toggleOriginal()');
   await sleep(4000);
   check(
     'toggling back shows the translation again',
@@ -805,7 +989,7 @@ async function main() {
   check('still no runtime errors after the replace pass', consoleErrors.length === 0, consoleErrors.slice(0, 2).join(' | '));
 
   // --- restoring must hand the real link back, untouched -------------------
-  await evalIso('YTST.page.stop()');
+  await evalIso('Lingua.page.stop()');
   await sleep(250);
   check(
     'restore puts the link back inside its own paragraph',
@@ -833,16 +1017,16 @@ async function main() {
   check('ball is idle after the restore', (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle'));
   await clickBall();
   await sleep(500);
-  check('the ball can start translation again after a stop', (await evalIso('YTST.page.state.active')) === true);
+  check('the ball can start translation again after a stop', (await evalIso('Lingua.page.state.active')) === true);
 
   for (let i = 0; i < 60; i++) {
-    const s = JSON.parse(await evalIso('JSON.stringify(YTST.page.status())'));
+    const s = JSON.parse(await evalIso('JSON.stringify(Lingua.page.status())'));
     if (s.status === 'done' || s.status === 'error') break;
     await sleep(500);
   }
   await clickBall();
   await sleep(700);
-  check('clicking again stops translation', (await evalIso('YTST.page.state.active')) === false);
+  check('clicking again stops translation', (await evalIso('Lingua.page.state.active')) === false);
   check(
     'ball returns to the idle state',
     (await evalPage(`document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').className`)).includes('idle'),

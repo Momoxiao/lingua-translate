@@ -1,10 +1,10 @@
 /**
  * Lingua — provider HTTP helpers.
- * Registers onto YTST.bg.http.
+ * Registers onto Lingua.bg.http.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
 
   class ProviderError extends Error {

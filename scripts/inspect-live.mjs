@@ -25,15 +25,15 @@ for (let i = 0; i < args.length; i++) {
 const filter = rest[0] || '';
 
 const STATE_PROBE = `(function () {
-  if (typeof YTST === 'undefined' || !YTST) {
+  if (typeof Lingua === 'undefined' || !Lingua) {
     return JSON.stringify({ injected: false });
   }
-  const st = YTST.store && YTST.store.state;
+  const st = Lingua.store && Lingua.store.state;
   return JSON.stringify({
     injected: true,
-    hasPageModule: !!YTST.page,
-    hasLiveModule: !!YTST.live,
-    bridgeAlive: YTST.bridge ? YTST.bridge.isAlive() : null,
+    hasPageModule: !!Lingua.page,
+    hasLiveModule: !!Lingua.live,
+    bridgeAlive: Lingua.bridge ? Lingua.bridge.isAlive() : null,
     subtitle: st ? {
       status: st.status,
       videoId: st.videoId,
@@ -42,12 +42,12 @@ const STATE_PROBE = `(function () {
       trackLangs: st.tracks.map(function (t) { return t.languageCode + (t.kind ? '/' + t.kind : ''); }),
       sourceTrack: st.sourceTrack ? st.sourceTrack.languageCode : null,
       cueCount: st.cues.length,
-      translated: YTST.store.translatedCount(),
+      translated: Lingua.store.translatedCount(),
       liveMode: st.liveMode,
       firstCue: st.cues[0] ? st.cues[0].text.slice(0, 70) : null,
       firstTranslation: st.translations[0] || null
     } : null,
-    page: YTST.page ? YTST.page.status() : null
+    page: Lingua.page ? Lingua.page.status() : null
   });
 })()`;
 
@@ -92,7 +92,7 @@ function line(label, value) {
       } else {
         const state = JSON.parse(await view.evalIn(STATE_PROBE, iso.id));
         if (!state.injected) {
-          console.log('  content script     isolated world exists but YTST is undefined');
+          console.log('  content script     isolated world exists but Lingua is undefined');
         } else {
           line('has page module', state.hasPageModule);
           line('bridge alive', state.bridgeAlive);

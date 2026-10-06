@@ -2,11 +2,11 @@
  * Lingua — translation orchestrator.
  * Turns a flat array of subtitle lines into translated lines using:
  *   cache lookup -> chunking -> bounded concurrency -> retry -> adaptive split.
- * Registers onto YTST.bg.translator.
+ * Registers onto Lingua.bg.translator.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { retry, pool, clamp } = NS.utils;
 
@@ -85,11 +85,11 @@
 
   /**
    * @param {string[]} texts
-   * @param {{settings:object, from:string, to:string, signal?:AbortSignal, onProgress?:Function}} opts
+   * @param {{settings:object, from:string, to:string, signal?:AbortSignal, kind?:string, profile?:object, onProgress?:Function}} opts
    * @returns {Promise<{results:string[], stats:object}>}
    */
   async function translate(texts, opts) {
-    const { settings, from, to, signal, kind } = opts;
+    const { settings, from, to, signal, kind, profile } = opts;
     if (!texts.length) return { results: [], stats: { total: 0, cached: 0, translated: 0, failed: 0 } };
 
     const providerId = settings.provider;
@@ -128,7 +128,7 @@
         const subTexts = chunk.map((i) => texts[i]);
         let out;
         try {
-          out = await translateChunk(provider, subTexts, { settings, from, to, signal, kind });
+          out = await translateChunk(provider, subTexts, { settings, from, to, signal, kind, profile });
         } catch (err) {
           if (err && err.name === 'AbortError') return;
           out = new Array(subTexts.length).fill(null);

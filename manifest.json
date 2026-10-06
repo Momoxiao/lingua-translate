@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Lingua — YouTube 双语字幕翻译",
+  "name": "Lingua — 视频字幕与网页翻译",
   "version": "1.0.0",
-  "description": "高性能 YouTube 字幕翻译。接入自定义云端 API（OpenAI 兼容 / DeepL / Google / 微软 / 自定义模板），全片预翻译 + 缓存 + 并发，双语字幕实时同步。",
+  "description": "YouTube 双语字幕 + 网页翻译。接入你自己的翻译服务（OpenAI 兼容 / DeepL / Google / 微软 / 自定义供应商）：全片预取、并发翻译、缓存加速；网页译文不破坏原文，随时可还原。",
   "minimum_chrome_version": "111",
   "permissions": [
     "storage"
@@ -16,7 +16,7 @@
     "service_worker": "src/background/sw.js"
   },
   "action": {
-    "default_title": "Lingua 字幕翻译",
+    "default_title": "Lingua 翻译",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",
@@ -56,6 +56,7 @@
         "src/content/youtube.js",
         "src/content/live.js",
         "src/content/page/units.js",
+        "src/content/page/profile.js",
         "src/content/page/render.js",
         "src/content/page/ball.js",
         "src/content/page/index.js",
@@ -78,6 +79,7 @@
         "src/content/youtube.js",
         "src/content/live.js",
         "src/content/page/units.js",
+        "src/content/page/profile.js",
         "src/content/page/render.js",
         "src/content/page/ball.js",
         "src/content/page/index.js",

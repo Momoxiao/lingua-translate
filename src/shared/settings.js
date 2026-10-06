@@ -1,10 +1,10 @@
 /**
  * Lingua — settings access layer.
- * Stored in chrome.storage.local (single key). Registers onto YTST.settings.
+ * Stored in chrome.storage.local (single key). Registers onto Lingua.settings.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const KEY = 'lingua:settings:v1';
 
   const DEFAULTS = NS.constants.DEFAULT_SETTINGS;
@@ -52,7 +52,14 @@
     return () => chrome.storage.onChanged.removeListener(handler);
   }
 
-  /** Convenience: is the extension usable (enabled + provider configured)? */
+  /**
+   * Is the selected provider usable enough to attempt a request?
+   *
+   * This mirrors what each implementation strictly cannot work without. Note it
+   * deliberately does NOT require Azure's `region`: the header is only mandatory
+   * for a regional resource, so demanding it here would lock out anyone using a
+   * global one. A missing region is surfaced in the pane instead of blocking.
+   */
   function providerReady(settings) {
     const p = settings.provider;
     const cfg = settings.providers[p] || {};

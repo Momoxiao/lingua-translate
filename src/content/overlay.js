@@ -6,12 +6,13 @@
  *     changes (no per-frame writes, no layout thrash)
  *   - the overlay lives inside #movie_player, so fullscreen/theater mode work
  *     for free; the font scales with the player via a CSS custom property
- * Registers onto YTST.overlay.
+ * Registers onto Lingua.overlay.
  */
 (function (g) {
   'use strict';
-  const NS = (g.YTST = g.YTST || {});
+  const NS = (g.Lingua = g.Lingua || {});
   const { store } = NS;
+  const { FONTS } = NS.constants;
 
   const STYLE_ID = 'lingua-overlay-style';
 
@@ -34,35 +35,41 @@
   const CSS = `
   .lingua-overlay{
     position:absolute; left:0; right:0; bottom:var(--lingua-bottom,12%);
-    display:flex; flex-direction:column; align-items:center; gap:.28em;
+    display:flex; flex-direction:column; align-items:center; gap:.3em;
     pointer-events:none; z-index:60; padding:0 5%;
-    text-align:center; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    text-align:center; font-family:${FONTS.body};
     transform:translateZ(0); will-change:opacity;
   }
   .lingua-overlay[data-hidden="1"]{opacity:0}
   .lingua-line{
     display:inline-block; max-width:100%;
-    padding:.18em .6em; border-radius:.34em;
-    line-height:1.32; font-weight:600;
+    padding:.2em .62em; border-radius:.36em;
+    line-height:1.34; font-weight:600; letter-spacing:.01em;
     text-wrap:balance; white-space:pre-wrap; word-break:break-word;
     transition:opacity .12s linear;
   }
+  /* The translated line is the hero: brightest, largest, with a shadow strong
+     enough to stay readable over a bright frame. */
   .lingua-translated{
     font-size:calc(var(--lingua-font,24px) * var(--lingua-scale,1));
-    color:#fff; text-shadow:0 1px 2px rgba(0,0,0,.9),0 0 6px rgba(0,0,0,.6);
-    background:rgba(12,11,10,var(--lingua-bg,.72));
+    color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,.9),0 0 12px rgba(0,0,0,.5);
+    background:rgba(10,9,8,var(--lingua-bg,.72));
   }
   .lingua-original{
     font-size:calc(var(--lingua-font,24px) * var(--lingua-scale,1) * .72);
-    color:#f4efe9; font-weight:500;
-    text-shadow:0 1px 2px rgba(0,0,0,.9);
-    background:rgba(12,11,10,calc(var(--lingua-bg,.72) * .62));
+    color:#f1ebe3; font-weight:500;
+    text-shadow:0 1px 3px rgba(0,0,0,.9);
+    background:rgba(10,9,8,calc(var(--lingua-bg,.72) * .6));
   }
   .lingua-line:empty{display:none}
   .lingua-notice{
-    font:500 calc(13px * var(--lingua-scale,1))/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC",sans-serif;
-    color:#f4efe9; background:rgba(12,11,10,.82); border:1px solid rgba(228,87,46,.55);
-    padding:.4em .8em; border-radius:.4em; margin-top:.4em;
+    display:inline-block;
+    font:500 calc(13px * var(--lingua-scale,1))/1.45 ${FONTS.body};
+    color:#f6f1ea; background:rgba(10,9,8,.86);
+    border-left:3px solid #e4572e;
+    padding:.5em .85em; border-radius:.35em; margin-top:.5em;
+    box-shadow:0 6px 20px rgba(0,0,0,.35);
   }
   .lingua-notice:empty{display:none}
   html.lingua-hide-native .ytp-caption-window-container{opacity:0 !important}

@@ -2,11 +2,11 @@
  * Lingua — live / no-track realtime fallback (isolated world).
  * When no caption track can be fetched (live streams, some premieres), we read
  * the caption line YouTube itself renders and translate it on the fly.
- * Registers onto YTST.live.
+ * Registers onto Lingua.live.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const { store, bridge, overlay } = NS;
 
   const POLL_MS = 220;

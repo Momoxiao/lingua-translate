@@ -17,11 +17,11 @@
  * Colours are derived from `currentColor`, so translated text stays readable on
  * any site theme (light, dark, or a custom one) without us knowing the palette.
  *
- * Registers onto YTST.page.render.
+ * Registers onto Lingua.page.render.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const page = (NS.page = NS.page || {});
 
   const STYLE_ID = 'lingua-page-style';
@@ -46,19 +46,25 @@
   const MARK_ANY_RE = /⟦\s*\/?\s*\d*\s*⟧?|⟧\s*\/?\s*\d*\s*⟧?|\/\s*\d+\s*⟧/g;
 
   const CSS = `
+/* --- block translation (default) ---------------------------------------- */
 .lingua-pg-dst{
-  display:block; margin:.22em 0 0; padding-left:.55em;
+  display:block; margin:.24em 0 0; padding-left:.55em;
   border-left:2px solid color-mix(in srgb, currentColor 38%, transparent);
-  font-size:.95em; line-height:1.55; opacity:.95;
+  font-size:.95em; line-height:1.55; opacity:.96;
   white-space:normal; text-align:inherit; text-transform:none; letter-spacing:inherit;
 }
+/* --- inline translation (inline-level units: nav links, chips) ----------- */
+/* Only the box model changes; the marker/border still comes from the rules
+   below, so every variant composes instead of overriding the gap. */
 .lingua-pg-dst.lingua-pg-inline{
-  display:inline; margin:0 0 0 .35em; padding:0 0 0 .35em;
+  display:inline; margin-left:.4em; padding-left:.34em;
+  font-size:.94em; line-height:inherit; opacity:.9;
 }
-.lingua-pg-dst.lingua-pg-plain{ border-left:0; padding-left:0; margin-left:0; }
+/* --- style variants: they only clear the marker, never the gap ----------- */
+.lingua-pg-dst.lingua-pg-plain{ border-left-width:0; padding-left:0; }
 .lingua-pg-dst.lingua-pg-highlight{
-  border-left:0; padding:.06em .38em; margin-left:0; border-radius:3px;
-  background:color-mix(in srgb, currentColor 10%, transparent);
+  border-left-width:0; padding:.06em .38em; border-radius:3px;
+  background:color-mix(in srgb, currentColor 11%, transparent);
 }
 .lingua-pg-replace > .lingua-pg-src{ display:none; }
 /* "Show original" means show ONLY the original — not a bilingual view. A pure

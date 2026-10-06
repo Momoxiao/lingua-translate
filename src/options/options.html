@@ -14,7 +14,7 @@
           <div class="brand__mark" aria-hidden="true"></div>
           <div>
             <div class="brand__name">Lingua</div>
-            <div class="brand__sub">网页与视频翻译</div>
+            <div class="brand__sub">视频字幕与网页翻译</div>
           </div>
         </div>
 
@@ -46,7 +46,7 @@
           <div class="section__head">
             <h2>翻译服务</h2>
             <p class="section__desc">
-              选一个服务商并填写凭据。<strong>OpenAI 兼容</strong>可覆盖绝大多数云端与本地模型（DeepSeek、Kimi、智谱、通义、硅基流动、OpenRouter、Groq、Ollama、LM Studio、one-api 等）。
+              选择供应商并填写凭据。<strong>OpenAI 兼容</strong>可覆盖绝大多数云端与本地模型。
             </p>
           </div>
 
@@ -54,17 +54,16 @@
 
           <div class="card providerPane">
             <div class="providerPane__head">
-              <div>
+              <div class="providerPane__id">
                 <h3 id="paneTitle">—</h3>
                 <p class="providerPane__sub" id="paneStatus"></p>
               </div>
-              <div class="providerPane__actions">
-                <button class="btn" type="button" id="testBtn">测试连接</button>
-              </div>
+              <button class="btn btn--sm" type="button" id="testBtn">测试连接</button>
             </div>
-            <p class="hint" id="paneHint"></p>
+            <p class="hint providerPane__hint" id="paneHint"></p>
             <div id="presets" class="presets"></div>
             <div id="fields" class="fields"></div>
+            <div id="customAids" class="customAids" hidden></div>
             <div class="testResult" id="testResult" hidden></div>
           </div>
         </section>
@@ -87,17 +86,9 @@
             </div>
           </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="autoTranslate" />
-            <span class="switch__track"></span>
-            <span>进入视频后自动开始翻译</span>
-          </label>
-
-          <div class="divider"><span>字幕显示</span></div>
-
           <div class="field">
-            <span class="label">显示方式</span>
-            <div class="segmented" id="displayMode" role="group">
+            <span class="label">字幕显示方式</span>
+            <div class="segmented" id="displayMode" role="group" aria-label="字幕显示方式">
               <button type="button" data-mode="bilingual" aria-pressed="false">双语</button>
               <button type="button" data-mode="translated" aria-pressed="false">仅译文</button>
               <button type="button" data-mode="original" aria-pressed="false">仅原文</button>
@@ -106,15 +97,24 @@
 
           <div class="grid2">
             <div class="field">
-              <label class="label" for="fontSize">字号 <span class="num" id="fontSizeVal"></span></label>
+              <div class="labelRow">
+                <label class="label" for="fontSize">字号</label>
+                <span class="num" id="fontSizeVal"></span>
+              </div>
               <input type="range" id="fontSize" min="14" max="48" step="1" />
             </div>
             <div class="field">
-              <label class="label" for="bottomOffset">距底部 <span class="num" id="bottomOffsetVal"></span></label>
+              <div class="labelRow">
+                <label class="label" for="bottomOffset">距底部</label>
+                <span class="num" id="bottomOffsetVal"></span>
+              </div>
               <input type="range" id="bottomOffset" min="2" max="40" step="1" />
             </div>
             <div class="field">
-              <label class="label" for="backgroundOpacity">底色不透明度 <span class="num" id="backgroundOpacityVal"></span></label>
+              <div class="labelRow">
+                <label class="label" for="backgroundOpacity">底色不透明度</label>
+                <span class="num" id="backgroundOpacityVal"></span>
+              </div>
               <input type="range" id="backgroundOpacity" min="0" max="1" step="0.02" />
             </div>
             <div class="field">
@@ -127,10 +127,25 @@
             </div>
           </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="hideNativeCaptions" />
-            <span class="switch__track"></span>
-            <span>隐藏 YouTube 原生字幕（避免重叠）</span>
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">进入视频后自动开始翻译</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="autoTranslate" />
+              <span class="switch__track"></span>
+            </span>
+          </label>
+
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">隐藏 YouTube 原生字幕</span>
+              <span class="hint">避免与译文重叠</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="hideNativeCaptions" />
+              <span class="switch__track"></span>
+            </span>
           </label>
         </section>
 
@@ -145,11 +160,30 @@
 
           <div class="grid2">
             <div class="field">
+              <label class="label" for="pageProfile">翻译风格</label>
+              <select id="pageProfile">
+                <option value="auto">自动识别页面（推荐）</option>
+              </select>
+              <div class="hint">
+                按页面内容自动切换「翻译专家」：技术文档保留 API 与代码标识符，论文用学术语体，论坛保留口语。
+                仅对 OpenAI 兼容生效，其他供应商没有提示词。
+              </div>
+            </div>
+            <div class="field">
+              <label class="label" for="pageNotes">附加要求</label>
+              <input type="text" id="pageNotes" placeholder="例如：术语保留英文，不要意译" />
+              <div class="hint">附加到提示词末尾，用来补充你的偏好。</div>
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="field">
               <label class="label" for="pageMode">显示方式</label>
               <select id="pageMode">
-                <option value="bilingual">原文 + 译文</option>
+                <option value="bilingual">双语</option>
                 <option value="replace">仅译文</option>
               </select>
+              <div class="hint">双语 = 原文下方追加译文</div>
             </div>
             <div class="field">
               <label class="label" for="pageStyle">译文样式</label>
@@ -174,57 +208,84 @@
             </div>
           </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="pageBall" />
-            <span class="switch__track"></span>
-            <span>在页面上显示悬浮球（可拖动，点一下即翻译，位置按站点记住）</span>
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">在页面上显示悬浮球</span>
+              <span class="hint">可拖动，点一下即翻译，位置按站点记住</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="pageBall" />
+              <span class="switch__track"></span>
+            </span>
           </label>
 
-          <label class="switch field">
-            <input type="checkbox" id="pageAuto" />
-            <span class="switch__track"></span>
-            <span>打开网页时自动翻译（可在弹窗里按站点单独设置）</span>
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">打开网页时自动翻译</span>
+              <span class="hint">可在扩展面板里按站点单独设置</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="pageAuto" />
+              <span class="switch__track"></span>
+            </span>
           </label>
 
-          <div class="divider"><span>高级</span></div>
+          <details class="disclosure disclosure--plain" id="pageAdvanced">
+            <summary>高级</summary>
+            <div class="disclosure__body">
+              <div class="grid2">
+                <div class="field">
+                  <div class="labelRow">
+                    <label class="label" for="pageBatchSize">每批段落数</label>
+                    <span class="num" id="pageBatchSizeVal"></span>
+                  </div>
+                  <input type="range" id="pageBatchSize" min="4" max="30" step="1" />
+                </div>
+                <div class="field">
+                  <div class="labelRow">
+                    <label class="label" for="pageMaxChars">每批字符上限</label>
+                    <span class="num" id="pageMaxCharsVal"></span>
+                  </div>
+                  <input type="range" id="pageMaxChars" min="400" max="3000" step="100" />
+                </div>
+                <div class="field">
+                  <div class="labelRow">
+                    <label class="label" for="pageConcurrency">并发请求数</label>
+                    <span class="num" id="pageConcurrencyVal"></span>
+                  </div>
+                  <input type="range" id="pageConcurrency" min="1" max="6" step="1" />
+                </div>
+                <div class="field">
+                  <label class="label" for="pageSkipSelectors">忽略选择器</label>
+                  <input type="text" id="pageSkipSelectors" placeholder=".ad-banner, #comments" />
+                </div>
+              </div>
 
-          <div class="grid2">
-            <div class="field">
-              <label class="label" for="pageBatchSize">每批段落数 <span class="num" id="pageBatchSizeVal"></span></label>
-              <input type="range" id="pageBatchSize" min="4" max="30" step="1" />
-            </div>
-            <div class="field">
-              <label class="label" for="pageMaxChars">每批字符上限 <span class="num" id="pageMaxCharsVal"></span></label>
-              <input type="range" id="pageMaxChars" min="400" max="3000" step="100" />
-            </div>
-            <div class="field">
-              <label class="label" for="pageConcurrency">并发请求数 <span class="num" id="pageConcurrencyVal"></span></label>
-              <input type="range" id="pageConcurrency" min="1" max="6" step="1" />
-            </div>
-            <div class="field">
-              <label class="label" for="pageSkipSelectors">忽略选择器</label>
-              <input type="text" id="pageSkipSelectors" placeholder=".ad-banner, #comments" />
-            </div>
-          </div>
+              <div class="grid2">
+                <div class="field">
+                  <label class="label" for="pageAutoSites">自动翻译的站点</label>
+                  <textarea id="pageAutoSites" rows="3" placeholder="news.ycombinator.com&#10;developer.mozilla.org"></textarea>
+                  <div class="hint">每行一个域名</div>
+                </div>
+                <div class="field">
+                  <label class="label" for="pageSkipSites">永不翻译的站点</label>
+                  <textarea id="pageSkipSites" rows="3" placeholder="mail.google.com"></textarea>
+                  <div class="hint">每行一个域名</div>
+                </div>
+              </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="pageInputs" />
-            <span class="switch__track"></span>
-            <span>同时翻译表单占位符、title、alt 等提示文字</span>
-          </label>
-
-          <div class="grid2">
-            <div class="field">
-              <label class="label" for="pageAutoSites">自动翻译的站点</label>
-              <textarea id="pageAutoSites" rows="3" placeholder="news.ycombinator.com&#10;developer.mozilla.org"></textarea>
-              <div class="hint">每行一个域名</div>
+              <label class="switchRow">
+                <span class="switchRow__text">
+                  <span class="switchRow__title">翻译提示文字</span>
+                  <span class="hint">表单占位符、title、alt 等</span>
+                </span>
+                <span class="switch">
+                  <input type="checkbox" id="pageInputs" />
+                  <span class="switch__track"></span>
+                </span>
+              </label>
             </div>
-            <div class="field">
-              <label class="label" for="pageSkipSites">永不翻译的站点</label>
-              <textarea id="pageSkipSites" rows="3" placeholder="mail.google.com"></textarea>
-              <div class="hint">每行一个域名</div>
-            </div>
-          </div>
+          </details>
         </section>
 
         <!-- ================= 性能与缓存 ================= -->
@@ -238,33 +299,48 @@
 
           <div class="grid2">
             <div class="field">
-              <label class="label" for="batchSize">每批句子数 <span class="num" id="batchSizeVal"></span></label>
+              <div class="labelRow">
+                <label class="label" for="batchSize">每批句子数</label>
+                <span class="num" id="batchSizeVal"></span>
+              </div>
               <input type="range" id="batchSize" min="4" max="40" step="1" />
             </div>
             <div class="field">
-              <label class="label" for="concurrency">并发请求数 <span class="num" id="concurrencyVal"></span></label>
+              <div class="labelRow">
+                <label class="label" for="concurrency">并发请求数</label>
+                <span class="num" id="concurrencyVal"></span>
+              </div>
               <input type="range" id="concurrency" min="1" max="8" step="1" />
             </div>
           </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="cacheEnabled" />
-            <span class="switch__track"></span>
-            <span>启用翻译缓存（相同句子不重复请求，跨视频、跨网站生效）</span>
-          </label>
-
-          <div class="card cacheCard">
-            <div>
-              <div class="cacheCard__num" id="cacheCount">—</div>
-              <div class="hint">已缓存条目</div>
+          <div class="cacheRow">
+            <label class="switchRow switchRow--flush">
+              <span class="switchRow__text">
+                <span class="switchRow__title">启用翻译缓存</span>
+                <span class="hint">相同句子不重复请求，跨视频、跨网站生效</span>
+              </span>
+              <span class="switch">
+                <input type="checkbox" id="cacheEnabled" />
+                <span class="switch__track"></span>
+              </span>
+            </label>
+            <div class="cacheRow__stat">
+              <span class="cacheRow__num" id="cacheCount">—</span>
+              <span class="hint">条已缓存</span>
+              <button class="btn btn--sm btn--ghost" type="button" id="clearCache">清空</button>
             </div>
-            <button class="btn" type="button" id="clearCache">清空缓存</button>
           </div>
 
-          <label class="switch field">
-            <input type="checkbox" id="debug" />
-            <span class="switch__track"></span>
-            <span>调试日志</span>
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">调试日志</span>
+              <span class="hint">在控制台输出详细过程</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="debug" />
+              <span class="switch__track"></span>
+            </span>
           </label>
         </section>
 
@@ -273,41 +349,33 @@
           <div class="section__head">
             <h2>使用说明</h2>
           </div>
-          <div class="card help">
-            <h3>怎么用</h3>
-            <ul>
-              <li><strong>网页翻译</strong>：页面上有个悬浮球，点一下就开始翻译；也可以点工具栏图标。</li>
-              <li><strong>视频字幕</strong>：打开 YouTube 视频会自动翻译字幕，双语叠加在画面上。</li>
-              <li><strong>快捷键</strong>：点扩展图标 → 弹窗里可切换显示方式与本站规则。</li>
-            </ul>
 
-            <h3>为什么字幕要在页面内获取</h3>
-            <p>
-              2025 年起 YouTube 给字幕接口加上了 PoToken 校验，任何脱离页面的直接请求都会返回空。本扩展运行在
-              YouTube 页面内，复用播放器自己铸造的凭证去取整条字幕轨，因此始终能拿到字幕。
-            </p>
+          <ul class="quickstart">
+            <li><strong>网页翻译</strong>：页面上有个悬浮球，点一下就开始翻译；也可以点工具栏图标。</li>
+            <li><strong>视频字幕</strong>：打开 YouTube 视频会自动翻译字幕，双语叠加在画面上。</li>
+            <li><strong>按站点设置</strong>：点工具栏图标，可切换显示方式与本站规则。</li>
+          </ul>
 
-            <h3>自定义 API 模板</h3>
-            <p>选择「自定义 API 模板」后，可以用占位符拼装任意 HTTP 接口：</p>
-            <ul>
-              <li><code>{{text}}</code> 整批文本（编号后的多行字符串）</li>
-              <li><code>{{texts}}</code> 原始句子数组（JSON 字面量）</li>
-              <li><code>{{from}}</code> / <code>{{to}}</code> 语言代码</li>
-              <li><code>{{source}}</code> / <code>{{target}}</code> 语言名称</li>
-              <li><code>{{key}}</code> API Key</li>
-            </ul>
-            <p>
-              请求体返回编号文本即可自动对齐；若接口返回数组，可用「响应取值路径」指定，例如
-              <code>data.translations</code> 或 <code>result[0].text</code>。
-            </p>
+          <details class="disclosure">
+            <summary>为什么字幕要在页面内获取</summary>
+            <div class="disclosure__body">
+              <p class="prose">
+                2025 年起 YouTube 给字幕接口加上了 PoToken 校验，任何脱离页面的直接请求都会返回空。本扩展运行在
+                YouTube 页面内，复用播放器自己铸造的凭据去取整条字幕轨，因此始终能拿到字幕。
+              </p>
+            </div>
+          </details>
 
-            <h3>速度建议</h3>
-            <ul>
-              <li>翻译建议用<strong>非推理模型</strong>：推理模型的「思考」对翻译是纯浪费，实测慢一倍。</li>
-              <li>批越大请求越少，但失败时影响面也更大；并发太高可能触发接口限流。</li>
-              <li>缓存跨视频、跨网站生效，同一句话只翻一次。</li>
-            </ul>
-          </div>
+          <details class="disclosure">
+            <summary>速度建议</summary>
+            <div class="disclosure__body">
+              <ul class="prose-list">
+                <li>翻译建议用<strong>非推理模型</strong>：推理模型的「思考」对翻译是纯浪费，实测慢一倍。</li>
+                <li>批越大请求越少，但失败时影响面也更大；并发太高可能触发接口限流。</li>
+                <li>缓存跨视频、跨网站生效，同一句话只翻一次。</li>
+              </ul>
+            </div>
+          </details>
         </section>
       </main>
     </div>

@@ -1,10 +1,10 @@
 /**
  * Lingua — DeepL provider (Free / Pro).
- * Registers onto YTST.bg.providers.deepl.
+ * Registers onto Lingua.bg.providers.deepl.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;

@@ -1,10 +1,23 @@
 /* ==========================================================================
    Lingua — shared UI theme
+   --------------------------------------------------------------------------
    Aesthetic: warm editorial tool. Paper-toned neutrals, one vermilion accent,
    a serif display face for the wordmark and section titles, hairline borders,
    restrained motion. No glassmorphism, no gradient soup, no neon.
+
+   Structure
+     1. Tokens        — colour, type, space, radius, elevation, motion
+     2. Reset         — box-sizing, form-control inheritance, scheme
+     3. Base          — body, headings, links, selection, scrollbars
+     4. Primitives    — stack / row / rule / divider / card / sr-only
+     5. Controls      — field, label, hint, input, switch, segmented, slider
+     6. Buttons       — btn (+ variants, sizes)
+     7. Feedback      — pill, progress, note, chip
    ========================================================================== */
 
+/* --------------------------------------------------------------------------
+   1. Tokens
+   -------------------------------------------------------------------------- */
 :root {
   /* Declare which scheme these variables are in. Without it the browser keeps
      rendering native widgets (button text, select popups, scrollbars, range
@@ -12,68 +25,134 @@
      button text on a dark card, i.e. an unreadable provider list. */
   color-scheme: light;
 
-  --paper: #fbf8f4;
-  --paper-2: #f5f0e8;
+  /* — surfaces & ink — */
+  --paper: #faf7f2;
+  --paper-2: #f2ece2;
   --surface: #ffffff;
-  --surface-2: #faf7f2;
-  --ink: #1a1714;
-  --ink-2: #4a423a;
-  --ink-3: #7d7368;
-  --line: #e6ddd1;
-  --line-2: #d8ccbc;
+  --surface-2: #f7f3ec;
+  --ink: #191612;
+  --ink-2: #4b433a;
+  --ink-3: #6f665c;
+  --line: #e7ded2;
+  --line-2: #d6caba;
+
+  /* — accent (vermilion) — */
   --accent: #e4572e;
   --accent-ink: #b23f1d;
   --accent-soft: #fdeee8;
-  --ok: #2f7d5b;
-  --ok-soft: #e8f4ee;
-  --warn: #b7791f;
-  --warn-soft: #fbf3e3;
-  --err: #c0392b;
-  --err-soft: #fbeceb;
-  --focus: 0 0 0 3px rgba(228, 87, 46, 0.22);
+  --on-accent: #ffffff;
 
+  /* — status — */
+  --ok: #2f7d5b;
+  --ok-soft: #e7f4ed;
+  --warn: #a8681a;
+  --warn-soft: #fbf2e0;
+  --err: #c0392b;
+  --err-soft: #fbecea;
+
+  /* — elevation — */
+  --shadow-1: 0 1px 2px rgba(25, 22, 18, 0.06);
+  --shadow-2: 0 2px 8px rgba(25, 22, 18, 0.08), 0 1px 2px rgba(25, 22, 18, 0.05);
+  --shadow-3: 0 14px 34px rgba(25, 22, 18, 0.16), 0 2px 6px rgba(25, 22, 18, 0.07);
+
+  /* — focus — */
+  --ring: rgba(228, 87, 46, 0.30);
+  --focus: 0 0 0 3px var(--ring);
+
+  /* — type — */
   --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC",
     "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Songti SC",
     "Noto Serif CJK SC", serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-19: 19px;
+  --fs-24: 24px;
+  --fs-30: 30px;
+
+  /* — space — */
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 20px;
+  --sp-7: 24px;
+  --sp-8: 32px;
+  --sp-9: 44px;
+
+  /* — radius — */
+  --r-xs: 4px;
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
 
+  /* — motion — */
   --ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quart */
+  --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
   --dur: 180ms;
+
+  /* Custom chevron for <select>, as a data URI so it can carry the theme ink. */
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75 6 6.25l4.5-4.5' fill='none' stroke='%236f665c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
 
-    --paper: #16130f;
-    --paper-2: #1c1814;
-    --surface: #211d18;
-    --surface-2: #1a1612;
-    --ink: #f6f1ea;
-    --ink-2: #cdc3b6;
-    --ink-3: #948a7d;
-    --line: #322b23;
-    --line-2: #40372c;
+    /* Three clearly separated planes: page < sunken < raised. Keeping them
+       close together (as before) made selected tabs, inputs and cards read as
+       the same surface, so nothing looked interactive. */
+    --paper: #12100d;
+    --paper-2: #1a1714;
+    --surface: #241f19;
+    --surface-2: #191512;
+    --ink: #f6f1e9;
+    --ink-2: #d2c9bc;
+    --ink-3: #9d9285;
+    --line: #352e26;
+    --line-2: #4a4033;
+
     --accent: #ff6b3d;
-    --accent-ink: #ff8a63;
-    --accent-soft: #2e1c14;
+    --accent-ink: #ff9270;
+    --accent-soft: #33201a;
+    --on-accent: #1a0f0a;
+
     --ok: #6fcf9a;
     --ok-soft: #17251d;
     --warn: #e0b055;
-    --warn-soft: #292014;
+    --warn-soft: #2a2113;
     --err: #f08a80;
-    --err-soft: #2b1a18;
-    --focus: 0 0 0 3px rgba(255, 107, 61, 0.28);
+    --err-soft: #2e1b18;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow-2: 0 2px 10px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-3: 0 16px 40px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
+
+    --ring: rgba(255, 107, 61, 0.4);
+
+    --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1.5 1.75 6 6.25l4.5-4.5' fill='none' stroke='%239d9285' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 }
 
+/* --------------------------------------------------------------------------
+   2. Reset
+   -------------------------------------------------------------------------- */
 * {
   box-sizing: border-box;
+}
+
+/* `hidden` must beat any author `display` we set on the same element
+   (e.g. `.panel{display:flex}`), otherwise a hidden panel still renders. */
+[hidden] {
+  display: none !important;
 }
 
 /*
@@ -89,17 +168,10 @@ textarea {
   color: inherit;
 }
 
-input[type="range"],
 input[type="checkbox"],
 input[type="radio"],
 progress {
   accent-color: var(--accent);
-}
-
-/* Native range tracks ignore most styling; give the thumb a usable hit area. */
-input[type="range"] {
-  height: 20px;
-  cursor: pointer;
 }
 
 html,
@@ -108,11 +180,14 @@ body {
   padding: 0;
 }
 
+/* --------------------------------------------------------------------------
+   3. Base
+   -------------------------------------------------------------------------- */
 body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: var(--fs-14);
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -129,6 +204,42 @@ h3 {
 
 a {
   color: var(--accent-ink);
+  text-underline-offset: 2px;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* Slim, theme-aware scrollbars (Chromium). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border: 3px solid transparent;
+  border-radius: var(--r-pill);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: content-box;
+}
+
+/* Every interactive element gets the same focus treatment. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }
 
 /* --- wordmark ------------------------------------------------------------ */
@@ -138,11 +249,14 @@ a {
   gap: 9px;
 }
 
+/* The wordmark is a small accent chip: two "caption lines", the second one
+   shorter. An accent fill (instead of an ink fill) keeps it recognisable on
+   both the light paper and the dark surface, where an ink box washed out. */
 .brand__mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--ink);
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: var(--accent);
   position: relative;
   flex: none;
   overflow: hidden;
@@ -155,16 +269,16 @@ a {
   border-radius: 2px;
 }
 .brand__mark::before {
-  top: 6px;
-  width: 12px;
+  top: 6.5px;
+  width: 13px;
   height: 3px;
-  background: var(--ink-3);
+  background: rgba(255, 255, 255, 0.92);
 }
 .brand__mark::after {
-  top: 12px;
+  top: 13px;
   width: 8px;
   height: 3px;
-  background: var(--accent);
+  background: rgba(255, 255, 255, 0.6);
 }
 
 .brand__name {
@@ -172,33 +286,164 @@ a {
   font-size: 18px;
   font-weight: 600;
   letter-spacing: -0.015em;
+  line-height: 1.15;
 }
 .brand__sub {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-3);
   letter-spacing: 0.04em;
-  text-transform: uppercase;
+  line-height: 1.3;
 }
 
-/* --- controls ------------------------------------------------------------ */
+/* --------------------------------------------------------------------------
+   4. Primitives
+   -------------------------------------------------------------------------- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.rule {
+  height: 1px;
+  background: var(--line);
+  border: 0;
+  margin: 0;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin: var(--sp-6) 0 var(--sp-4);
+  color: var(--ink-3);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- disclosure ----------------------------------------------------------
+   Used to keep advanced options and reference material out of the way. The
+   marker is drawn with a border triangle so it matches the theme in both
+   schemes (the native marker ignores colour).
+   ------------------------------------------------------------------------ */
+.disclosure {
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+.disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 9px 12px;
+  font-size: var(--fs-12);
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+  border-radius: var(--r-md);
+  transition: color var(--dur) var(--ease);
+}
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.disclosure > summary::before {
+  content: "";
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  opacity: 0.55;
+  transition: transform var(--dur) var(--ease);
+}
+.disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+.disclosure > summary:hover {
+  color: var(--ink);
+}
+.disclosure > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.disclosure__body {
+  padding: 2px 12px 12px;
+}
+
+/* borderless variant, for grouping inside a section rather than a card */
+.disclosure--plain {
+  border: 0;
+  background: transparent;
+}
+.disclosure--plain > summary {
+  padding: 0 0 var(--sp-4);
+}
+.disclosure--plain > summary:hover {
+  color: var(--accent-ink);
+}
+.disclosure--plain .disclosure__body {
+  padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   5. Controls
+   -------------------------------------------------------------------------- */
 .field {
-  margin-bottom: 16px;
+  margin-bottom: var(--sp-5);
+}
+.field:last-child {
+  margin-bottom: 0;
 }
 
 .label {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-12);
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   color: var(--ink-2);
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
 }
 
 .hint {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--ink-3);
-  line-height: 1.5;
-  margin-top: 6px;
+  line-height: 1.55;
+  margin-top: var(--sp-2);
 }
 
 input[type="text"],
@@ -208,21 +453,22 @@ select,
 textarea {
   width: 100%;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-md);
-  padding: 8px 10px;
-  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  padding: 8px 11px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease),
+    background var(--dur) var(--ease);
 }
 
-textarea {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.6;
-  resize: vertical;
-  min-height: 92px;
+input[type="text"]:hover,
+input[type="password"]:hover,
+input[type="number"]:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--line-2);
 }
 
 input:focus,
@@ -233,29 +479,48 @@ textarea:focus {
   box-shadow: var(--focus);
 }
 
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: var(--chevron);
+  background-repeat: no-repeat;
+  background-position: right 11px center;
+  padding-right: 32px;
+}
+
+textarea {
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 80px;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: var(--ink-3);
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
 /* toggle */
 .switch {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--sp-4);
   cursor: pointer;
   user-select: none;
 }
 .switch input {
   position: absolute;
   opacity: 0;
+  width: 0;
+  height: 0;
   pointer-events: none;
 }
 .switch__track {
   width: 40px;
   height: 23px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--line-2);
   position: relative;
   transition: background var(--dur) var(--ease);
@@ -282,6 +547,9 @@ textarea::placeholder {
 .switch input:focus-visible + .switch__track {
   box-shadow: var(--focus);
 }
+.switch:hover .switch__track {
+  filter: brightness(1.06);
+}
 
 /* segmented control */
 .segmented {
@@ -294,15 +562,17 @@ textarea::placeholder {
 }
 .segmented button {
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-12);
   font-weight: 600;
   color: var(--ink-2);
   background: transparent;
   border: 0;
+  /* Nested radius: outer --r-md minus the 3px container padding. */
   border-radius: 7px;
-  padding: 5px 12px;
+  padding: 5px 13px;
   cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 .segmented button:hover {
   color: var(--ink);
@@ -310,38 +580,119 @@ textarea::placeholder {
 .segmented button[aria-pressed="true"] {
   background: var(--surface);
   color: var(--accent-ink);
-  box-shadow: 0 1px 2px rgba(26, 23, 20, 0.08);
+  box-shadow: var(--shadow-1);
 }
 
-/* buttons */
+/* --- range slider ---------------------------------------------------------
+   Native tracks are near-unstyleable across engines, so the fill is painted
+   with a gradient driven by --pct (set by the caller) and the thumb is drawn
+   explicitly. Falls back to the native look if a browser drops the pseudo
+   elements, which is harmless.
+   ------------------------------------------------------------------------ */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  /* Same box height as a text input, so a slider and a text field sitting in
+     the same two-column grid line up on their baselines. */
+  height: 34px;
+  background: transparent;
+  cursor: pointer;
+  --pct: 0%;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--pct),
+    var(--line-2) var(--pct) 100%
+  );
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5.5px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: var(--shadow-1);
+  transition: transform 120ms var(--ease), box-shadow 120ms var(--ease);
+}
+input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.1);
+}
+input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.18);
+  box-shadow: var(--focus);
+}
+input[type="range"]::-moz-range-track {
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--line-2);
+}
+input[type="range"]::-moz-range-progress {
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+}
+input[type="range"]:focus-visible {
+  outline: none;
+}
+input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--focus);
+}
+
+/* --------------------------------------------------------------------------
+   6. Buttons
+   -------------------------------------------------------------------------- */
 .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 600;
+  line-height: 1.2;
   border-radius: var(--r-md);
   padding: 8px 14px;
   border: 1px solid var(--line-2);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+  white-space: nowrap;
   transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease),
-    transform var(--dur) var(--ease);
+    color var(--dur) var(--ease), transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
 .btn:hover {
   border-color: var(--ink-3);
+  background: var(--surface-2);
 }
 .btn:active {
   transform: translateY(1px);
 }
+
 .btn--primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
+  box-shadow: var(--shadow-1);
 }
 .btn--primary:hover {
-  background: var(--accent-ink);
-  border-color: var(--accent-ink);
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: color-mix(in srgb, var(--accent) 88%, #000);
 }
+
 .btn--ghost {
   background: transparent;
   border-color: transparent;
@@ -350,25 +701,50 @@ textarea::placeholder {
 .btn--ghost:hover {
   background: var(--paper-2);
   border-color: transparent;
-}
-.btn[disabled] {
-  opacity: 0.55;
-  cursor: not-allowed;
+  color: var(--ink);
 }
 
+.btn--sm {
+  font-size: var(--fs-12);
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn[disabled]:hover {
+  background: var(--surface);
+  border-color: var(--line-2);
+}
+.btn--primary[disabled]:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* --------------------------------------------------------------------------
+   7. Feedback
+   -------------------------------------------------------------------------- */
 /* status pill */
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
+  gap: var(--sp-2);
+  font-size: var(--fs-11);
   font-weight: 600;
   letter-spacing: 0.02em;
-  padding: 3px 9px;
-  border-radius: 999px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--ink-2);
+  white-space: nowrap;
 }
 .pill__dot {
   width: 6px;
@@ -417,38 +793,60 @@ textarea::placeholder {
     opacity: 1;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.3;
   }
 }
 
 /* progress */
 .progress {
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   background: var(--paper-2);
   overflow: hidden;
-  border: 1px solid var(--line);
 }
 .progress__bar {
   height: 100%;
   width: 0;
+  border-radius: inherit;
   background: var(--accent);
   transition: width 260ms var(--ease);
 }
 
-/* cards */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: 16px;
+/* inline value chip, e.g. "24px" next to a slider label */
+.num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-11);
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: var(--r-xs);
+  padding: 1px 6px;
+  margin-left: var(--sp-1);
 }
 
-.rule {
-  height: 1px;
-  background: var(--line);
-  border: 0;
-  margin: 0;
+/* small inline status text */
+.note {
+  font-size: var(--fs-12);
+  line-height: 1.5;
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+}
+.note[data-tone="warn"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.note[data-tone="err"] {
+  background: var(--err-soft);
+  color: var(--err);
+}
+.note[data-tone="ok"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.note[data-tone="info"] {
+  background: var(--paper-2);
+  color: var(--ink-2);
 }
 
 @media (prefers-reduced-motion: reduce) {

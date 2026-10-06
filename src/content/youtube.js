@@ -2,11 +2,11 @@
  * Lingua — YouTube pipeline (isolated world).
  * Owns: track discovery -> cue extraction (with PoToken-aware fallbacks) ->
  * priority-ordered translation scheduling -> store updates.
- * Registers onto YTST.youtube.
+ * Registers onto Lingua.youtube.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const { store, bridge, overlay, subtitles } = NS;
   const { clamp } = NS.utils;
 

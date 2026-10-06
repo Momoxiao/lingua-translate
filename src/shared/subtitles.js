@@ -1,11 +1,11 @@
 /**
  * Lingua — subtitle parsing + batching primitives.
  * Shared by the content script (parse YouTube tracks) and the service worker
- * (build/parse batched LLM requests). Registers onto YTST.subtitles.
+ * (build/parse batched LLM requests). Registers onto Lingua.subtitles.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
 
   /** Decode the handful of HTML entities YouTube emits in caption payloads. */
   function decodeEntities(s) {

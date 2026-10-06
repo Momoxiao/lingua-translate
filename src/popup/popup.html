@@ -13,7 +13,7 @@
           <div class="brand__mark" aria-hidden="true"></div>
           <div>
             <div class="brand__name">Lingua</div>
-            <div class="brand__sub">翻译</div>
+            <div class="brand__sub" id="modeLabel">翻译</div>
           </div>
         </div>
         <span class="pill" id="statusPill" data-tone="idle">
@@ -22,23 +22,30 @@
         </span>
       </header>
 
-      <div class="tabs" id="tabs" role="tablist">
-        <button type="button" data-tab="video" role="tab" aria-selected="true">视频字幕</button>
-        <button type="button" data-tab="page" role="tab" aria-selected="false">网页翻译</button>
+      <!--
+        One panel is chosen by context, so there is normally nothing to switch
+        between. A YouTube video page is the exception: the video has captions
+        AND the page around it (description, comments) has prose worth
+        translating, so both apply and the switcher appears. Anywhere else it
+        stays hidden rather than offering a dead end.
+      -->
+      <div class="tabs" id="tabs" role="tablist" hidden>
+        <button type="button" role="tab" data-tab="video" aria-selected="false">视频字幕</button>
+        <button type="button" role="tab" data-tab="page" aria-selected="false">网页翻译</button>
       </div>
 
-      <!-- ================= 视频字幕 ================= -->
-      <section class="panel" data-panel="video">
-        <div class="pop__row">
-          <div>
-            <div class="pop__rowTitle">启用字幕翻译</div>
-            <div class="hint" id="providerName">—</div>
-          </div>
-          <label class="switch">
+      <!-- ================= 视频字幕（仅 YouTube 视频页） ================= -->
+      <section class="panel" id="panel-video" data-panel="video" hidden>
+        <label class="pop__switchRow">
+          <span class="pop__switchText">
+            <span class="pop__switchTitle">翻译视频字幕</span>
+            <span class="hint" id="providerName">—</span>
+          </span>
+          <span class="switch">
             <input type="checkbox" id="enabled" />
             <span class="switch__track"></span>
-          </label>
-        </div>
+          </span>
+        </label>
 
         <div class="field">
           <label class="label" for="target">翻译为</label>
@@ -46,8 +53,8 @@
         </div>
 
         <div class="field">
-          <span class="label">显示方式</span>
-          <div class="segmented" id="displayMode" role="group" aria-label="字幕显示方式">
+          <span class="label">字幕显示方式</span>
+          <div class="segmented segmented--block" id="displayMode" role="group" aria-label="字幕显示方式">
             <button type="button" data-mode="bilingual" aria-pressed="false">双语</button>
             <button type="button" data-mode="translated" aria-pressed="false">仅译文</button>
             <button type="button" data-mode="original" aria-pressed="false">仅原文</button>
@@ -59,41 +66,39 @@
           <select id="track"></select>
         </div>
 
-        <div class="pop__progress" id="progressBox" hidden>
-          <div class="pop__progressTop">
-            <span class="pop__progressLabel" id="progressLabel">翻译中</span>
-            <span class="pop__progressNum" id="progressNum">0 / 0</span>
+        <div class="progressBox" id="progressBox" hidden>
+          <div class="progressBox__top">
+            <span class="progressBox__label" id="progressLabel">翻译中</span>
+            <span class="progressBox__num" id="progressNum">0 / 0</span>
           </div>
           <div class="progress"><div class="progress__bar" id="progressBar"></div></div>
         </div>
 
-        <div class="pop__note" id="note" hidden></div>
+        <div class="note" id="note" hidden></div>
 
-        <div class="pop__actions">
-          <button class="btn btn--ghost" id="retranslate" type="button">重新翻译</button>
-        </div>
+        <button class="btn btn--block" id="retranslate" type="button">重新翻译</button>
       </section>
 
-      <!-- ================= 网页翻译 ================= -->
-      <section class="panel" data-panel="page" hidden>
+      <!-- ================= 网页翻译（其他所有页面） ================= -->
+      <section class="panel" id="panel-page" data-panel="page" hidden>
         <!-- state card: mirrors the floating ball exactly -->
         <div class="stateCard" id="pageStateCard" data-tone="idle">
-          <div class="stateCard__text">
+          <div class="stateCard__body">
             <div class="stateCard__title" id="pageStateTitle">未翻译</div>
-            <div class="stateCard__sub" id="pageHost">—</div>
+            <div class="stateCard__sub">
+              <span id="pageHost">—</span>
+              <!-- which "expert" got this page — part of "what is happening
+                   here", so it lives on the card rather than on its own row -->
+              <span class="stateCard__style" id="pageProfileValue"></span>
+            </div>
           </div>
           <button class="btn btn--primary" id="pageToggle" type="button">开始翻译</button>
-        </div>
-
-        <div class="pop__progress" id="pageProgressBox" hidden>
-          <div class="pop__progressTop">
-            <span class="pop__progressLabel" id="pageProgressLabel">翻译中</span>
-            <span class="pop__progressNum" id="pageProgressNum">0 / 0</span>
+          <div class="stateCard__strip" id="pageProgressBox" hidden>
+            <div class="progress"><div class="progress__bar" id="pageProgressBar"></div></div>
           </div>
-          <div class="progress"><div class="progress__bar" id="pageProgressBar"></div></div>
         </div>
 
-        <div class="pop__note" id="pageNote" hidden></div>
+        <div class="note" id="pageNote" hidden></div>
 
         <div class="pop__group">
           <div class="pop__groupTitle">显示</div>
@@ -101,7 +106,7 @@
             <div class="field">
               <label class="label" for="pageMode">显示方式</label>
               <select id="pageMode">
-                <option value="bilingual">原文 + 译文</option>
+                <option value="bilingual">双语</option>
                 <option value="replace">仅译文</option>
               </select>
             </div>
@@ -114,16 +119,16 @@
               </select>
             </div>
           </div>
-          <div class="pop__row pop__row--tight">
-            <div>
-              <div class="pop__rowTitle">只显示原文</div>
-              <div class="hint">暂时收起译文，页面恢复原样</div>
-            </div>
-            <label class="switch">
+          <label class="pop__switchRow pop__switchRow--tight">
+            <span class="pop__switchText">
+              <span class="pop__switchTitle">只显示原文</span>
+              <span class="hint">暂时收起译文，页面恢复原样</span>
+            </span>
+            <span class="switch">
               <input type="checkbox" id="pageShowOriginal" />
               <span class="switch__track"></span>
-            </label>
-          </div>
+            </span>
+          </label>
         </div>
 
         <div class="pop__group">
@@ -136,28 +141,24 @@
               <option value="skip">不翻译</option>
             </select>
           </div>
-          <div class="pop__row pop__row--tight">
-            <div>
-              <div class="pop__rowTitle">页面悬浮球</div>
-              <div class="hint">贴边隐藏，点一下即翻译</div>
-            </div>
-            <label class="switch">
+          <label class="pop__switchRow pop__switchRow--tight">
+            <span class="pop__switchText">
+              <span class="pop__switchTitle">页面悬浮球</span>
+              <span class="hint">贴边隐藏，点一下即翻译</span>
+            </span>
+            <span class="switch">
               <input type="checkbox" id="pageBall" />
               <span class="switch__track"></span>
-            </label>
-          </div>
+            </span>
+          </label>
         </div>
 
-        <div class="pop__actions">
-          <button class="btn btn--ghost" id="pageRetranslate" type="button">重新翻译</button>
-        </div>
+        <button class="btn btn--block" id="pageRetranslate" type="button">重新翻译</button>
       </section>
-
-      <hr class="rule" />
 
       <footer class="pop__foot">
         <span class="pop__footHint" id="footHint"></span>
-        <button class="btn btn--ghost" id="openOptions" type="button">设置</button>
+        <button class="btn btn--ghost btn--sm" id="openOptions" type="button">设置</button>
       </footer>
     </div>
 

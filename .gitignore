@@ -4,8 +4,8 @@
 # 依赖（本项目零构建、零运行时依赖，正常情况下不会有 node_modules）
 node_modules/
 
-# 开发脚本产生的临时文件
-__preview*.html
+# 开发脚本产生的临时文件（preview / check-pages 会在页面目录旁生成副本）
+__*.html
 *.log
 
 # 编辑器

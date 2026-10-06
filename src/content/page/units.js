@@ -14,11 +14,11 @@
  *                                             inline children become units,
  *                                             so the flex layout is untouched.
  *
- * Registers onto YTST.page.units.
+ * Registers onto Lingua.page.units.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const page = (NS.page = NS.page || {});
 
   /** Elements whose content must never be touched (or traversed). */
@@ -61,12 +61,31 @@
   /** Wrapping or appending inside these would reflow the page. */
   const LAYOUT_CRITICAL = /^(flex|inline-flex|grid|inline-grid|contents|table|ruby)$/;
 
+  /**
+   * Tags whose natural display is inline-level.
+   *
+   * Why this matters: CSS blockifies the children of a flex/grid container, so
+   * `<nav style="display:flex"><a>Home</a></nav>` reports `display: block` for
+   * the link. Trusting that computed value made the translation a block-level
+   * sibling *under* each nav link, which stretched the navbar onto two rows —
+   * the single most visible defect on real sites (GitHub, Wikipedia, MDN).
+   * An inline-level tag that only *became* block because of its parent is still
+   * an inline unit as far as rendering the translation goes.
+   */
+  const INLINE_TAGS = new Set([
+    'A', 'ABBR', 'B', 'BDI', 'BDO', 'CITE', 'DATA', 'DFN', 'EM', 'I', 'KBD',
+    'LABEL', 'MARK', 'Q', 'S', 'SAMP', 'SMALL', 'SPAN', 'STRONG', 'SUB', 'SUP',
+    'TIME', 'U', 'VAR',
+  ]);
+
   /** Attributes worth translating when the user opts in. */
   const ATTRS = ['placeholder', 'title', 'alt', 'aria-label'];
 
   const MAX_UNIT_CHARS = 3000;
   const MIN_UNIT_CHARS = 2;
   const MAX_MARKS = 16;
+  /** Above this length a blockified inline element keeps a block translation. */
+  const INLINE_MAX_CHARS = 40;
 
   /** Inline placeholders that protect hyperlinks through the translation round-trip. */
   const MARK_OPEN = '⟦';
@@ -74,6 +93,22 @@
 
   /** Any letter in any script — digits/symbols alone are not worth a request. */
   const HAS_LETTER = /\p{L}/u;
+
+  /**
+   * Invisible formatting characters: zero-width spaces/joiners and bidi
+   * controls.
+   *
+   * These matter because `\s` does NOT match them, so whitespace collapsing
+   * leaves them in place. VitePress (the docs framework behind Vue, Vite and
+   * Vitest) renders every heading as
+   *   `<h1>Introduction <a class="header-anchor">&#8203;</a></h1>`
+   * — the permalink anchor holds nothing but U+200B.
+   */
+  const INVISIBLE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g;
+
+  function stripInvisible(s) {
+    return String(s || '').replace(INVISIBLE, '');
+  }
 
   let extraSkipCache = { raw: null, list: [] };
 
@@ -179,7 +214,7 @@
         }
       }
     })(el);
-    return out.replace(/\s+/g, ' ').trim();
+    return stripInvisible(out).replace(/\s+/g, ' ').trim();
   }
 
   function isTranslatable(text) {
@@ -201,7 +236,8 @@
     const out = [];
     if (!root || root.nodeType !== 1) return out;
     const extraSkip = compileSkip(opts && opts.skipSelectors);
-    const containers = markContainers(root, makeDisplayLookup());
+    const displayOf = makeDisplayLookup();
+    const containers = markContainers(root, displayOf);
     const scrollY = window.scrollY || window.pageYOffset || 0;
 
     (function walk(el, depth) {
@@ -212,6 +248,7 @@
       if (!containers.has(el) && (!structural || !hasDescendableChild(el))) {
         const hasLink = hasLinkChild(el);
         let text = textOf(el);
+        const plainLen = text.length;
         let marks = null;
         if (hasLink) {
           // Protect the links with placeholders so the translation can keep them.
@@ -230,12 +267,21 @@
           }
           if (cs && cs.display !== 'none' && cs.visibility !== 'hidden') {
             if (!LAYOUT_CRITICAL.test(cs.display)) {
+              const parent = el.parentElement;
+              // Only short blockified labels (nav links, chips, flex buttons)
+              // get an inline translation. A long blockified paragraph reads
+              // much better with the translation on its own line.
+              const blockifiedByParent =
+                plainLen <= INLINE_MAX_CHARS &&
+                !!parent &&
+                INLINE_TAGS.has(el.tagName) &&
+                /^(inline-)?(flex|grid)$/.test(displayOf(parent));
               out.push({
                 type: 'text',
                 el,
                 text,
                 display: cs.display,
-                inline: cs.display.indexOf('inline') === 0,
+                inline: cs.display.indexOf('inline') === 0 || blockifiedByParent,
                 hasLink,
                 marks,
                 top: rectTop(el, scrollY),
@@ -350,7 +396,13 @@
         if (classNameOf(n).indexOf('lingua-') !== -1) continue;
         if (tag === 'A' && n.getAttribute('href')) {
           const unit = atomicInline(n);
-          const inner = (unit.textContent || '').replace(/\s+/g, ' ').trim();
+          const inner = stripInvisible(unit.textContent || '').replace(/\s+/g, ' ').trim();
+          // An anchor with no visible text is decoration, not a link: VitePress
+          // wraps a lone zero-width space in its heading permalinks. Marking it
+          // produced `⟦1⟧⟦/1⟧` around nothing, and a marker pair the model cannot
+          // sensibly preserve gets dropped — which makes the whole unit fail the
+          // placeholder check and fall back to the untranslated source. That is
+          // why headings on docs sites stayed in English.
           if (!inner) continue;
           const idx = marks.length + 1;
           if (idx > MAX_MARKS) {

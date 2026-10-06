@@ -3,16 +3,16 @@
  * One implementation covers OpenAI, DeepSeek, Moonshot/Kimi, Zhipu GLM, Qwen
  * (compatible mode), SiliconFlow, OpenRouter, Groq, Together, Ollama, LM Studio,
  * vLLM, and one-api / new-api style gateways.
- * Registers onto YTST.bg.providers.openai.
+ * Registers onto Lingua.bg.providers.openai.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { buildBatchText } = NS.subtitles;
   const { parseOutput } = BG.llm;
-  const { systemPrompt } = BG.prompts;
+  const { systemPrompt, profileSuffix } = BG.prompts;
 
   function resolveUrl(baseUrl) {
     const base = String(baseUrl || '').trim().replace(/\/+$/, '');
@@ -48,7 +48,13 @@
     const { settings, from, to, signal } = ctx;
     const cfg = settings.providers.openai;
     const url = resolveUrl(cfg.baseUrl);
-    const sys = (cfg.prompt && cfg.prompt.trim()) || systemPrompt(from, to, ctx.kind);
+    // A user-written prompt replaces the built-in rules, so the adaptive profile
+    // can only be appended to it. The built-in prompt takes it inline instead,
+    // which keeps the output-format contract as the last thing the model reads.
+    const custom = cfg.prompt && cfg.prompt.trim();
+    const sys = custom
+      ? custom + profileSuffix(ctx.profile)
+      : systemPrompt(from, to, ctx.kind, ctx.profile);
 
     const headers = { 'Content-Type': 'application/json' };
     if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;

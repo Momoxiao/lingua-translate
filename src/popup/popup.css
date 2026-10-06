@@ -1,54 +1,76 @@
+/* ==========================================================================
+   Lingua — popup
+   --------------------------------------------------------------------------
+   No inset card here. Chrome draws the popup window itself with square corners
+   and there is no way to round it, so a rounded card floating inside a square
+   frame reads as a mistake. The popup is edge-to-edge; only the inner elements
+   carry radius, all of them from the shared theme tokens.
+
+   Density is a hard constraint, not a preference: Chrome caps a popup at 600px
+   and scrolls anything taller, and a settings panel that scrolls to reveal two
+   more switches feels broken. scripts/check-pages.mjs asserts the budget.
+   ========================================================================== */
+
 body {
   width: 356px;
   background: var(--paper);
 }
 
-/*
- * No inset card here. Chrome draws the popup window itself with square corners
- * and there is no way to round it, so a rounded card floating inside a square
- * frame reads as a mistake. The popup is edge-to-edge; only the inner elements
- * carry radius, all of them from the shared theme tokens.
- */
 .pop {
-  padding: 14px 16px 12px;
+  padding: 11px 13px 8px;
+  display: flex;
+  flex-direction: column;
 }
 
+/* --- header -------------------------------------------------------------- */
+/* With a single contextual panel there is usually no tab strip, so the header
+   carries the separation itself. When the switcher IS present the header drops
+   its hairline: two rules stacked a few pixels apart read as a mistake. */
 .pop__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 12px;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+.pop__head:has(+ .tabs:not([hidden])) {
+  padding-bottom: 0;
+  margin-bottom: var(--sp-3);
+  border-bottom: 0;
 }
 
-.pop .rule {
-  margin: 12px 0 10px;
-}
-
-/* --- tabs ---------------------------------------------------------------- */
+/* --- mode switcher -------------------------------------------------------
+   Only rendered when both halves of the product apply to the page. A compact
+   pill strip rather than a full tab bar: it is a two-way toggle, and the popup
+   is on a hard 600px budget.
+   ------------------------------------------------------------------------ */
 .tabs {
   display: flex;
   gap: 2px;
-  padding: 3px;
+  padding: 2px;
+  margin-bottom: var(--sp-3);
   background: var(--paper-2);
   border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  margin-bottom: 14px;
+  border-radius: var(--r-pill);
 }
-
+.tabs[hidden] {
+  display: none;
+}
 .tabs button {
   flex: 1;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-12);
   font-weight: 600;
   color: var(--ink-2);
   background: transparent;
   border: 0;
-  /* Nested radius: outer --r-md minus the 3px container padding. */
-  border-radius: 7px;
-  padding: 6px 10px;
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
   cursor: pointer;
-  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
 }
 .tabs button:hover {
   color: var(--ink);
@@ -56,28 +78,78 @@ body {
 .tabs button[aria-selected="true"] {
   background: var(--surface);
   color: var(--accent-ink);
-  box-shadow: 0 1px 2px rgba(26, 23, 20, 0.08);
+  box-shadow: var(--shadow-1);
+}
+.tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
-/* --- rows ---------------------------------------------------------------- */
-.pop__row {
+/* --- panels -------------------------------------------------------------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A switch row is a label + optional hint on the left, the control on the
+   right. The hairline groups it with what follows instead of floating. */
+.pop__switchRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 2px 0 12px;
+  gap: var(--sp-4);
+  padding-bottom: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
 }
-.pop__row--tight {
-  padding: 0 0 12px;
+.pop__switchRow--tight {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: 0;
 }
-
-.pop__rowTitle {
-  font-size: 13.5px;
+.pop__switchText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.pop__switchTitle {
+  font-size: var(--fs-13);
   font-weight: 600;
+  line-height: 1.35;
+}
+.pop__switchRow .hint {
+  margin-top: 0;
 }
 
-.pop__row .hint {
-  margin-top: 2px;
+/* --- compact controls ----------------------------------------------------
+   The popup is 356px wide on a 600px budget, so its controls run one step
+   smaller than the settings page's. Scoped to .pop so the settings page keeps
+   the roomier sizing it has space for.
+   ------------------------------------------------------------------------ */
+.pop select,
+.pop input[type="text"] {
+  padding: 6px 10px;
+  font-size: var(--fs-12);
+}
+.pop .btn {
+  padding: 7px 12px;
+  font-size: var(--fs-12);
+}
+.pop .segmented button {
+  padding: 4px 11px;
+}
+.pop .hint {
+  margin-top: var(--sp-1);
+}
+/* The settings page spaces fields for reading; the popup packs them for
+   scanning. */
+.pop .field {
+  margin-bottom: var(--sp-3);
+}
+.pop .progressBox {
+  margin-bottom: var(--sp-3);
 }
 
 /* provider line: green when usable, amber when it still needs credentials */
@@ -91,147 +163,166 @@ body {
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 10px;
+  gap: 0 var(--sp-3);
+}
+
+.segmented--block {
+  display: flex;
+  width: 100%;
+}
+.segmented--block button {
+  flex: 1;
 }
 
 /* --- progress ------------------------------------------------------------ */
-.pop__progress {
-  margin: 0 0 12px;
+.progressBox {
+  margin-bottom: var(--sp-5);
 }
-
-.pop__progressTop {
+.progressBox__top {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: var(--sp-2);
 }
-
-.pop__progressLabel {
-  font-size: 12px;
+.progressBox__label {
+  font-size: var(--fs-12);
   font-weight: 600;
   color: var(--ink-2);
 }
-
-.pop__progressNum {
+.progressBox__num {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-3);
 }
 
-/* --- notes --------------------------------------------------------------- */
-.pop__note {
-  font-size: 12px;
-  line-height: 1.5;
-  padding: 9px 11px;
-  border-radius: var(--r-md);
-  margin-bottom: 12px;
+.panel > .note {
+  margin-bottom: var(--sp-5);
 }
-.pop__note[data-tone="warn"] {
-  background: var(--warn-soft);
-  color: var(--warn);
-}
-.pop__note[data-tone="err"] {
-  background: var(--err-soft);
-  color: var(--err);
-}
-.pop__note[data-tone="info"] {
-  background: var(--paper-2);
-  color: var(--ink-2);
+.panel > .note[hidden] {
+  display: none;
 }
 
-/* --- actions / foot ------------------------------------------------------ */
-.pop__actions {
-  display: flex;
-  justify-content: flex-start;
-  gap: 6px;
-}
-
+/* --- foot ---------------------------------------------------------------- */
 .pop__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--line);
 }
-
 .pop__footHint {
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--ink-3);
-}
-
-select {
-  cursor: pointer;
-}
-
-.panel .field:last-of-type {
-  margin-bottom: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* --- state card: mirrors the floating ball exactly ----------------------- */
 /* Radius matches the settings page's .card so the two surfaces feel related. */
 .stateCard {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 13px;
+  gap: var(--sp-3);
+  padding: 9px 12px;
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface);
+  overflow: hidden;
   transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
 }
+.stateCard__body {
+  flex: 1;
+  min-width: 0;
+}
 .stateCard__title {
-  font-size: 14px;
+  font-size: var(--fs-14);
   font-weight: 600;
   line-height: 1.3;
 }
 .stateCard__sub {
-  font-size: 11.5px;
+  font-size: var(--fs-11);
   color: var(--ink-3);
   margin-top: 3px;
   font-family: var(--font-mono);
   word-break: break-all;
 }
+/* The translation style rides along on the same line: it answers the same
+   question the host does ("what is happening on this page"), and a row of its
+   own cost 29px the popup's 600px budget could not spare. */
+.stateCard__style {
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+.stateCard__style:empty {
+  display: none;
+}
+.stateCard__style:not(:empty)::before {
+  content: " · ";
+  color: var(--ink-3);
+  font-weight: 400;
+}
+/* Progress is a hairline pinned to the card's bottom edge — the card title
+   already carries the counts, so a second labelled bar would be redundant. */
+.stateCard__strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+.stateCard__strip[hidden] {
+  display: none;
+}
+.stateCard__strip .progress {
+  height: 3px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
 .stateCard[data-tone="on"] {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   background: var(--accent-soft);
 }
 .stateCard[data-tone="on"] .stateCard__title {
   color: var(--accent-ink);
 }
+.stateCard[data-tone="on"] .stateCard__strip .progress {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
 .stateCard[data-tone="err"] {
-  border-color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 45%, var(--line));
   background: var(--err-soft);
 }
 .stateCard[data-tone="err"] .stateCard__title {
   color: var(--err);
 }
 
-.btn--primary {
-  background: var(--accent);
-  color: #fff;
-  border-color: var(--accent);
-  font-weight: 600;
-  flex: none;
-}
-.btn--primary:hover {
-  filter: brightness(1.08);
-}
-.btn--primary:disabled {
-  opacity: .55;
-}
-
 /* --- grouped sections ---------------------------------------------------- */
 .pop__group {
-  margin-top: 14px;
-  padding-top: 12px;
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
   border-top: 1px solid var(--line);
 }
 .pop__groupTitle {
   font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-3);
-  opacity: .8;
-  margin-bottom: 9px;
+  margin-bottom: var(--sp-1);
+}
+.pop__group .field {
+  margin-bottom: var(--sp-3);
+}
+.pop__group .field:last-child {
+  margin-bottom: 0;
+}
+
+.panel > .btn--block {
+  margin-top: var(--sp-4);
 }

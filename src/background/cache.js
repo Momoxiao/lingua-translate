@@ -1,11 +1,11 @@
 /**
  * Lingua — translation cache.
  * Two tiers: an in-memory LRU Map (hot path) + a debounced chrome.storage.local
- * snapshot (survives service-worker restarts). Registers onto YTST.bg.cache.
+ * snapshot (survives service-worker restarts). Registers onto Lingua.bg.cache.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { hash, debounce } = NS.utils;
   const { CACHE } = NS.constants;

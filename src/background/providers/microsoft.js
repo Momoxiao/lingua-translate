@@ -1,10 +1,10 @@
 /**
  * Lingua — Microsoft Azure Translator provider.
- * Registers onto YTST.bg.providers.microsoft.
+ * Registers onto Lingua.bg.providers.microsoft.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;

@@ -22,7 +22,7 @@ importScripts(
 
 (function () {
   'use strict';
-  const NS = globalThis.YTST;
+  const NS = globalThis.Lingua;
   const { MSG, ID } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
   const translator = NS.bg.translator;
@@ -50,6 +50,7 @@ importScripts(
         from: payload.from || settings.sourceLang,
         to: payload.to || settings.targetLang,
         kind: payload.kind || 'subtitle',
+        profile: payload.profile || null,
         signal: ctrl.signal,
         onProgress: emit,
       });

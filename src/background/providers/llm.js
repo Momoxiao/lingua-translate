@@ -1,10 +1,10 @@
 /**
  * Lingua — LLM output normalisation shared by all chat-style providers.
- * Registers onto YTST.bg.llm.
+ * Registers onto Lingua.bg.llm.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { parseBatchResponse } = NS.subtitles;
 

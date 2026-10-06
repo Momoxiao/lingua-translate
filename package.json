@@ -8,6 +8,7 @@
     "test": "node scripts/test-core.mjs",
     "test:dom": "node scripts/test-dom.mjs",
     "test:e2e": "node scripts/e2e-extension.mjs",
+    "test:pages": "node scripts/check-pages.mjs",
     "inspect": "node scripts/inspect-live.mjs",
     "preview": "node scripts/preview.mjs",
     "icons": "python3 scripts/make-icons.py"

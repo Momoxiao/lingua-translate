@@ -10,6 +10,7 @@
  * Usage: node scripts/preview.mjs [outDir]
  */
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +18,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2] || '/tmp/lingua-preview';
 const ONLY = process.argv[3] || ''; // optional: render a single page by name
+// Optional viewport-height override, so a very long page can be captured in
+// readable slices (PREVIEW_HEIGHT=1100 node scripts/preview.mjs out options).
+const HEIGHT = Number(process.env.PREVIEW_HEIGHT) || 0;
+// Optional anchor, so a slice of a long page can be captured directly
+// (PREVIEW_HASH=#language node scripts/preview.mjs out options).
+const HASH = process.env.PREVIEW_HASH || '';
 
 const CHROME_CANDIDATES = [
   '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
@@ -32,12 +39,43 @@ if (!chromePath) {
 
 fs.mkdirSync(OUT, { recursive: true });
 
-const STUB = (tabUrl) => `
+const STUB = (tabUrl, patch) => `
 <script>
 (() => {
+  /*
+   * The error reporter is installed FIRST and the whole stub is wrapped in a
+   * try/catch. A stub that throws before it installs itself (a typo in the
+   * settings literal, say) otherwise fails silently: window.chrome stays
+   * undefined, the page quietly falls back to default settings, and the harness
+   * reports a healthy render of the wrong thing.
+   */
+  function report(e) {
+    let el = document.getElementById('__lingua_errs');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '__lingua_errs';
+      el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;' +
+        'font:11px/1.5 ui-monospace,monospace;padding:6px 8px;white-space:pre-wrap;word-break:break-all');
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent += 'ERR ' + String(e) + '\\n';
+  }
+  window.addEventListener('error', (e) => report(e.message));
+  window.addEventListener('unhandledrejection', (e) => report('rejection: ' + ((e.reason && e.reason.message) || e.reason)));
+
+  try {
   const TAB_URL = ${JSON.stringify(tabUrl)};
+  const PATCH = ${JSON.stringify(patch || {})};
+  function mergeDeep(base, patch) {
+    for (const k of Object.keys(patch || {})) {
+      const v = patch[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) base[k] = mergeDeep(Object.assign({}, base[k]), v);
+      else base[k] = v;
+    }
+    return base;
+  }
   const store = {
-    'lingua:settings:v1': {
+    'lingua:settings:v1': mergeDeep({
       enabled: true, provider: 'openai', sourceLang: 'auto', targetLang: 'zh-Hans',
       displayMode: 'bilingual', autoTranslate: true, hideNativeCaptions: true,
       fontSize: 24, bottomOffset: 12, textAlign: 'center', backgroundOpacity: 0.72,
@@ -45,7 +83,7 @@ const STUB = (tabUrl) => `
       page: {
         autoTranslate: false, displayMode: 'bilingual', style: 'underline',
         batchSize: 12, maxChars: 1400, concurrency: 3, autoSites: [], skipSites: [],
-        skipSelectors: '', translateInputs: false
+        skipSelectors: '', translateInputs: false, profileMode: 'auto', profileNotes: ''
       },
       providers: {
         openai: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-demo', model: 'deepseek-chat', temperature: 0, prompt: '' },
@@ -54,7 +92,7 @@ const STUB = (tabUrl) => `
         microsoft: { baseUrl: 'https://api.cognitive.microsofttranslator.com/translate', apiKey: '', region: '' },
         custom: { url: '', method: 'POST', apiKey: '', headers: '{}', body: '', responsePath: '' }
       }
-    }
+    }, PATCH)
   };
   const listeners = [];
   const STATE = {
@@ -75,7 +113,8 @@ const STUB = (tabUrl) => `
     page: {
       active: true, status: 'translating', total: 86, done: 34, error: '',
       mode: 'bilingual', style: 'underline', showOriginal: false, showBall: true,
-      host: 'news.ycombinator.com', rule: 'manual', auto: false
+      host: 'news.ycombinator.com', rule: 'manual', auto: false,
+      profile: { id: 'forum', label: '社区讨论', confidence: 'auto' }
     },
     provider: 'openai', providerReady: true, targetLang: 'zh-Hans', enabled: true
   };
@@ -111,34 +150,72 @@ const STUB = (tabUrl) => `
       }
     }
   };
-  function report(e) {
-    let el = document.getElementById('__lingua_errs');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = '__lingua_errs';
-      el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;' +
-        'font:11px/1.5 ui-monospace,monospace;padding:6px 8px;white-space:pre-wrap;word-break:break-all');
-      (document.body || document.documentElement).appendChild(el);
-    }
-    el.textContent += 'ERR ' + String(e) + '\\n';
+  } catch (e) {
+    report('stub: ' + ((e && e.stack) || e));
   }
-  window.addEventListener('error', (e) => report(e.message));
-  window.addEventListener('unhandledrejection', (e) => report('rejection: ' + ((e.reason && e.reason.message) || e.reason)));
 })();
 </script>
 `;
 
 const PAGES = [
-  { html: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, height: 560, name: 'popup' },
-  { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 560, name: 'popup-page' },
-  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options' },
+  // The light/dark flags are explicit: headless Chrome follows the OS
+  // appearance, so without them the "light" screenshots would silently turn
+  // dark on a dark-mode machine and the docs set would be wrong.
+  { html: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, height: 499, name: 'popup', light: true },
+  {
+    // The same YouTube page, with the switcher used to reach web-page
+    // translation — the reason the switcher exists at all.
+    html: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    width: 356,
+    height: 578,
+    name: 'popup-yt-page',
+    light: true,
+    script: `(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      await new Promise((r) => window.addEventListener('load', r, { once: true }));
+      await sleep(400);
+      const tab = Array.prototype.slice.call(document.querySelectorAll('.tabs button'))
+        .filter((b) => b.dataset.tab === 'page')[0];
+      if (!tab) return;
+      tab.click();
+      await sleep(60);
+      // The capture runs under --virtual-time-budget, which fast-forwards timers
+      // but does not advance CSS transitions — a highlight that just started
+      // would be photographed at its OLD value, making the screenshot disagree
+      // with the DOM. Dropping the transition snaps it to the final state.
+      document.querySelectorAll('.tabs button').forEach((b) => { b.style.transition = 'none'; });
+    })();`,
+  },
+  { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 527, name: 'popup-page', light: true },
+  { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 527, name: 'popup-page-dark', dark: true },
+  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options', light: true },
+  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options-dark', dark: true },
+  // the custom provider is the one pane with hand-written HTTP in it, so it gets
+  // its own screenshot (configured, so the diagnostics have something to say)
+  {
+    html: 'src/options/options.html',
+    width: 1180,
+    height: 1500,
+    name: 'options-custom',
+    light: true,
+    patch: {
+      provider: 'custom',
+      providers: {
+        custom: {
+          url: 'http://localhost:1188/translate',
+          method: 'POST',
+          apiKey: 'sk-demo',
+          headers: '{\n  "Content-Type": "application/json",\n  "Authorization": "Bearer {{key}}"\n}',
+          body: '{\n  "text": "{{text}}",\n  "source_lang": "{{from}}",\n  "target_lang": "{{to}}"\n}',
+          responsePath: 'data',
+        },
+      },
+    },
+  },
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },
   { build: buildBallDemo, state: 'translating', width: 760, height: 420, name: 'ball' },
-  // dark-mode variants: headless Chrome defaults to light, so these force the
-  // dark palette to prove the theme actually switches
-  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options-dark', dark: true },
-  { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 560, name: 'popup-page-dark', dark: true },
 ];
 
 /**
@@ -160,8 +237,8 @@ function buildBallDemo() {
 <div class="page">
   <h1>悬浮球（悬停滑出 + 面板展开）</h1>
   <p>平时贴边半隐藏，只露出一小条；鼠标移上去才滑出来。点击即翻译，可拖动，位置按站点记住。</p>
-  <p>外圈就是进度环，不需要额外的进度条。悬停向左展开操作面板：显示原文 / 重新翻译 / 关闭。右键打开设置。</p>
-  <p>球与面板之间有一条不可见的悬停桥，鼠标从球移向面板不会中途失去 hover。</p>
+  <p>外圈就是进度环，不需要额外的进度条。悬停向左展开操作面板：只显示原文 / 重新翻译 / 停止。右键打开设置。</p>
+  <p>三处不可见的悬停桥：球与面板之间、贴边滑走后让出的那条带、以及进度环所在的一圈。少任何一处，鼠标移过去都会中途丢失 hover，球就缩回去。</p>
   <p class="hint">下面是状态预览（静态截图，实际可交互）</p>
 </div>
 <script src="src/content/page/ball.js"></script>
@@ -188,12 +265,12 @@ function buildBallDemo() {
   }
   window.addEventListener('error', function (e) { report(e.message); });
 
-  YTST.page.ball.mount({
+  Lingua.page.ball.mount({
     onToggle: function () {}, onRetranslate: function () {},
     onStop: function () {}, onToggleOriginal: function () { return false; },
     onOpenSettings: function () {}
   });
-  YTST.page.ball.setStatus({ active: true, status: 'done', done: 442, total: 442, error: '' });
+  Lingua.page.ball.setStatus({ active: true, status: 'done', done: 442, total: 442, error: '' });
   // force the hover panel open for the screenshot
   var wrap = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
   wrap.classList.add('pinned');
@@ -246,7 +323,7 @@ function buildPageDemo({ mode, style }) {
     <li>Priority follows the viewport, so visible text is translated first.</li>
     <li>Dynamically added content is picked up by a debounced observer.</li>
   </ul>
-  <pre><code>const units = YTST.page.units.collect(document.body);
+  <pre><code>const units = Lingua.page.units.collect(document.body);
 // code blocks are never touched</code></pre>
   <table><tbody>
     <tr><th>Mode</th><th>Result</th></tr>
@@ -279,10 +356,10 @@ function buildPageDemo({ mode, style }) {
     while (out.length < n) out += base;
     return out.slice(0, n);
   }
-  var units = YTST.page.units.collect(document.body, { skipSelectors: '' });
-  YTST.page.render.ensureStyle();
+  var units = Lingua.page.units.collect(document.body, { skipSelectors: '' });
+  Lingua.page.render.ensureStyle();
   units.forEach(function (u) {
-    YTST.page.render.apply(u, fake(u.text), { mode: ${JSON.stringify(mode)}, style: ${JSON.stringify(style)} });
+    Lingua.page.render.apply(u, fake(u.text), { mode: ${JSON.stringify(mode)}, style: ${JSON.stringify(style)} });
   });
 })();
 </script>
@@ -292,39 +369,56 @@ function buildPageDemo({ mode, style }) {
 let bad = 0;
 
 /**
- * Headless Chrome always reports `prefers-color-scheme: light`, so a dark
- * preview has to force the dark palette. Extract it from theme.css rather than
- * duplicating the values here — otherwise the preview silently drifts from the
- * real theme.
+ * Headless Chrome follows the OS appearance, so a machine in dark mode renders
+ * every page dark. To preview the other half of the theme the palette has to be
+ * forced. Extract it from theme.css rather than duplicating the values here —
+ * otherwise the preview silently drifts from the real theme.
+ *
+ * The override is injected after the stylesheets, so a later `:root` rule wins
+ * over the media-query block that theme.css already contains.
  */
-function darkOverride() {
+function themeOverride(which) {
   const css = fs.readFileSync(path.join(ROOT, 'src/ui/theme.css'), 'utf8');
-  const m = css.match(/@media \(prefers-color-scheme: dark\)\s*\{([\s\S]*?)\n\}/);
-  if (!m) throw new Error('could not extract the dark theme block from theme.css');
-  return `<style id="__force-dark">\n${m[1]}\n</style>`;
+  if (which === 'dark') {
+    const m = css.match(/@media \(prefers-color-scheme: dark\)\s*\{\s*:root\s*\{([\s\S]*?)\n\s*\}\s*\n\}/);
+    if (!m) throw new Error('could not extract the dark theme block from theme.css');
+    return `<style id="__force-dark">\n:root{${m[1]}}\n</style>`;
+  }
+  const m = css.match(/:root\s*\{([\s\S]*?)\n\}/);
+  if (!m) throw new Error('could not extract the light theme block from theme.css');
+  return `<style id="__force-light">\n:root{${m[1]}}\n</style>`;
 }
 
 for (const page of PAGES) {
   if (ONLY && page.name !== ONLY) continue;
   let srcPath;
   let tmpPath;
+  const override = page.dark ? themeOverride('dark') : page.light ? themeOverride('light') : '';
 
   if (page.build) {
     tmpPath = path.join(ROOT, '__preview-' + page.name + '.html');
     let html = page.build(page);
-    if (page.dark) html = html.replace(/<\/head>/i, `${darkOverride()}</head>`);
+    if (override) html = html.replace(/<\/head>/i, `${override}</head>`);
     fs.writeFileSync(tmpPath, html);
   } else {
     srcPath = path.join(ROOT, page.html);
     const dir = path.dirname(srcPath);
     tmpPath = path.join(dir, '__preview.html');
     let html = fs.readFileSync(srcPath, 'utf8');
-    html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n${STUB(page.tabUrl || 'https://example.com/')}`);
-    if (page.dark) html = html.replace(/<\/head>/i, `${darkOverride()}</head>`);
+    html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n${STUB(page.tabUrl || 'https://example.com/', page.patch)}`);
+    if (override) html = html.replace(/<\/head>/i, `${override}</head>`);
+    // `script` lets a page entry drive the UI into the state worth photographing
+    // (e.g. the popup's second panel) before the capture.
+    if (page.script) html = html.replace(/<\/body>/i, `<script>${page.script}</script></body>`);
     fs.writeFileSync(tmpPath, html);
   }
 
   const shotPath = path.join(OUT, `${page.name}.png`);
+  const height = HEIGHT || page.height;
+  // A fresh, throwaway profile per render. Two reasons: a persistent
+  // --user-data-dir caches file:// resources (edit a fixture, get a stale
+  // screenshot), and writing it next to the output would litter the repo.
+  const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-preview-${page.name}-`));
   const base = [
     '--headless=new',
     '--no-sandbox',
@@ -335,16 +429,24 @@ for (const page of PAGES) {
     '--no-first-run',
     '--no-default-browser-check',
     '--allow-file-access-from-files',
-    `--user-data-dir=${path.join(OUT, `profile-${page.name}`)}`,
-    `--window-size=${page.width},${page.height}`,
+    `--user-data-dir=${profileDir}`,
+    `--window-size=${page.width},${height}`,
     '--force-device-scale-factor=2',
     '--virtual-time-budget=3500',
     `--screenshot=${shotPath}`,
-    `file://${tmpPath}`,
+    `file://${tmpPath}${HASH}`,
   ];
 
   const run = spawnSync(chromePath, base, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60000 });
 
+  // Best-effort: Chrome may still be flushing its cache into the profile
+  // directory, and an ENOTEMPTY here would abort the whole render pass. The
+  // directory lives in os.tmpdir(), so a leftover copy costs nothing.
+  try {
+    fs.rmSync(profileDir, { recursive: true, force: true });
+  } catch (e) {
+    /* ignore */
+  }
   fs.unlinkSync(tmpPath);
 
   const label = page.html || page.name;

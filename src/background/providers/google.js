@@ -1,11 +1,11 @@
 /**
  * Lingua — Google Translate provider.
  * Two paths: official Cloud Translation v2 (when an API key is set) and the
- * free public gtx endpoint (no key). Registers onto YTST.bg.providers.google.
+ * free public gtx endpoint (no key). Registers onto Lingua.bg.providers.google.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;

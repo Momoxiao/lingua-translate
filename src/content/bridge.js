@@ -9,11 +9,11 @@
  * call throws "Extension context invalidated." We detect that, fail fast with a
  * typed error, and never retry — otherwise the scheduler hammers a dead channel.
  *
- * Registers onto YTST.bridge.
+ * Registers onto Lingua.bridge.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const { BRIDGE, MSG } = NS.constants;
 
   const CODE_CONTEXT_LOST = 'CONTEXT_INVALIDATED';
@@ -185,7 +185,7 @@
 
   /**
    * @param {string[]} texts
-   * @param {{from:string,to:string,kind?:string,onProgress?:Function}} opts
+   * @param {{from:string,to:string,kind?:string,profile?:object,onProgress?:Function}} opts
    */
   function translate(texts, opts = {}) {
     if (!isAlive()) return Promise.reject(contextError());
@@ -198,7 +198,15 @@
         p.postMessage({
           type: MSG.TRANSLATE_BATCH,
           requestId,
-          payload: { texts, from: opts.from, to: opts.to, kind: opts.kind || 'subtitle' },
+          payload: {
+            texts,
+            from: opts.from,
+            to: opts.to,
+            kind: opts.kind || 'subtitle',
+            // Only the profile id and free-text note travel; the directives are
+            // resolved in the worker from constants.js.
+            profile: opts.profile || null,
+          },
         });
       } catch (e) {
         pendingCalls.delete(requestId);

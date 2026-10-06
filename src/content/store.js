@@ -1,11 +1,11 @@
 /**
  * Lingua — subtitle store (isolated world).
  * Single source of truth for cues, translations and pipeline status.
- * Registers onto YTST.store.
+ * Registers onto Lingua.store.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
 
   const STATUS = {
     IDLE: 'idle',

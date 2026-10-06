@@ -16,11 +16,11 @@
  *   {{target}}  target language name   (JSON-escaped)
  *   {{key}}     API key                (JSON-escaped)
  *
- * Registers onto YTST.bg.providers.custom.
+ * Registers onto Lingua.bg.providers.custom.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { buildBatchText, parseBatchResponse } = NS.subtitles;

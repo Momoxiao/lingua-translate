@@ -1,10 +1,10 @@
 /**
  * Lingua — shared utilities.
- * Classic script, registers onto globalThis.YTST.utils.
+ * Classic script, registers onto globalThis.Lingua.utils.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
 
   /** Stable 53-bit string hash (FNV-1a variant, fast enough for cache keys). */
   function hash(str) {

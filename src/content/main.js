@@ -1,12 +1,12 @@
 /**
  * Lingua — content script entry point (isolated world).
  * Boots two independent pipelines and answers popup queries:
- *   - YouTube subtitles      (YTST.youtube) — only on watch pages
- *   - Full-page translation  (YTST.page)    — on any site, opt-in
+ *   - YouTube subtitles      (Lingua.youtube) — only on watch pages
+ *   - Full-page translation  (Lingua.page)    — on any site, opt-in
  */
 (function () {
   'use strict';
-  const NS = globalThis.YTST;
+  const NS = globalThis.Lingua;
   if (!NS || !NS.youtube) return;
 
   let settings = null;
@@ -57,7 +57,7 @@
     if (!NS.youtube.videoIdFromUrl()) return;
     noticeShown = true;
     NS.overlay.mount();
-    NS.overlay.setNotice('Lingua：尚未配置翻译服务，请点击扩展图标完成设置', 9000);
+    NS.overlay.setNotice('Lingua：尚未配置翻译服务，点工具栏图标即可设置', 9000);
   }
 
   function changedMeaningfully(prev, next) {

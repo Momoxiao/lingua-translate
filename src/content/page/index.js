@@ -5,11 +5,11 @@
  * viewport centre -> translate in character-budgeted batches with bounded
  * concurrency -> render -> keep watching for dynamically added content.
  *
- * Registers onto YTST.page.
+ * Registers onto Lingua.page.
  */
 (function (root) {
   'use strict';
-  const NS = (root.YTST = root.YTST || {});
+  const NS = (root.Lingua = root.Lingua || {});
   const page = (NS.page = NS.page || {});
   const { bridge } = NS;
 
@@ -30,6 +30,8 @@
     mode: 'bilingual',
     style: 'underline',
     showOriginal: false,
+    /** which "expert" is translating: {id,label,confidence} */
+    profile: null,
   };
 
   let settings = null;
@@ -93,6 +95,24 @@
     };
   }
 
+  /**
+   * Which translation expert to use.
+   *
+   * Detected once per run, not per batch: the page does not change character
+   * halfway through, and re-running the DOM scan on every chunk would be waste.
+   */
+  function resolveProfile() {
+    const mode = (settings && settings.page && settings.page.profileMode) || 'auto';
+    const notes = ((settings && settings.page && settings.page.profileNotes) || '').trim().slice(0, 300);
+    let picked = { id: 'general', label: '通用', confidence: 'low' };
+    try {
+      if (page.profile) picked = page.profile.detect(mode);
+    } catch (e) {
+      /* detection must never break translation */
+    }
+    return { id: picked.id, label: picked.label, confidence: picked.confidence, notes };
+  }
+
   // ---------------------------------------------------------------------------
   // Scanning
   // ---------------------------------------------------------------------------
@@ -107,7 +127,18 @@
   }
 
   function nextFrame() {
-    return new Promise((r) => requestAnimationFrame(() => r()));
+    return new Promise((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      requestAnimationFrame(done);
+      // requestAnimationFrame never fires in a hidden tab. Without this the scan
+      // would hang forever after the user switches away mid-start.
+      setTimeout(done, 250);
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -117,6 +148,28 @@
     let n = 0;
     for (let i = 0; i < units.length; i++) if (!pending.has(i)) n++;
     return n;
+  }
+
+  /**
+   * Progress is DERIVED from the unit list, never accumulated in a counter.
+   *
+   * A running `done++` drifts away from reality: a unit can be counted and then
+   * dropped when the list is rebuilt, which is how the UI ended up showing more
+   * finished units than existed ("已翻译 391/381" on github.com). Counting the
+   * per-unit flags makes done <= total true by construction, no matter how the
+   * scheduler interleaves with dynamic content.
+   */
+  function recount() {
+    let total = 0;
+    let done = 0;
+    for (let i = 0; i < units.length; i++) {
+      const u = units[i];
+      if (u.gone) continue; // left the DOM — not part of the job any more
+      total++;
+      if (u.ok) done++;
+    }
+    state.total = total;
+    state.done = done;
   }
 
   function nextChunk() {
@@ -129,7 +182,9 @@
       if (pending.has(i)) continue;
       const u = units[i];
       if (!u.el || !u.el.isConnected) {
-        pending.add(i); // left the DOM — drop it
+        // Left the DOM — drop it from both the queue and the totals.
+        u.gone = true;
+        pending.add(i);
         continue;
       }
       cands.push(i);
@@ -164,6 +219,7 @@
         from: settings.sourceLang,
         to: settings.targetLang,
         kind: 'page',
+        profile: state.profile,
       })
       .then(({ results }) => {
         if (gen !== generation) return;
@@ -174,11 +230,12 @@
           const t = results[k];
           if (t && u.el && u.el.isConnected) {
             page.render.apply(u, t, renderOpts());
-            state.done++;
+            u.ok = true;
           } else {
             page.render.unmark(u);
           }
         }
+        recount();
       })
       .catch((err) => {
         if (gen !== generation) return;
@@ -194,9 +251,15 @@
         state.error = (err && (err.message || err.name || String(err))) || '翻译失败';
         if (err && err.code) state.error += ` [${err.code}]`;
         for (const i of chunk) {
+          const u = units[i];
+          // A chunk can fail after some of its units already rendered (one bad
+          // apply aborts the loop). Those must NOT be re-queued, or they would
+          // be translated twice.
+          if (u && u.ok) continue;
           pending.delete(i);
-          page.render.unmark(units[i]);
+          page.render.unmark(u);
         }
+        recount();
         if (failures >= MAX_FAILURES) {
           state.status = 'error';
           syncBall();
@@ -205,8 +268,11 @@
         }
       })
       .finally(() => {
-        inflight--;
+        // Decrement only for the current generation: teardown() resets the
+        // counter, so a stale request settling later would drive it negative and
+        // let pump() fan out far past the concurrency limit.
         if (gen !== generation) return;
+        inflight--;
         if (state.status === 'error') return;
         report();
         if (state.active) pump();
@@ -232,7 +298,9 @@
   function finish() {
     state.status = 'done';
     syncBall();
-    page.ball.notify(`已翻译 ${state.done} 段`, 'ok', 2600);
+    // The ball's own status line already carries "已翻译 n/n", so the transient
+    // message only has to confirm that the job ended.
+    page.ball.notify('翻译完成', 'ok', 2600);
   }
 
   /** Push the current pipeline state into the floating ball. */
@@ -359,7 +427,10 @@
       }
       if (!found.length) return;
       for (const u of found) units.push(u);
-      state.total = units.length;
+      recount();
+      // Content arrived after the pipeline had reported "done" — it is working
+      // again, so the status must not stay on the finished label.
+      if (state.status === 'done') state.status = 'translating';
       pump();
     }, MUTATION_DEBOUNCE);
   }
@@ -406,6 +477,7 @@
     pending = new Set();
     inflight = 0;
     failures = 0;
+    state.profile = resolveProfile();
 
     ensureBall(settings);
     syncBall();
@@ -424,7 +496,7 @@
     }
 
     units = collectFrom(body).slice(0, MAX_UNITS);
-    state.total = units.length;
+    recount();
 
     if (!units.length) {
       state.status = 'done';
@@ -528,6 +600,7 @@
       mode: state.mode,
       style: state.style,
       showOriginal: state.showOriginal,
+      profile: state.profile,
       showBall: !settings || !settings.page || settings.page.showBall !== false,
       host: hostname(),
       rule: settings ? siteRule(settings) : 'manual',

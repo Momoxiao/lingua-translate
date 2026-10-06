@@ -80,6 +80,14 @@ const STUB = (tabUrl, patch) => `
   // page exists to report it — so it has to be assertable, not just eyeballed.
   const DEAD = !!PATCH.__dead;
   delete PATCH.__dead;
+  // Same idea for the state the tab reports. Some verdicts can only be asserted
+  // if the fixture can put the page into that state, and the one that matters
+  // most is "the video HAS caption tracks but the cue fetch came back empty":
+  // the popup and the diagnostics page both used to describe that as "该视频没有
+  // 可用字幕" while printing the track list an inch above it. Stripped before the
+  // patch reaches the settings store, like __dead.
+  const STATE_PATCH = PATCH.__state || {};
+  delete PATCH.__state;
   const store = {
     'lingua:settings:v1': mergeDeep({
       enabled: true, provider: 'openai', sourceLang: 'auto', targetLang: 'zh-Hans',
@@ -127,6 +135,7 @@ const STUB = (tabUrl, patch) => `
     },
     provider: 'openai', providerReady: true, targetLang: 'zh-Hans', enabled: true
   };
+  mergeDeep(STATE, STATE_PATCH);
   window.chrome = {
     storage: {
       local: {

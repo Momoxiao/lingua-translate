@@ -129,5 +129,70 @@
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
-  NS.utils = { hash, debounce, throttle, sleep, retry, pool, escapeRegExp, deepMerge, isPlainObject, getPath, clamp, fmtTime };
+  // ---------------------------------------------------------------------------
+  // Why a video shows no subtitles
+  // ---------------------------------------------------------------------------
+  /**
+   * `status: 'empty'` is not one condition — it is three wearing one name, and
+   * the advice is different for each. The popup and the diagnostics page used to
+   * write their own sentence for it, and both said "该视频没有可用字幕" even when
+   * they had just printed six caption tracks above it. The user's takeaway was
+   * "this video cannot be translated" when the real problem was that our fetch
+   * came back empty — a bug to report, not a dead end.
+   *
+   * One function, one wording, so the two screens cannot disagree again.
+   * `reason` wins when present; `tracks.length` is the fallback for callers
+   * holding an older state shape.
+   *
+   * @param {object} sub the `subtitle` block of the content-script snapshot
+   * @returns {{tone:'info'|'warn', reason:string, text:string}}
+   */
+  function emptySubtitleNote(sub) {
+    const s = sub || {};
+    const tracks = Array.isArray(s.tracks) ? s.tracks : [];
+    const reason = s.reason || (tracks.length ? 'empty-track' : 'no-captions');
+
+    if (reason === 'not-a-video') {
+      return { tone: 'info', reason, text: '当前不是 YouTube 视频播放页，不会加载字幕。' };
+    }
+    if (reason === 'empty-track' || tracks.length) {
+      return {
+        tone: 'warn',
+        reason: 'empty-track',
+        text:
+          `这个视频有 ${tracks.length} 条字幕轨，但一条字幕数据都没取回来——` +
+          '失败的是「取字幕」这一步，不是视频没有字幕。到诊断页复制信息上报即可。',
+      };
+    }
+    return { tone: 'warn', reason: 'no-captions', text: '这个视频没有可用字幕，无法翻译。' };
+  }
+
+  /** Short label for the diagnostic report, so `reason` is readable in an issue. */
+  const EMPTY_REASON_LABEL = {
+    'not-a-video': '页面不是视频播放页',
+    'no-captions': '播放器没有报告任何字幕轨',
+    'empty-track': '字幕轨在，但取回的字幕数据是空的',
+    'ad': '正在播放广告，字幕加载已推迟',
+  };
+
+  function emptyReasonLabel(reason) {
+    return EMPTY_REASON_LABEL[reason] || reason || '';
+  }
+
+  NS.utils = {
+    hash,
+    debounce,
+    throttle,
+    sleep,
+    retry,
+    pool,
+    escapeRegExp,
+    deepMerge,
+    isPlainObject,
+    getPath,
+    clamp,
+    fmtTime,
+    emptySubtitleNote,
+    emptyReasonLabel,
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

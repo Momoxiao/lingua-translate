@@ -189,6 +189,14 @@ const popupProbe = (expectMode) => `
       selectedTab: sel ? sel.dataset.tab : '',
       profileText: ($('pageProfileValue') || {}).textContent || '',
       hostText: ($('pageHost') || {}).textContent || '',
+      // The two places the popup states a diagnosis. Both used to say "no
+      // captions" for a failure that leaves the caption tracks perfectly intact,
+      // so both are asserted against a fixture that has that exact shape.
+      pill: $('statusText').textContent,
+      pillTone: $('statusPill').dataset.tone,
+      note: $('note').hidden ? '' : $('note').textContent,
+      noteTone: $('note').dataset.tone || '',
+      tracksVisible: !$('trackField').hidden,
       // Chrome caps a popup at 600px and then scrolls, so this is a real budget,
       // not a style preference. Measure the .pop box itself — scrollHeight
       // reports the viewport when the content is shorter, which hides the fact.
@@ -253,9 +261,47 @@ const DIAGNOSTICS_PROBE = `
 })();
 </script>`;
 
+/**
+ * The state that two screens used to describe wrongly.
+ *
+ * The video HAS caption tracks; the cue fetch came back empty. Both the popup
+ * and the diagnostics page reported that as "no captions available", while the
+ * track list sat an inch above the sentence saying so. It is the more common of
+ * the two `status: 'empty'` causes, and it is the one a user must be told to
+ * report rather than shrug at — so one fixture, asserted against both screens.
+ */
+const NO_CUES_STATE = {
+  subtitle: {
+    status: 'empty',
+    reason: 'empty-track',
+    videoId: 'dQw4w9WgXcQ',
+    liveMode: false,
+    error: '',
+    cueCount: 0,
+    translated: 0,
+    tracks: [
+      { languageCode: 'en', name: 'English', kind: '' },
+      { languageCode: 'en', name: 'English (auto-generated)', kind: 'asr' },
+      { languageCode: 'ja', name: '日本語', kind: '' },
+      { languageCode: 'de-DE', name: 'Deutsch', kind: '' },
+    ],
+    sourceTrack: { languageCode: 'en', name: 'English' },
+    enabled: true,
+  },
+};
+
 const PAGES = [
   { file: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, kind: 'popup', probe: popupProbe('网页翻译') },
   { file: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, kind: 'popup', probe: popupProbe('视频字幕') },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: NO_CUES_STATE },
+    width: 356,
+    kind: 'popup-no-cues',
+    label: '弹窗 · 字幕轨在但没取到数据',
+    probe: popupProbe('视频字幕'),
+  },
   { file: 'src/options/options.html', tabUrl: 'https://example.com/', width: 1180, kind: 'options', probe: OPTIONS_PROBE },
   {
     file: 'src/diagnostics/diagnostics.html',
@@ -263,6 +309,15 @@ const PAGES = [
     width: 900,
     kind: 'diagnostics',
     label: '诊断页 · 一切正常',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: NO_CUES_STATE },
+    width: 900,
+    kind: 'diagnostics-no-cues',
+    label: '诊断页 · 字幕轨在但没取到数据',
     probe: DIAGNOSTICS_PROBE,
   },
   {
@@ -390,7 +445,7 @@ for (const page of PAGES) {
   }
 
   // --- popup: one contextual panel, plus a switcher only where both apply ----
-  if (page.kind === 'popup') {
+  if (page.kind === 'popup' || page.kind === 'popup-no-cues') {
     const p = probe.initial;
     check(
       p.modeLabel === p.expect,
@@ -403,7 +458,26 @@ for (const page of PAGES) {
       `page=${p.pageVisible} video=${p.videoVisible}`
     );
 
-    if (p.expect === '视频字幕') {
+    if (page.kind === 'popup-no-cues') {
+      // The bug this fixture exists for: the pill and the note both said the
+      // video had no captions while the track picker right above them listed
+      // four. The user's takeaway would be "untranslatable" instead of "report
+      // this" — the two outcomes could not be more different.
+      check(p.pill !== '无字幕', 'the pill stops claiming there are no captions', p.pill);
+      check(/取字幕失败/.test(p.pill), 'the pill names the step that actually failed', p.pill);
+      check(/4 条字幕轨/.test(p.note), 'the note says how many tracks were found', p.note);
+      // The old sentence was "这个视频没有可用字幕，无法翻译。" — the new one says
+      // "不是视频没有字幕", so assert on the claim's distinctive wording rather
+      // than on a bare /没有字幕/, which the correction itself contains.
+      check(
+        !/没有可用字幕/.test(p.note),
+        'the note never falls back to the no-captions wording',
+        p.note
+      );
+      check(/诊断页|上报/.test(p.note), 'the note tells the user to report it', p.note);
+      check(p.tracksVisible === true, 'the track picker stays available — those tracks are real');
+      check(p.noteTone === 'warn', 'the tone stays a warning, not an error', p.noteTone);
+    } else if (p.expect === '视频字幕') {
       // The user's request: web-page translation must be reachable from a
       // YouTube video page, because the description and comments are prose.
       check(p.tabsVisible === true, 'the switcher appears where both halves apply');
@@ -434,8 +508,9 @@ for (const page of PAGES) {
   }
 
   // --- diagnostics -----------------------------------------------------------
-  if (page.kind === 'diagnostics' || page.kind === 'diagnostics-dead') {
+  if (/^diagnostics/.test(page.kind)) {
     const dead = page.kind === 'diagnostics-dead';
+    const noCues = page.kind === 'diagnostics-no-cues';
     check(probe.options >= 1, 'the page offers a tab to inspect', `options=${probe.options}`);
     check(
       /^Lingua \d/.test(probe.report || ''),
@@ -456,6 +531,25 @@ for (const page of PAGES) {
         !/— 视频字幕 —/.test(probe.report || ''),
         'it does not print sections it could not read'
       );
+    } else if (noCues) {
+      // The report prints the track list; the verdict used to say no track was
+      // found. Two lines of the same screen contradicting each other is worse
+      // than either being vague, because it teaches the reader to distrust both.
+      check(probe.tone === 'warn', 'a failed caption fetch is a warning, not an error', probe.tone);
+      check(/— 视频字幕 —/.test(probe.report || ''), 'the report covers the captions');
+      check(/字幕轨\s+4 条/.test(probe.report || ''), 'the report lists the tracks it did find');
+      check(/empty-track/.test(probe.report || ''), 'the report names the raw reason, so it can be triaged');
+      check(
+        /取回的字幕数据是空的/.test(probe.report || ''),
+        'the report glosses the reason in words too'
+      );
+      check(
+        !/一条字幕轨都没找到/.test(probe.verdict || ''),
+        'the verdict does not contradict the track list above it',
+        probe.verdict
+      );
+      check(/4 条字幕轨/.test(probe.verdict || ''), 'the verdict quotes how many tracks exist', probe.verdict);
+      check(/取字幕/.test(probe.verdict || ''), 'the verdict points at the fetch step, not at the video', probe.verdict);
     } else {
       check(probe.tone === 'ok', 'a healthy page is reported as ok', probe.tone);
       check(/— 视频字幕 —/.test(probe.report || ''), 'the report covers the captions');

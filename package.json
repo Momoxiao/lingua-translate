@@ -11,6 +11,8 @@
     "test:pages": "node scripts/check-pages.mjs",
     "test:e2e": "node scripts/e2e-extension.mjs",
     "check": "npm test && npm run test:dom && npm run test:pages",
+    "smoke": "node scripts/smoke-youtube.mjs",
+    "smoke:headed": "node scripts/smoke-youtube.mjs --headed",
     "dist": "node scripts/package.mjs",
     "inspect": "node scripts/inspect-live.mjs",
     "preview": "node scripts/preview.mjs",

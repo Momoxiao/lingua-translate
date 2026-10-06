@@ -19,7 +19,7 @@ jobs:
       # dependency-free, so there is nothing to install and no lockfile to
       # drift. If this ever needs an install step, that is a design change.
 
-      # 113 assertions, pure Node — no browser required.
+      # 157 assertions, pure Node — no browser required.
       - name: Unit tests
         run: npm test
 
@@ -29,11 +29,17 @@ jobs:
       - name: DOM tests
         run: npm run test:dom
 
-      # 31 assertions: popup panel switching, the 600px popup height budget,
-      # settings-page interactions and custom-provider validation.
+      # 72 assertions: popup panel switching, the 600px popup height budget,
+      # settings-page interactions, custom-provider validation, and the
+      # diagnostics verdicts (including the two `status: 'empty'` causes, which
+      # must not be described with the same sentence).
       - name: Page probes
         run: npm run test:pages
 
-      # NOT run here: `npm run test:e2e`. It loads the unpacked extension into
-      # a real Chrome profile over CDP, which is slow and environment-sensitive.
-      # Run it locally before a release.
+      # NOT run here, on purpose:
+      #   npm run test:e2e  — loads the unpacked extension into a real Chrome
+      #                       profile over CDP: slow and environment-sensitive.
+      #   npm run smoke     — hits real YouTube. Its result depends on the
+      #                       profile (a signed-out throwaway one never gets a
+      #                       PoToken), so a red run here would mean nothing.
+      # Run both locally before a release.

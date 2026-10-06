@@ -401,11 +401,12 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 
 ```bash
 npm run check       # 一条命令跑完下面三套不需要真机扩展的测试（CI 跑的就是这个）
-npm test            # 核心逻辑测试（113 项，无需浏览器、无依赖）
+npm test            # 核心逻辑测试（157 项，无需浏览器、无依赖）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（164 项，真实 Chrome）
-npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验（31 项）
+npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（72 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
+npm run smoke       # 对着真实 YouTube 跑一次字幕链路（需要联网，不进 CI）
 npm run icons       # 重新生成图标
 npm run dist        # 打出可分发的 dist/lingua-<版本>.zip（发布时作为 Release 附件）
 npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效果并截图
@@ -413,7 +414,28 @@ npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效�
 
 `npm test` 不需要浏览器，也不需要安装任何依赖。其余脚本需要一个 Chrome / Chromium / Edge——`scripts/lib/chrome.mjs` 会自动在 macOS 应用目录、常见 Linux 路径和 `PATH` 里找；装在别处时用 `CHROME_PATH=/path/to/chrome npm run check` 指定。
 
-**测试覆盖到哪里，不覆盖哪里**：字幕解析、批次构建与解析、五个翻译供应商的请求构造、段落识别、译文渲染、弹窗与设置页的交互都有断言；而**视频字幕的获取链路（`youtube.js` / `inject.js` / `bridge.js`）没有任何自动化覆盖**——它依赖 YouTube 的私有接口，没法在 CI 里跑。端到端那 74 项走的是本地假接口与本地 fixture 页，不是真实的 YouTube 或真实的翻译服务。改这部分只能靠 `npm run inspect` 在真机上验证。
+**测试覆盖到哪里，不覆盖哪里**：字幕解析、批次构建与解析、五个翻译供应商的请求构造、段落识别、译文渲染、弹窗与设置页的交互、诊断页的判断文案都有断言；而**视频字幕的获取链路（`youtube.js` / `inject.js` / `bridge.js`）没有任何自动化覆盖**——它依赖 YouTube 的私有接口，没法在 CI 里跑。端到端那 74 项走的是本地假接口与本地 fixture 页，不是真实的 YouTube 或真实的翻译服务。改这部分只能靠 `npm run smoke`（离线可跑的真机冒烟）和 `npm run inspect`（对着你自己的浏览器）验证。
+
+### 真机冒烟：字幕链路还活着吗
+
+```bash
+npm run smoke                       # 一次性、未登录的临时 profile
+npm run smoke:headed                # 真实窗口、GPU 开着、允许自动播放
+SMOKE_PROFILE="$HOME/Library/Application Support/Google/Chrome" npm run smoke
+```
+
+它会起一个假的 OpenAI 兼容接口（不需要任何 API key），把未打包的扩展装进一个一次性 Chrome，打开一支真实视频页，读出的就是诊断页读的那份状态，并打印同一句判断。
+
+**它会数 `/api/timedtext` 请求，这比读结果值钱。** 只看「cue = 0」分不出是谁的问题：请求是**扩展自己发的**还是**播放器发的**、带不带 `pot`、HTTP 码是多少，决定了对策完全不同。脚本通过 CDP 的 Network 域把每条请求标上来源，所以判断是确定的事实而不是猜测：
+
+| 观察到的 | 说明 |
+|---|---|
+| 0 条请求 | 播放器根本没走到取字幕这一步，先怀疑运行环境 |
+| 只有扩展发的请求，不带 `pot`，HTTP 200 空 body | YouTube 拒绝了这次请求，就是 PoToken 那条路径 |
+| 播放器发过请求但被拒（非 200） | 接口层的问题，与扩展的请求构造无关 |
+| 有 cue 但 `translated = 0` | 卡在翻译这一层，跟字幕获取无关 |
+
+**读结论时要带上 profile 这个前提。** 默认用的是**一次性、未登录**的 profile，而 YouTube 不给这种 profile 签 `pot`：实测（headless、headed、以及 headed 开着 GPU 再跑一次，三种组合结果一致）播放器会照常报出 6 条字幕轨、把字幕开关置为开启（`aria-pressed=true`）、视频也在正常播放，却**一次都不请求 `/api/timedtext`**；扩展自己发的 6 次请求全部不带 `pot`、返回 HTTP 200 空 body。所以这个红灯说明的是「**这个浏览器**拿不到字幕」，不是「扩展坏了」——要回答后一个问题，用 `npm run inspect` 对着你自己那个已登录的 Chrome 跑同一支视频，或退出 Chrome 后用 `SMOKE_PROFILE` 指过去复现。
 
 ### 界面截图与排版审查
 
@@ -487,6 +509,7 @@ npm run inspect -- youtube.com
 | 现象 | 原因与处理 |
 | --- | --- |
 | YouTube 显示「无字幕」 | 该视频确实没有字幕轨；或页面刚打开、播放器还没返回轨道，稍等或刷新 |
+| 弹窗显示「取字幕失败」（字幕来源里却有轨道） | 视频有字幕，卡在向 YouTube 取数据这一步。诊断页的「状态原因」会写明是哪一种；这种情况请复制诊断信息开 Issue |
 | 字幕只覆盖了视频开头一段 | 大概率是正在播放**贴片广告**（广告期间拿到的是广告的轨道）；等广告结束会自动重新加载 |
 | 网页翻译漏了某些区域 | 该区域被识别为布局容器（flex/grid）或命中了忽略规则；可在设置里查看/调整「忽略选择器」 |
 | 接口报 401 / 403 | API Key 或 Base URL 不对；用设置页的「测试连接」验证 |
@@ -498,7 +521,7 @@ npm run inspect -- youtube.com
 
 ## 九、已知限制
 
-- **视频字幕的获取链路没有自动化测试**。`youtube.js` / `inject.js` / `bridge.js` 依赖 YouTube 的私有播放器接口，无法在 CI 里覆盖；YouTube 一旦更新就可能失效，而且不会有任何自动化的东西提前告诉你。遇到失效请开 Issue。
+- **视频字幕的获取链路没有自动化测试**。`youtube.js` / `inject.js` / `bridge.js` 依赖 YouTube 的私有播放器接口，无法在 CI 里覆盖；YouTube 一旦更新就可能失效，而且不会有任何自动化的东西提前告诉你。有 `npm run smoke` 可以手动跑一次真机冒烟（见第七节），但它要联网、不进 CI，而且结论必须带上 profile 这个前提读——它用的是未登录的一次性 profile，YouTube 不给这种 profile 签 `pot`。遇到失效请开 Issue。
 - 只在 macOS 的 Chrome 上做过实测。Linux 上 CI 会跑三套测试（不含真机扩展的 e2e），但 **Edge / Firefox 未经验证**——Firefox 需要额外的 MV3 适配。
 - 只有中文界面，没有 `_locales`，非中文用户看到的是中文设置页。
 - YouTube 字幕只在 `youtube.com` / `youtube-nocookie.com` 的播放页工作。
@@ -521,7 +544,8 @@ npm run inspect -- youtube.com
 - **为什么翻译失败的句子回退成原文而不是留空？** 用户至少能看到内容；同时用连续失败熔断（3 次）避免坏 key 把接口打爆。
 - **扩展重载后旧页面怎么办？** 内容脚本会检测到 `chrome.runtime.id` 消失（即 "Extension context invalidated"），立即熔断并提示刷新页面，而不是把错误当成普通翻译失败无限重试。
 - **进度消息为什么必须单独处理？** 长连接上既有「进度」又有「最终结果」两类消息。进度消息没有 `ok` 字段，如果让它穿透到最终响应的分支，就会被当成失败去 reject —— 表现是「前几批能翻、之后突然报翻译失败」。
-- **为什么用播放器的 `pot` 而不是自己算？** BotGuard 的挑战需要一整套 VM，自己算既复杂又容易随 YouTube 更新失效；播放器已经把 token 拿到手了，直接复用最稳，而且实测该 token 绑定的是「视频+会话」而非具体轨道，可以跨轨复用。
+- **为什么用播放器的 `pot` 而不是自己算？** BotGuard 的挑战需要一整套 VM，自己算既复杂又容易随 YouTube 更新失效；播放器已经把 token 拿到手了，直接复用最稳，而且实测该 token 绑定的是「视频+会话」而非具体轨道，可以跨轨复用。**前提是播放器真的请求过字幕**——这一点现在是可测量的，不是假设：`npm run smoke` 会通过 CDP 数 `/api/timedtext`，并区分请求是扩展发的还是播放器发的。实测在一个**未登录的一次性 profile** 里，播放器报了 6 条轨、把字幕开关置为开启，却一次都不请求字幕（extension 自己发的请求全部不带 `pot`、HTTP 200 空 body），于是「复用播放器的 pot」这条兜底路径在那样的环境里无事可做。判断这类故障时要先把「环境拿不到字幕」和「代码取不到字幕」分开。
+- **为什么「拿不到字幕」要分成两种说法？** `status: 'empty'` 同时表示「这个视频没有字幕」和「字幕轨在、但数据没取回来」，而这两件事的建议完全相反（前者无解，后者是要上报的 bug）。`reason` 原先只活在 emit 出来的事件里、没落到 `state`，于是弹窗和诊断页各自从 `tracks.length` 猜——两处都猜错了：它们一边列出 6 条字幕轨、一边在同一屏上说「该视频没有可用字幕」。现在 `setStatus` 把 `reason` 写进 `state`，快照带上它，措辞统一收在 `utils.emptySubtitleNote()` 一个函数里，`check-pages.mjs` 用「4 条轨 + 0 条 cue」这个 fixture 同时锁住弹窗和诊断页两处。
 - **为什么宁可选原始语言轨也不选人工字幕？** 人工轨未必完整（实测有一条只覆盖 34/336 秒），而原始语言轨是播放器自己依赖的轨，完整性有保证。用户仍可在弹窗里手动指定源语言覆盖这一默认行为。
 - **为什么 flex 容器自己的文本要单独处理？** 直接在 flex 容器里追加一个块级译文会变成一个 flex item、改变布局；而把**它自己的文本节点**包进一个行内 span 是布局中性的（正好顶替原来的匿名 flex item）。代价是译文只能行内排布，双语模式下按钮可能因此变宽换行——这是双语模式的固有代价。
 - **为什么「仅译文」不直接隐藏原文了事？** 隐藏原文会连带隐藏 `<a>`，用户就再也点不到链接。所以用占位符把链接保护起来、译文里重建；一旦模型写坏标记就退回双语，并把开关交给用户。

@@ -14,6 +14,7 @@
   'use strict';
   const NS = globalThis.Lingua;
   const { PROVIDERS, LANGUAGES } = NS.constants;
+  const { emptySubtitleNote, emptyReasonLabel } = NS.utils;
 
   const ISSUE_URL = 'https://github.com/Momoxiao/lingua-translate/issues/new?template=bug_report.yml';
   const OWN_URL = chrome.runtime.getURL('src/diagnostics/diagnostics.html');
@@ -124,11 +125,37 @@
         text: '字幕翻译当前是关闭的。检查弹窗里的「翻译视频字幕」开关，以及设置页的总开关。',
       };
     }
-    if (!sub.cueCount) {
+    if (sub.status === 'live') {
       return {
-        tone: 'warn',
-        text: '页面已连通，但一条字幕轨都没找到。可能是这个视频确实没有字幕；如果你确认它有，那就是 YouTube 改了字幕接口——这正是最需要上报的情况。',
+        tone: 'ok',
+        text: '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。',
       };
+    }
+    if (!sub.cueCount) {
+      // "No subtitles" and "subtitles exist but the fetch came back empty" are
+      // both `status: 'empty'`, and the report prints the track list right above
+      // this line. Getting them the wrong way round told the user their video
+      // was untranslatable when the fault was ours — the exact confusion this
+      // page exists to prevent.
+      const note = emptySubtitleNote(sub);
+      const count = (sub.tracks || []).length;
+      if (note.reason === 'empty-track') {
+        return {
+          tone: 'warn',
+          text:
+            `播放器报告了 ${count} 条字幕轨，但一条字幕数据都没取回来——视频本身是有字幕的，` +
+            '卡住的是「取字幕」这一步。这是最需要上报的情况：直接复制下面这段信息开 Issue。',
+        };
+      }
+      if (note.reason === 'no-captions') {
+        return {
+          tone: 'warn',
+          text:
+            '页面已连通，但播放器没有报告任何字幕轨。可能这个视频确实没有字幕；' +
+            '如果你在网页上能看到它，那就是 YouTube 改了字幕接口——请上报。',
+        };
+      }
+      return { tone: 'idle', text: note.text };
     }
     if (!s.providerReady) {
       return {
@@ -176,6 +203,10 @@
     const sub = s.subtitle || {};
     out.push(section('视频字幕'));
     out.push(row('状态', sub.status || '—'));
+    // Raw code plus a readable gloss: whoever triages the issue needs to tell
+    // "the video has no captions" from "our fetch failed" at a glance, and the
+    // status alone does not say which.
+    if (sub.reason) out.push(row('状态原因', `${emptyReasonLabel(sub.reason)}（${sub.reason}）`));
     out.push(row('视频 ID', sub.videoId || '—'));
     const tracks = sub.tracks || [];
     out.push(row('字幕轨', tracks.length ? `${tracks.length} 条：${tracks.map(trackLabel).join(', ')}` : '0 条'));

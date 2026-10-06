@@ -23,6 +23,9 @@
     const st = NS.store.state;
     return {
       status: st.status,
+      // Why we are in this status. Without it "empty" reads as "this video has
+      // no captions" even when six caption tracks are listed right below.
+      reason: st.reason,
       videoId: st.videoId,
       liveMode: st.liveMode,
       error: st.error,

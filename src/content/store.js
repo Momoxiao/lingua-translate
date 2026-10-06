@@ -29,6 +29,14 @@
     pending: new Set(), // cue indexes currently in flight
     progress: { done: 0, total: 0 },
     error: '',
+    /**
+     * Why the current status was reached. `empty` alone is ambiguous — it is
+     * raised both for "this video has no captions" and for "the captions are
+     * there but the fetch came back empty", and those need opposite advice. The
+     * reason used to live only in the emitted event, so every consumer had to
+     * guess from `tracks.length` and two of them guessed wrong.
+     */
+    reason: '',
     liveMode: false,
     enabled: true,
   };
@@ -53,6 +61,9 @@
 
   function setStatus(status, extra) {
     state.status = status;
+    // Always rewritten, including to '' — a stale reason from the previous
+    // status would otherwise be read as if it explained the new one.
+    state.reason = (extra && extra.reason) || '';
     emit('status', { status, ...(extra || {}) });
   }
 
@@ -65,6 +76,7 @@
     state.pending = new Set();
     state.progress = { done: 0, total: 0 };
     state.error = '';
+    state.reason = '';
     if (!keepSettings) state.liveMode = false;
     emit('reset', null);
   }

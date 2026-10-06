@@ -9,6 +9,7 @@
   const NS = globalThis.Lingua;
   const { LANGUAGES, PROVIDERS } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
+  const { emptySubtitleNote } = NS.utils;
 
   const el = (id) => document.getElementById(id);
   const ui = {
@@ -66,6 +67,9 @@
     loading: { tone: 'busy', text: '读取字幕' },
     translating: { tone: 'busy', text: '翻译中' },
     ready: { tone: 'ok', text: '已就绪' },
+    // Both 'empty' cases get the pill from emptySubtitleNote() below: the tracks
+    // ARE there in the more common of the two, and calling that "无字幕" is the
+    // same lie the note used to tell.
     empty: { tone: 'warn', text: '无字幕' },
     error: { tone: 'err', text: '出错' },
     live: { tone: 'busy', text: '直播模式' },
@@ -169,8 +173,16 @@
 
   function renderVideoPanel(state) {
     const s = state.subtitle || {};
+    // 'empty' covers two unrelated failures; emptySubtitleNote() is the single
+    // source of the wording for both, shared with the diagnostics page.
+    const empty = s.status === 'empty' ? emptySubtitleNote(s) : null;
     const meta = VIDEO_STATUS[s.status] || VIDEO_STATUS.idle;
-    if (activeTab === 'video') setStatus(meta.tone, meta.text);
+    if (activeTab === 'video') {
+      // The pill is 4 characters wide — it cannot carry the explanation, but it
+      // must at least stop claiming the video has no captions when it does.
+      const label = empty && empty.reason === 'empty-track' ? '取字幕失败' : meta.text;
+      setStatus(empty ? empty.tone : meta.tone, label);
+    }
 
     fillTracks(state);
 
@@ -198,7 +210,7 @@
     } else if (s.error) {
       setNote(ui.note, s.error, 'err');
     } else if (s.status === 'empty') {
-      setNote(ui.note, '该视频没有可用字幕。', 'warn');
+      setNote(ui.note, empty.text, empty.tone);
     } else if (!settings.enabled) {
       setNote(ui.note, '已暂停，字幕不会翻译。', 'info');
     } else if (!NS.settings.providerReady(settings)) {

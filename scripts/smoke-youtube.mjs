@@ -228,7 +228,7 @@ function verdict(state, net) {
           ? detail +
             'headless 和 headed 都是这个结果（headed 还特意开着 GPU 跑过一次），所以不是无头环境的老问题，' +
             '最可能是这个一次性、未登录的 profile：YouTube 不给它签 pot，播放器也就不去取。' +
-            '先拿 npm run inspect 对着你自己那个已登录的 Chrome 跑同一支视频（README 里 cues 163 那份输出就是这么来的）；' +
+            '先拿 npm run inspect 对着你自己那个已登录的 Chrome 跑同一支视频（README.zh-CN.md 里 cues 163 那份输出就是这么来的）；' +
             '要在这里直接对照，先完全退出 Chrome，再跑 ' +
             'SMOKE_PROFILE="$HOME/Library/Application Support/Google/Chrome" npm run smoke。'
           : detail + '这是个真实 profile，所以更值得深挖：播放器为什么在字幕已开启的情况下不重新请求字幕。',

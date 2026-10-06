@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = process.argv[2] || '/tmp/lingua-preview';
@@ -30,13 +31,7 @@ const HEIGHT = Number(process.env.PREVIEW_HEIGHT) || 0;
 // (PREVIEW_HASH=#language node scripts/preview.mjs out options).
 const HASH = process.env.PREVIEW_HASH || '';
 
-const CHROME_CANDIDATES = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-];
-
-const chromePath = CHROME_CANDIDATES.find((p) => fs.existsSync(p));
+const chromePath = resolveChrome();
 if (!chromePath) {
   console.error('No Chrome/Chromium/Edge binary found — skipping preview.');
   process.exit(0);

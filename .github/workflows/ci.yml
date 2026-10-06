@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # No `npm ci` on purpose: the extension and every test harness are
+      # dependency-free, so there is nothing to install and no lockfile to
+      # drift. If this ever needs an install step, that is a design change.
+
+      # 113 assertions, pure Node — no browser required.
+      - name: Unit tests
+        run: npm test
+
+      # 164 assertions against real headless Chrome (the runner image ships
+      # google-chrome at /usr/bin/google-chrome, which scripts/lib/chrome.mjs
+      # finds on its own). Set CHROME_PATH to point at another binary.
+      - name: DOM tests
+        run: npm run test:dom
+
+      # 31 assertions: popup panel switching, the 600px popup height budget,
+      # settings-page interactions and custom-provider validation.
+      - name: Page probes
+        run: npm run test:pages
+
+      # NOT run here: `npm run test:e2e`. It loads the unpacked extension into
+      # a real Chrome profile over CDP, which is slow and environment-sensitive.
+      # Run it locally before a release.

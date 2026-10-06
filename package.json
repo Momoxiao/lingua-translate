@@ -1,14 +1,16 @@
 {
-  "name": "lingua-yt-subtitles",
-  "version": "1.0.0",
+  "name": "lingua-translate",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "高性能 YouTube 双语字幕翻译浏览器扩展，可接入自定义云端 API",
+  "license": "MIT",
+  "description": "浏览器翻译扩展：YouTube 双语字幕 + 网页翻译，可接入任意翻译服务",
   "scripts": {
     "test": "node scripts/test-core.mjs",
     "test:dom": "node scripts/test-dom.mjs",
-    "test:e2e": "node scripts/e2e-extension.mjs",
     "test:pages": "node scripts/check-pages.mjs",
+    "test:e2e": "node scripts/e2e-extension.mjs",
+    "check": "npm test && npm run test:dom && npm run test:pages",
     "inspect": "node scripts/inspect-live.mjs",
     "preview": "node scripts/preview.mjs",
     "icons": "python3 scripts/make-icons.py"

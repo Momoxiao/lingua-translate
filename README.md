@@ -1,5 +1,11 @@
 # Lingua — 浏览器翻译扩展（视频字幕 + 网页翻译）
 
+[![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
+
+> **早期版本（0.1.0）。** 功能完整，有 380 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+>
+> **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
+
 高性能的 Chrome / Edge 扩展（Manifest V3）：
 
 - **YouTube 双语字幕**：整片预取字幕，边播边翻，双语叠加在播放器上
@@ -368,16 +374,19 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
+npm run check       # 一条命令跑完下面三套不需要真机扩展的测试（CI 跑的就是这个）
 npm test            # 核心逻辑测试（113 项，无需浏览器、无依赖）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（164 项，真实 Chrome）
-npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验（31 项）
+npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
 npm run icons       # 重新生成图标
 npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效果并截图
 ```
 
-`npm test` 不需要浏览器，也不需要安装任何依赖。其余脚本需要本机装有 Chrome。
+`npm test` 不需要浏览器，也不需要安装任何依赖。其余脚本需要一个 Chrome / Chromium / Edge——`scripts/lib/chrome.mjs` 会自动在 macOS 应用目录、常见 Linux 路径和 `PATH` 里找；装在别处时用 `CHROME_PATH=/path/to/chrome npm run check` 指定。
+
+**测试覆盖到哪里，不覆盖哪里**：字幕解析、批次构建与解析、五个翻译供应商的请求构造、段落识别、译文渲染、弹窗与设置页的交互都有断言；而**视频字幕的获取链路（`youtube.js` / `inject.js` / `bridge.js`）没有任何自动化覆盖**——它依赖 YouTube 的私有接口，没法在 CI 里跑。端到端那 74 项走的是本地假接口与本地 fixture 页，不是真实的 YouTube 或真实的翻译服务。改这部分只能靠 `npm run inspect` 在真机上验证。
 
 ### 界面截图与排版审查
 
@@ -448,6 +457,9 @@ npm run inspect -- youtube.com
 
 ## 九、已知限制
 
+- **视频字幕的获取链路没有自动化测试**。`youtube.js` / `inject.js` / `bridge.js` 依赖 YouTube 的私有播放器接口，无法在 CI 里覆盖；YouTube 一旦更新就可能失效，而且不会有任何自动化的东西提前告诉你。遇到失效请开 Issue。
+- 只在 macOS 的 Chrome 上做过实测。Linux 上 CI 会跑三套测试（不含真机扩展的 e2e），但 **Edge / Firefox 未经验证**——Firefox 需要额外的 MV3 适配。
+- 只有中文界面，没有 `_locales`，非中文用户看到的是中文设置页。
 - YouTube 字幕只在 `youtube.com` / `youtube-nocookie.com` 的播放页工作。
 - 网页翻译暂不处理 iframe 内部（只在顶层文档运行），也不翻译图片内的文字。
 - 直播场景的字幕走实时逐句翻译，质量与延迟不如点播的整片预取模式。
@@ -559,4 +571,10 @@ npm run inspect -- youtube.com
 修法是**把尺寸完全交给 CSS 盒子**：去掉 SVG 的 `width`/`height` 属性，改由 `left/top` + `width: calc(100% + gap*2)` 明确定义（`100%` 相对球的 padding box 解析），再让 `viewBox` 在盒子里等比居中。修完后实测偏移 **(0, 0)**。
 
 环与球之间留 3px：这样描边正好压在球体边缘上，白色弧线始终落在球自己的深色/朱红底面上，不论页面是浅色还是深色都清晰——如果让环悬在页面背景上，浅色站点里白弧会直接消失。
+
+---
+
+## 十二、许可证
+
+[MIT](LICENSE)。你可以自由使用、修改、再发布，包括商业用途，只需保留版权声明。欢迎在自己的 fork 上继续做。
 

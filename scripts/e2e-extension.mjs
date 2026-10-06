@@ -21,19 +21,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HEADED = process.argv.includes('--headed');
 const KEEP = process.argv.includes('--keep');
 const CDP_PORT = 9333 + Math.floor(Math.random() * 40);
 
-const CHROME_CANDIDATES = [
-  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  '/Applications/Chromium.app/Contents/MacOS/Chromium',
-  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-  '/usr/bin/google-chrome',
-  '/usr/bin/chromium',
-];
+const chromePath = resolveChrome();
+if (!chromePath) {
+  console.log('No Chrome/Chromium binary found — skipping E2E test.');
+  process.exit(0);
+}
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -399,12 +398,6 @@ function check(name, cond, detail) {
 // ===========================================================================
 // 5. Main
 // ===========================================================================
-const chromePath = CHROME_CANDIDATES.find((p) => fs.existsSync(p));
-if (!chromePath) {
-  console.log('No Chrome/Chromium binary found — skipping E2E test.');
-  process.exit(0);
-}
-
 const HTTP_PORT = 8799 + Math.floor(Math.random() * 60);
 const PROFILE = path.join(os.tmpdir(), `lingua-e2e-profile-${process.pid}`);
 

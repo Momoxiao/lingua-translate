@@ -605,5 +605,22 @@
     }
   }
 
-  NS.youtube = { start, stop, update, load, parseTranscript, forceCaptionRequest, videoIdFromUrl, adShowing };
+  // The pure decisions are exported alongside the lifecycle so they can be
+  // asserted without a browser: track selection and caption-URL handling are
+  // exactly what breaks when YouTube changes something, and they are the parts
+  // of this file that CAN be covered by tests.
+  NS.youtube = {
+    start,
+    stop,
+    update,
+    load,
+    parseTranscript,
+    forceCaptionRequest,
+    videoIdFromUrl,
+    adShowing,
+    pickTrack,
+    potParamsFrom,
+    withParams,
+    langOf,
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

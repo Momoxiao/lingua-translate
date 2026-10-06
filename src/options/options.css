@@ -420,38 +420,27 @@
 }
 
 /* --- cache row ----------------------------------------------------------- */
-.cacheRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-6);
-  padding: 11px 0;
-  border-top: 1px solid var(--line);
-}
-.cacheRow .switchRow {
-  border-top: 0;
-  padding: 0;
-  /* hug the label: stretching it would push the switch next to the counter,
-     where it reads as if it belonged to the stat instead of the setting */
-  flex: 0 1 auto;
-}
-.cacheRow__stat {
+/* Cache counter + its destructive action, on their own row under the switch.
+   Deliberately NOT inside the switch row: a <button> nested in the switch's
+   <label> would toggle the checkbox too, and squeezing the counter beside the
+   switch pushed the switch out of the right-hand column every other toggle in
+   this section lines up in. */
+.cacheStat {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
-  flex: none;
-  margin-left: auto;
+  padding: 0 0 2px;
 }
-.cacheRow__num {
+.cacheStat__num {
   font-family: var(--font-display);
   font-size: 20px;
   line-height: 1;
 }
-.cacheRow__stat .hint {
+.cacheStat .hint {
   margin-top: 0;
 }
-.cacheRow__stat .btn {
-  margin-left: var(--sp-2);
+.cacheStat .btn {
+  margin-left: auto;
   align-self: center;
 }
 
@@ -547,9 +536,7 @@
   .providers {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .cacheRow {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--sp-3);
+  .cacheStat {
+    flex-wrap: wrap;
   }
 }

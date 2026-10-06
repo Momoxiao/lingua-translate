@@ -41,6 +41,12 @@
       url: location.href,
       host: NS.page ? NS.page.hostname() : location.hostname,
       isWatchPage: !!NS.youtube.videoIdFromUrl(),
+      // Diagnostics. "Is the extension actually running on this page, and can it
+      // reach the worker" is the first thing to establish when something does
+      // not work — and the only thing a user can report back to us.
+      hasPageModule: !!NS.page,
+      bridgeAlive: NS.bridge ? NS.bridge.isAlive() : null,
+      bridgeError: NS.bridge && !NS.bridge.isAlive() ? NS.bridge.contextError().message : '',
       subtitle: subtitleSnapshot(),
       page: NS.page ? NS.page.status() : null,
       provider: settings && settings.provider,

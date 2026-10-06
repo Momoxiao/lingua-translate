@@ -287,8 +287,10 @@
     btnRetranslate.hidden = !state.active;
     btnStop.hidden = !state.active;
     // The label reflects what clicking will do, and matches the wording of the
-    // extension panel's "只显示原文" switch for the same state.
-    btnOriginal.textContent = state.showSource ? '恢复译文' : '只显示原文';
+    // extension panel's "暂时收起译文" switch for the same state. Deliberately
+    // not "只显示原文" — that reads as a synonym of the video panel's 仅原文
+    // display mode, which is a different thing (persistent, not a toggle).
+    btnOriginal.textContent = state.showSource ? '恢复译文' : '暂时收起译文';
 
     // progress arc
     const R = 23.5;
@@ -325,7 +327,7 @@
     wrap.innerHTML = `
       <div class="pill">
         <span class="status" role="status" aria-live="polite"></span>
-        <button class="act" type="button" data-act="original">只显示原文</button>
+        <button class="act" type="button" data-act="original">暂时收起译文</button>
         <button class="act" type="button" data-act="retranslate">重新翻译</button>
         <button class="act" type="button" data-act="stop">停止</button>
       </div>

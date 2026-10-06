@@ -48,6 +48,7 @@
     pageRetranslate: el('pageRetranslate'),
     // foot
     footHint: el('footHint'),
+    openDiagnostics: el('openDiagnostics'),
     openOptions: el('openOptions'),
   };
 
@@ -185,6 +186,13 @@
       ui.progressLabel.textContent = (s.translated || 0) >= s.cueCount ? '翻译完成' : s.liveMode ? '实时翻译' : '翻译中';
     }
 
+    // The label follows the state. Before anything is translated this button is
+    // the manual start — which is the only way in when 进入视频后自动开始翻译 is
+    // off — and afterwards it re-runs the pipeline. Hiding it instead would
+    // strand that user with no trigger at all.
+    ui.retranslate.textContent = (s.translated || 0) > 0 ? '重新翻译' : '开始翻译';
+    ui.retranslate.disabled = !s.cueCount;
+
     if (!state.isWatchPage) {
       setNote(ui.note, '当前不是 YouTube 视频播放页。', 'info');
     } else if (s.error) {
@@ -224,8 +232,18 @@
     ui.pageHost.textContent = state.host || '—';
     ui.pageStateTitle.textContent = pageStatusText(p);
     ui.pageStateCard.dataset.tone = p.status === 'error' ? 'err' : p.active ? 'on' : 'idle';
-    ui.pageToggle.textContent = p.active ? '停止' : '开始翻译';
+    // Once the run is finished there is nothing left to stop, and 停止 next to
+    // "已翻译 86/86" reads as if something were still going. Clicking it puts
+    // the page back, so say that instead.
+    ui.pageToggle.textContent = !p.active ? '开始翻译' : p.status === 'done' ? '还原原文' : '停止';
+    // Drives the click handler. It used to read the button's own label to decide
+    // which way the toggle was going, so relabelling the button silently changed
+    // the logic — a state flag cannot drift from the state.
+    ui.pageToggle.dataset.active = p.active ? '1' : '';
     ui.pageToggle.disabled = false;
+    // Before the first run this duplicates 开始翻译, so it only appears once
+    // there is something to re-translate.
+    ui.pageRetranslate.hidden = !p.active;
 
     syncing = true;
     ui.pageShowOriginal.checked = !!p.showOriginal;
@@ -403,7 +421,7 @@
     // One button, exactly like clicking the floating ball.
     ui.pageToggle.addEventListener('click', async () => {
       if (syncing) return;
-      const wantStop = ui.pageToggle.textContent.trim() === '停止';
+      const wantStop = ui.pageToggle.dataset.active === '1';
       ui.pageToggle.disabled = true;
       const res = await send('lingua:page-toggle');
       if (!res.ok) {
@@ -448,6 +466,14 @@
 
     ui.openOptions.addEventListener('click', () => {
       chrome.runtime.openOptionsPage();
+      window.close();
+    });
+
+    // The popup knows which tab the user is looking at; the diagnostics page
+    // cannot work that out on its own (it IS a tab), so pass it along.
+    ui.openDiagnostics.addEventListener('click', () => {
+      const q = tabId != null ? `?tab=${tabId}` : '';
+      chrome.tabs.create({ url: chrome.runtime.getURL(`src/diagnostics/diagnostics.html${q}`) });
       window.close();
     });
   }

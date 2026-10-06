@@ -1,0 +1,132 @@
+/*
+ * Lingua — diagnostics page.
+ *
+ * Deliberately standalone rather than reusing options.css: that stylesheet
+ * carries the settings page's two-column rail layout, and none of it applies
+ * here. Only the shared tokens from theme.css are used.
+ */
+.diag {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 22px 56px;
+}
+
+.diag__head {
+  margin-bottom: 18px;
+}
+
+.diag__lead {
+  margin: 0 0 20px;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.diag__lead strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.diag__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sp-4);
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.diag__pick {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.diag__pick select {
+  width: 100%;
+}
+
+.diag__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.diag__copyState {
+  min-height: 20px;
+  margin: 8px 0 0;
+  font-size: var(--fs-12);
+  color: var(--ok);
+}
+
+/* --- verdict: the one line a maintainer actually needs ---------------- */
+.verdict {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.verdict__label {
+  font-size: var(--fs-11);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  margin-bottom: 4px;
+}
+
+.verdict__text {
+  margin: 0;
+  font-size: var(--fs-14);
+}
+
+.verdict[data-tone='ok'] {
+  border-left-color: var(--ok);
+}
+.verdict[data-tone='ok'] .verdict__text {
+  color: var(--ok);
+}
+
+.verdict[data-tone='warn'] {
+  border-left-color: var(--warn);
+}
+.verdict[data-tone='warn'] .verdict__text {
+  color: var(--warn);
+}
+
+.verdict[data-tone='err'] {
+  border-left-color: var(--err);
+}
+.verdict[data-tone='err'] .verdict__text {
+  color: var(--err);
+}
+
+/* --- the copyable report ---------------------------------------------- */
+.report {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+.prose {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+}
+
+.prose:last-child {
+  margin-bottom: 0;
+}
+
+.prose strong {
+  color: var(--ink);
+  font-weight: 600;
+}

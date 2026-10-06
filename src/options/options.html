@@ -250,7 +250,7 @@
                 </div>
                 <div class="field">
                   <div class="labelRow">
-                    <label class="label" for="pageConcurrency">并发请求数</label>
+                    <label class="label" for="pageConcurrency">网页并发数</label>
                     <span class="num" id="pageConcurrencyVal"></span>
                   </div>
                   <input type="range" id="pageConcurrency" min="1" max="6" step="1" />
@@ -307,29 +307,32 @@
             </div>
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="concurrency">并发请求数</label>
+                <label class="label" for="concurrency">字幕并发数</label>
                 <span class="num" id="concurrencyVal"></span>
               </div>
               <input type="range" id="concurrency" min="1" max="8" step="1" />
             </div>
           </div>
 
-          <div class="cacheRow">
-            <label class="switchRow switchRow--flush">
-              <span class="switchRow__text">
-                <span class="switchRow__title">启用翻译缓存</span>
-                <span class="hint">相同句子不重复请求，跨视频、跨网站生效</span>
-              </span>
-              <span class="switch">
-                <input type="checkbox" id="cacheEnabled" />
-                <span class="switch__track"></span>
-              </span>
-            </label>
-            <div class="cacheRow__stat">
-              <span class="cacheRow__num" id="cacheCount">—</span>
-              <span class="hint">条已缓存</span>
-              <button class="btn btn--sm btn--ghost" type="button" id="clearCache">清空</button>
-            </div>
+          <label class="switchRow">
+            <span class="switchRow__text">
+              <span class="switchRow__title">启用翻译缓存</span>
+              <span class="hint">相同句子不重复请求，跨视频、跨网站生效</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="cacheEnabled" />
+              <span class="switch__track"></span>
+            </span>
+          </label>
+
+          <!-- The counter and its destructive action get their own row: putting
+               them beside the switch pushed the switch out of the column every
+               other toggle in this section sits in, and a <button> inside the
+               switch's <label> would toggle the checkbox as well. -->
+          <div class="cacheStat">
+            <span class="cacheStat__num" id="cacheCount">—</span>
+            <span class="hint">条已缓存</span>
+            <button class="btn btn--sm btn--ghost" type="button" id="clearCache">清空</button>
           </div>
 
           <label class="switchRow">
@@ -354,6 +357,7 @@
             <li><strong>网页翻译</strong>：页面上有个悬浮球，点一下就开始翻译；也可以点工具栏图标。</li>
             <li><strong>视频字幕</strong>：打开 YouTube 视频会自动翻译字幕，双语叠加在画面上。</li>
             <li><strong>按站点设置</strong>：点工具栏图标，可切换显示方式与本站规则。</li>
+            <li><strong>出问题要反馈</strong>：点工具栏图标 → 右下角「诊断」，复制出来的信息贴进 Issue。</li>
           </ul>
 
           <details class="disclosure">

@@ -476,7 +476,15 @@ npm run inspect -- youtube.com
   first trans        本期视频由 Autodesk 赞助
 ```
 
-`scripts/lib/cdp.mjs` 是自带的零依赖 CDP 客户端（Node 内置 WebSocket 会被 Chrome 拒绝，所以用 `node:net` 手写了握手与帧解析）。
+加上 `--refresh` 就是**只读版的字幕链路体检**：它先挂上 CDP 的 Network 监听，再让内容脚本从零重新加载一次字幕，于是能拿到和 `npm run smoke` 同一份证据——每条 `/api/timedtext` 是谁发的、带不带 `pot`、HTTP 码是多少。
+
+```bash
+npm run inspect:refresh -- youtube.com
+```
+
+**这个入口不对任何东西做写操作**（不改设置、不动 storage、装也不装扩展），所以可以放心指向你日常在用的那个 Chrome。这正好补上 `npm run smoke` 的短板：冒烟脚本必须往 `lingua:settings:v1` 里写一个假接口，所以它只能用一次性 profile——而一次性、未登录的 profile 恰恰是拿不到 `pot` 的那种。要回答「**我这台机器上字幕链路到底通不通**」，用这个，不要用 smoke。
+
+`scripts/lib/cdp.mjs` 是自带的零依赖 CDP 客户端（Node 内置 WebSocket 会被 Chrome 拒绝，所以用 `node:net` 手写了握手与帧解析）；`scripts/lib/captions.mjs` 是两个脚本共用的请求归因逻辑，只此一份。
 
 ---
 

@@ -43,6 +43,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { connect, attach } from './lib/cdp.mjs';
 import { resolveChrome } from './lib/chrome.mjs';
+import { watchCaptionRequests } from './lib/captions.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const URL_UNDER_TEST = process.argv.slice(2).find((a) => !a.startsWith('--')) || 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
@@ -108,56 +109,11 @@ function startMock() {
 }
 
 // ---------------------------------------------------------------------------
-// Track every /api/timedtext request the page makes. This is the measurement
-// that separates "YouTube refused us" from "the player never even asked" —
-// parsed responses we can only ever see as "empty".
+// Track every /api/timedtext request the page makes — the measurement that
+// separates "YouTube refused us" from "the player never even asked". The
+// watcher itself lives in scripts/lib/captions.mjs because `inspect-live.mjs`
+// needs exactly the same attribution against a real signed-in browser.
 // ---------------------------------------------------------------------------
-function watchCaptionRequests(cdp, sessionId) {
-  const byRequestId = new Map();
-  const seen = [];
-  cdp.onEvent((ev) => {
-    if (ev.sessionId !== sessionId) return;
-    const p = ev.params || {};
-    if (ev.method === 'Network.requestWillBeSent' && /\/api\/timedtext/.test(p.request?.url || '')) {
-      byRequestId.set(p.requestId, { url: p.request.url, status: null, failed: '' });
-      seen.push(byRequestId.get(p.requestId));
-    }
-    if (ev.method === 'Network.responseReceived' && byRequestId.has(p.requestId)) {
-      byRequestId.get(p.requestId).status = p.response?.status ?? null;
-    }
-    if (ev.method === 'Network.loadingFailed' && byRequestId.has(p.requestId)) {
-      byRequestId.get(p.requestId).failed = p.errorText || 'failed';
-    }
-  });
-  return {
-    get all() {
-      return seen;
-    },
-    /** One line per request, for the report. */
-    describe() {
-      if (!seen.length) return '0（播放器一次都没请求过 /api/timedtext）';
-      return seen
-        .map((r) => {
-          const pot = /[?&]pot=/.test(r.url) ? 'pot=有' : 'pot=无';
-          // initiator tells ours from the player's: inject.js's fetchTrack is
-          // the only thing that forces fmt=json3, the player asks for its own
-          // format. Without this the count is ambiguous — and "we asked and got
-          // nothing" is a different bug from "the player never asked".
-          const who = /[?&]fmt=json3/.test(r.url) ? '扩展' : '播放器';
-          const state = r.failed ? r.failed : r.status === null ? 'pending' : `HTTP ${r.status}`;
-          return `${who} ${pot} ${state}`;
-        })
-        .join(' · ');
-    },
-    /** How many came from each side. The split is the whole point. */
-    counts() {
-      let ours = 0;
-      let theirs = 0;
-      for (const r of seen) (/[?&]fmt=json3/.test(r.url) ? (ours++) : (theirs++));
-      return { ours, theirs, total: seen.length };
-    },
-  };
-}
 
 // ---------------------------------------------------------------------------
 // The probe: the same fields the diagnostics page reads, plus the player state
@@ -342,7 +298,7 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
 
   let ws;
   let view;
-  let net = { all: [], describe: () => '0' };
+  let net = { all: [], counts: () => ({ ours: 0, theirs: 0, potty: 0, total: 0 }), describe: () => '0' };
   let code = 1;
   try {
     const { cdp, ws: sock } = await connect(CDP_PORT);

@@ -15,6 +15,7 @@
     "smoke:headed": "node scripts/smoke-youtube.mjs --headed",
     "dist": "node scripts/package.mjs",
     "inspect": "node scripts/inspect-live.mjs",
+    "inspect:refresh": "node scripts/inspect-live.mjs --refresh",
     "preview": "node scripts/preview.mjs",
     "icons": "python3 scripts/make-icons.py"
   }

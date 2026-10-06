@@ -180,14 +180,35 @@
     if (activeTab === 'video') {
       // The pill is 4 characters wide — it cannot carry the explanation, but it
       // must at least stop claiming the video has no captions when it does.
-      const label = empty && empty.reason === 'empty-track' ? '取字幕失败' : meta.text;
-      setStatus(empty ? empty.tone : meta.tone, label);
+      // `unparsed-track` matters here too: the data arrived and we failed to read
+      // it, so falling through to the `empty` default would print "无字幕" — the
+      // exact false claim this split exists to remove.
+      const pill =
+        empty && empty.reason === 'unparsed-track'
+          ? '解析失败'
+          : empty && empty.reason === 'empty-track'
+            ? '取字幕失败'
+            : meta.text;
+      setStatus(empty ? empty.tone : meta.tone, pill);
     }
 
     fillTracks(state);
 
-    if (!s.cueCount) {
+    // Realtime mode has no cue list — it translates the one line being spoken —
+    // so `cueCount` is always 0 there. Reading progress from cueCount alone hid
+    // the progress row and disabled the button while subtitles were working.
+    const liveStats = s.live || null;
+    const inRealtime = s.status === 'live' || !!(liveStats && (liveStats.lines || liveStats.translated));
+
+    if (!s.cueCount && !inRealtime) {
       ui.progressBox.hidden = true;
+    } else if (inRealtime) {
+      // There is no total to divide by: lines arrive as they are spoken. Show
+      // that lines are landing rather than a percentage that would be a lie.
+      ui.progressBox.hidden = false;
+      ui.progressBar.style.width = '100%';
+      ui.progressNum.textContent = `${liveStats ? liveStats.translated || 0 : 0} 句`;
+      ui.progressLabel.textContent = liveStats && liveStats.lines ? '实时翻译中' : '实时翻译（等待第一句）';
     } else {
       ui.progressBox.hidden = false;
       const pct = Math.round(((s.translated || 0) / s.cueCount) * 100);
@@ -202,8 +223,10 @@
     // the manual start — which is the only way in when 进入视频后自动开始翻译 is
     // off — and afterwards it re-runs the pipeline. Hiding it instead would
     // strand that user with no trigger at all.
-    ui.retranslate.textContent = (s.translated || 0) > 0 ? '重新翻译' : '开始翻译';
-    ui.retranslate.disabled = !s.cueCount;
+    ui.retranslate.textContent = (s.translated || 0) > 0 || (liveStats && liveStats.translated > 0) ? '重新翻译' : '开始翻译';
+    // Realtime mode is exactly the state a user wants to escape by re-running:
+    // it means the whole-track fetch lost its race, and a retry often wins.
+    ui.retranslate.disabled = !s.cueCount && !inRealtime;
 
     if (!state.isWatchPage) {
       setNote(ui.note, '当前不是 YouTube 视频播放页。', 'info');

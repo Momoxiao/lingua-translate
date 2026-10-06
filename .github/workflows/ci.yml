@@ -19,9 +19,16 @@ jobs:
       # dependency-free, so there is nothing to install and no lockfile to
       # drift. If this ever needs an install step, that is a design change.
 
-      # 157 assertions, pure Node — no browser required.
+      # 177 assertions, pure Node — no browser required.
       - name: Unit tests
         run: npm test
+
+      # 28 assertions, pure Node: the realtime caption fallback. Pins both
+      # directions — a VOD whose whole-track fetch failed must be handled, and a
+      # video with no captions at all must NOT be, or a clear error would turn
+      # into a permanent blank.
+      - name: Realtime fallback tests
+        run: npm run test:live
 
       # 164 assertions against real headless Chrome (the runner image ships
       # google-chrome at /usr/bin/google-chrome, which scripts/lib/chrome.mjs
@@ -29,12 +36,24 @@ jobs:
       - name: DOM tests
         run: npm run test:dom
 
-      # 72 assertions: popup panel switching, the 600px popup height budget,
+      # 125 assertions: popup panel switching, the 600px popup height budget,
       # settings-page interactions, custom-provider validation, and the
       # diagnostics verdicts (including the two `status: 'empty'` causes, which
       # must not be described with the same sentence).
       - name: Page probes
         run: npm run test:pages
+
+      # Documentation drift guard. The figures quoted above are claims like any
+      # other, and they went stale silently twice. This measures `src/` directly,
+      # cross-checks README.md, README.zh-CN.md and this file against each other,
+      # reads every suite's own EXPECTED_ASSERTIONS pin, and re-runs the two
+      # browser-free suites to confirm their quoted counts are real. Reading the
+      # pins is what makes the two Chrome-backed figures verifiable here at all —
+      # before, a wrong count for `test:pages` was simply never checked, and one
+      # did go stale unnoticed. Deliberately does not start a line with a number
+      # followed by "assertions" — the guard reads exactly those lines.
+      - name: Documentation drift
+        run: npm run check:docs
 
       # NOT run here, on purpose:
       #   npm run test:e2e  — loads the unpacked extension into a real Chrome

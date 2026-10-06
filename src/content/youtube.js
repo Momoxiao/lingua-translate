@@ -135,9 +135,20 @@
     }
   }
 
+  /**
+   * Fetch a caption track and parse it, keeping the response shape.
+   *
+   * Returning bare cues threw away the one fact that separates two very
+   * different failures: an empty body (the PoToken case — nothing came back) and
+   * a non-empty body we could not parse (a format gap — the data was there and
+   * we dropped it). Both surfaced as `cues.length === 0`, so the diagnostics
+   * page could only ever report the first, and a format gap looked like a
+   * network problem forever.
+   */
   async function tryFetch(url) {
     const res = await bridge.fetchTrack(url);
-    return subtitles.parseTimedText(res.body);
+    const body = (res && res.body) || '';
+    return { cues: subtitles.parseTimedText(body), bytes: body.length };
   }
 
   function waitForWireCaptions(timeoutMs = 9000) {
@@ -247,15 +258,22 @@
     const wirePromise = waitForWireCaptions(10000);
     forceCaptionRequest(track);
 
+    // Track the largest body any attempt returned. A non-empty body that yielded
+    // no cues means the format defeated us, which is a bug on our side and needs
+    // different advice from "the server sent nothing back".
+    let maxBytes = 0;
+
     // 1. plain page-context fetch of the track the player advertised
-    let cues = await tryFetch(track.baseUrl);
-    if (cues.length) return { cues, source: 'direct' };
+    let r = await tryFetch(track.baseUrl);
+    maxBytes = Math.max(maxBytes, r.bytes);
+    if (r.cues.length) return { cues: r.cues, source: 'direct' };
 
     // 2. reuse a pot we already sniffed earlier in the session
     let signed = potParamsFrom(signedTemplate);
     if (signed) {
-      cues = await tryFetch(withParams(track.baseUrl, signed));
-      if (cues.length) return { cues, source: 'pot-reuse' };
+      r = await tryFetch(withParams(track.baseUrl, signed));
+      maxBytes = Math.max(maxBytes, r.bytes);
+      if (r.cues.length) return { cues: r.cues, source: 'pot-reuse' };
     }
 
     // 3. whatever the player just fetched for us (it was nudged above)
@@ -264,8 +282,9 @@
 
     signed = potParamsFrom(sniffed.url);
     if (signed) {
-      cues = await tryFetch(withParams(track.baseUrl, signed));
-      if (cues.length) return { cues, source: 'pot-fresh' };
+      r = await tryFetch(withParams(track.baseUrl, signed));
+      maxBytes = Math.max(maxBytes, r.bytes);
+      if (r.cues.length) return { cues: r.cues, source: 'pot-fresh' };
     }
 
     // 4. last resort: use whatever track the player fetched for itself
@@ -274,7 +293,7 @@
       return { cues: sniffed.cues, source: 'sniffed', sniffedLang: got, langMismatch: !!got && got !== track.languageCode };
     }
 
-    return { cues: [], source: 'none' };
+    return { cues: [], source: 'none', bytes: maxBytes };
   }
 
   // ---------------------------------------------------------------------------
@@ -454,6 +473,20 @@
   // ---------------------------------------------------------------------------
   async function load() {
     cancelAll();
+    // Release the realtime fallback before re-attempting the whole-track path.
+    //
+    // Without this, the two renderers fight and the fast path loses: `overlay`
+    // renders `liveText` in preference to the cue list, and live.js's poller
+    // keeps calling `setLive()`. So after a retry succeeded, the overlay went on
+    // showing the scraped line and the popup went on saying "realtime" — the
+    // whole-track result was fetched, stored, translated, and never displayed.
+    // Clicking "重新翻译" looked like it did nothing.
+    //
+    // Deliberate tradeoff: the overlay is blank for as long as this attempt takes.
+    // Keeping the previous line up would mean not stopping here, and then loading
+    // a different video would leave the old video's poller running against the
+    // new one. A bounded blank that self-corrects is the better failure mode.
+    if (NS.live) NS.live.stop();
     consecutiveFailures = 0;
     const gen = ++generation;
 
@@ -518,8 +551,17 @@
         NS.live.start(settings);
         return;
       }
-      store.setStatus(store.STATUS.EMPTY, { reason: 'empty-track' });
-      overlay.setNotice('未能获取字幕数据。请确认视频有字幕，或刷新页面后重试', 9000);
+      store.state.trackBytes = meta.bytes || 0;
+      store.setStatus(store.STATUS.EMPTY, { reason: meta.bytes > 0 ? 'unparsed-track' : 'empty-track' });
+      // Two causes, two instructions. Telling a user to refresh when the fault is
+      // our parser sends them to retry something that cannot work, and hides the
+      // bug behind a message that reads like a network hiccup.
+      overlay.setNotice(
+        meta.bytes > 0
+          ? '字幕数据已取回但无法解析，重试无效。请到诊断页复制信息上报'
+          : '未能获取字幕数据。请确认视频有字幕，或刷新页面后重试',
+        9000
+      );
       return;
     }
 

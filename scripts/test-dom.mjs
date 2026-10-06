@@ -321,6 +321,19 @@ function dumpDom(file, timeoutMs = 25000) {
 // Assertions
 // ---------------------------------------------------------------------------
 let passed = 0;
+
+/**
+ * The number of assertions this suite is expected to make.
+ *
+ * The READMEs and ci.yml quote these figures. Before this pin existed, a figure
+ * could go stale and nothing noticed: the docs-drift guard re-ran only the two
+ * browser-free suites, so a wrong count for a Chrome-backed suite was
+ * unverifiable and sailed through CI (it happened — the docs said 104 while the
+ * suite ran 114). The suite now checks its own count on every run, and the guard
+ * reads this constant statically, so all four figures are verifiable even on a
+ * machine with no browser.
+ */
+const EXPECTED_ASSERTIONS = 164;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -521,6 +534,9 @@ function check(name, cond, detail) {
     wrong.join(', ')
   );
 
+  if (passed !== EXPECTED_ASSERTIONS) {
+    failures.push(`assertion count drifted: the pin says ${EXPECTED_ASSERTIONS}, this run made ${passed}`);
+  }
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('failing checks: ' + failures.join(', '));

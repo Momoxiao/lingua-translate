@@ -23,12 +23,26 @@
  * with HTTP 200 and a 0-byte body, and its baseUrl carries no `pot` either.
  * Login state is not the variable.
  *
- * What is untested is *playback*. The player only fetches a caption track once
- * it is actually playing and rendering captions, and neither automated
- * environment gets there — a headless window has `paused=false, t≈15s` and still
- * issues zero requests, and a background tab in a real browser is throttled to
- * `readyState=0, hidden=true`, where `play()` neither resolves nor rejects.
- * Settling this needs a visible, foreground tab: `npm run inspect:refresh`.
+ * It was then blamed on *playback* — "the player only fetches a caption track
+ * once it is genuinely playing, and automation never gets there". That was
+ * wrong too, and it stood for longer because it sounded unfalsifiable. Measured
+ * with a headed window (`npm run smoke:headed`):
+ *
+ *   - a playing video with captions ON issues 6-9 `/api/timedtext` requests;
+ *   - requests WITHOUT `pot` come back HTTP 200 with a 0-byte body — a failure
+ *     that looks exactly like success, and the actual trap;
+ *   - requests WITH `pot` come back with ~1.1-1.3 KB of real caption data.
+ *
+ * The "zero requests" runs that produced the playback theory were runs where
+ * nothing had asked the player to show captions. Absence of a request was read
+ * as evidence about the request path, which is a non-sequitur.
+ *
+ * So the fetch is *timing-dependent*, not broken: `extractCues()` nudges the
+ * player and sniffs the token out of the request the player then makes, and
+ * whether that lands inside its window decides the outcome. Consecutive runs of
+ * this same script have produced both `60/60 cues translated` and a fall-through
+ * to the realtime path. That is why `live.js` exists and why the verdict below
+ * judges it on lines actually read and translated.
  *
  * Exit code is 0 only when captions were found AND the page reached a settled
  * state. Read the verdict, not just the code.
@@ -153,7 +167,11 @@ const PROBE = `(function () {
       cueCount: st.cues.length,
       translated: Lingua.store.translatedCount(),
       firstCue: st.cues[0] ? st.cues[0].text.slice(0, 60) : null,
-      firstTranslation: (st.translations && st.translations[0]) || null
+      firstTranslation: (st.translations && st.translations[0]) || null,
+      // The realtime fallback keeps its own counters: it never writes cues into
+      // the store, so without this a "live" status says only that polling began,
+      // not that anything was read or translated.
+      live: Lingua.live && Lingua.live.stats ? Lingua.live.stats() : null
     } : null
   });
 })()`;
@@ -184,6 +202,35 @@ function verdict(state, net, capLog) {
   if (s.reason && s.reason !== 'empty-track') {
     return { ok: false, tone: 'warn', text: `状态停在 ${s.status}，原因 ${s.reason}。` };
   }
+  // The realtime fallback: the whole-track fetch failed, but the player renders
+  // captions into the DOM and we translate them line by line. Judge it on what
+  // it actually read, not on the cue store — it never writes there.
+  if (s.status === 'live' || (s.live && (s.live.lines || s.live.translated))) {
+    const L = s.live || {};
+    if (L.translated > 0) {
+      return {
+        ok: true,
+        tone: 'ok',
+        text:
+          `实时兜底生效：整轨字幕取不到，但播放器自己渲染了字幕，已逐句读取 ${L.lines} 行、翻译 ${L.translated} 行。` +
+          `最后一行「${(L.lastOriginal || '').slice(0, 40)}」→「${(L.lastTranslated || '').slice(0, 40)}」。`,
+      };
+    }
+    if (L.lines > 0) {
+      return {
+        ok: false,
+        tone: 'warn',
+        text: `实时兜底读到了 ${L.lines} 行字幕，但一行都没翻译出来——问题在翻译调用，不在取字幕。`,
+      };
+    }
+    return {
+      ok: false,
+      tone: 'warn',
+      text:
+        '已切到实时兜底，但一行字幕都没读到。可能是这段时间里播放位置没有落在任何字幕上，' +
+        '也可能是播放器的字幕并没有真的渲染到 DOM。多等一会儿再跑一次即可区分。',
+    };
+  }
   if (!s.cueCount) {
     const reqs = net.all;
     const c = net.counts();
@@ -199,9 +246,10 @@ function verdict(state, net, capLog) {
         text:
           `找到 ${s.trackCount} 条字幕轨，但一次 /api/timedtext 都没发出去` +
           `（movie_player=${p.moviePlayer} 字幕按钮=${p.subtitleButton} pressed=${p.subtitlesPressed}）。` +
-          '这一条不能归给扩展：没有任何一方走到请求字幕那一步。播放器只在真正进入播放、开始渲染字幕时才会去取字幕轨，' +
-          '而无头窗口、以及被 Chrome 节流的后台标签都到不了那一步（实测这两种情况下 video.readyState 一直是 0）。' +
-          '要判断真实播放时会不会请求，需要**可见、在前台**播放的标签页——用 npm run inspect:refresh。',
+          '这一条不能归给扩展：没有任何一方要求播放器显示字幕，所以没有请求可观察。' +
+          '字幕按钮关着（pressed=false）时播放器不会去取字幕轨——先确认字幕是开着的。' +
+          '注意：请求数不是关键指标，**带不带 pot、正文多少字节**才是——带 pot 的请求实测返回约 1.1–1.3KB 真实数据，' +
+          '不带 pot 的返回 HTTP 200 加 0 字节正文（一个看起来像成功的失败）。',
       };
     }
     const refused = reqs.filter((r) => r.failed || (r.status !== null && r.status >= 400));
@@ -261,7 +309,7 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
   console.log(
     `[smoke] profile: ${
       THROWAWAY_PROFILE
-        ? '一次性、未登录 —— 记住：登录状态不是字幕失败的原因（已实测），红灯来自这里到不了真正的播放'
+        ? '一次性、未登录 —— 已实测：登录状态不是字幕成功与否的变量（带 pot 的请求照样能拿到正文）'
         : PROFILE
     }`
   );
@@ -459,7 +507,8 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       }
       final = state;
       const s = state.subtitle || {};
-      const line = `${s.status || '?'}${s.reason ? '/' + s.reason : ''} · 轨 ${s.trackCount || 0} · cue ${s.cueCount || 0} · 译 ${s.translated || 0} · 字幕请求 ${net.all.length}`;
+      const L = s.live || {};
+      const line = `${s.status || '?'}${s.reason ? '/' + s.reason : ''} · 轨 ${s.trackCount || 0} · cue ${s.cueCount || 0} · 译 ${s.translated || 0} · 字幕请求 ${net.all.length}${L.lines ? ` · 实时 ${L.lines}行/译${L.translated}` : ''}`;
       if (line !== last) {
         console.log(`  t+${((Date.now() - started) / 1000).toFixed(0)}s  ${line}`);
         last = line;
@@ -467,6 +516,10 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       // Settled states: nothing more will change on its own.
       if (s.status === 'ready' && s.translated > 0) break;
       if (s.status === 'empty' || s.status === 'error') break;
+      // The realtime fallback reaches its useful conclusion as soon as one line
+      // has been read AND translated; polling further just burns the remaining
+      // budget, because each new line looks the same from here.
+      if (s.status === 'live' && L.lines > 0 && L.translated > 0) break;
     }
 
     console.log('');
@@ -505,6 +558,14 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       console.log(`  ${'字幕轨'.padEnd(12)} ${s.trackCount ? `${s.trackCount} 条：${(s.trackLangs || []).join(', ')}` : '0 条'}`);
       console.log(`  ${'当前轨'.padEnd(12)} ${s.sourceTrack || '(无)'}`);
       console.log(`  ${'cue'.padEnd(12)} ${s.cueCount || 0}（已译 ${s.translated || 0}）`);
+      if (s.live && (s.live.lines || s.live.translated || s.status === 'live')) {
+        const L = s.live;
+        console.log(`  ${'实时兜底'.padEnd(12)} 读到 ${L.lines} 行 · 译出 ${L.translated} 行`);
+        if (L.lastOriginal) {
+          console.log(`  ${''.padEnd(12)} 最后一行：${L.lastOriginal.slice(0, 50)}`);
+          console.log(`  ${''.padEnd(12)}        →  ${(L.lastTranslated || '(未译)').slice(0, 50)}`);
+        }
+      }
       console.log(`  ${'状态'.padEnd(12)} ${s.status || '?'}${s.reason ? ` · reason=${s.reason}` : ''}`);
       console.log(`  ${'播放器'.padEnd(12)} movie_player=${p.moviePlayer} 字幕按钮=${p.subtitleButton} pressed=${p.subtitlesPressed} 暂停=${p.paused} t=${p.currentTime}`);
       console.log(`  ${'字幕请求'.padEnd(12)} ${net.describe()}`);

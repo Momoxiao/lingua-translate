@@ -38,6 +38,22 @@
      */
     reason: '',
     liveMode: false,
+    /**
+     * True when realtime mode was entered because this really is a live stream,
+     * false when it is a VOD whose whole-track fetch failed. Both are
+     * `status: 'live'`; the diagnostics page needs to tell them apart, because
+     * one is normal and the other is a degraded path.
+     */
+    isLiveStream: false,
+    /**
+     * Bytes in the largest caption response we got back for the current video.
+     * Zero means the server sent nothing (the PoToken case); a non-zero value
+     * while `cues` is empty means the data arrived and our parser dropped it.
+     * Those are opposite problems with opposite advice, and before this they
+     * were indistinguishable — the response body was discarded on the way out of
+     * `tryFetch()`.
+     */
+    trackBytes: 0,
     enabled: true,
   };
 
@@ -77,6 +93,9 @@
     state.progress = { done: 0, total: 0 };
     state.error = '';
     state.reason = '';
+    // Belongs to the video we just left; a stale byte count would make the next
+    // report claim a response size for a track we never fetched.
+    state.trackBytes = 0;
     if (!keepSettings) state.liveMode = false;
     emit('reset', null);
   }

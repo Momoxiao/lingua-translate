@@ -27,7 +27,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **10,347 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **10,629 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -84,11 +84,13 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 393 assertions across three suites, no bundler, no deps
-npm test            # 157 — core logic: batching, parsing, all five providers
+npm run check       # 494 assertions across four suites, plus the docs-drift guard
+npm test            # 177 — core logic: batching, parsing, all five providers
+npm run test:live   #  28 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 164 — paragraph detection, link handling, real doc sites
-npm run test:pages  #  72 — popup, settings page, diagnostics verdicts
+npm run test:pages  # 125 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  74 — real Chrome, unpacked extension, real HTTP page
+npm run check:docs  #  46 — the numbers quoted in this file are still true
 
 npm run preview     # render every UI surface to PNG
 npm run smoke       # live captions against real YouTube (throwaway profile)
@@ -97,28 +99,27 @@ npm run inspect     # read the extension's real state out of YOUR browser
 
 `npm test` needs neither a browser nor a network. The rest drive a real headless Chrome through a hand-written CDP client in `scripts/lib/` (Node's built-in WebSocket is rejected by Chrome's DevTools endpoint, so the transport is ~120 lines of `node:net`).
 
-CI runs the three offline suites. `test:e2e` and `smoke` are deliberately not in CI: the first loads an unpacked extension into a real profile, the second hits real YouTube and its result depends on the browser profile.
+CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in CI: the first loads an unpacked extension into a real profile, the second hits real YouTube and its result depends on the browser profile.
 
 ## Known limitations
 
 - **The caption path depends on YouTube's private interface and is not covered by CI.** `youtube.js` / `inject.js` / `bridge.js` lean on the player's internal response and on a Proof-of-Origin token. YouTube can change it without notice. This is the project's single largest risk and it is stated here rather than buried.
 
-  **What has actually been measured, and what has not.** A zero-cue result was first blamed on the throwaway, signed-out profile "not being handed a PoToken". That explanation is **wrong**, and measurably so: against a real, signed-in session, the same video answers the same `fetch(baseUrl&fmt=json3&c=WEB)` with **HTTP 200 and a 0-byte body** — identical to the throwaway profile — and its `baseUrl` carries no `pot` either. Login state is not the variable.
+  **What has actually been measured.** Earlier revisions of this file claimed the blocking variable was *playback*, and that automation could never get a player to request a caption track. Both were wrong, and a headed run measures it directly:
 
-  The untested variable is **playback**. The player only fetches a caption track once it is genuinely playing and rendering captions, and neither automated environment gets there:
+  - A playing video with captions switched on makes the player issue **6–9 `/api/timedtext` requests**. The earlier "0 requests" reading came from runs where nothing had asked the player to show captions, so there was nothing to observe.
+  - Requests **without** a `pot` return **HTTP 200 with a 0-byte body**. This is the real trap: a failure that looks exactly like success.
+  - Requests **with** a `pot` return **~1.1–1.3 KB of real caption data**. The player mints its own token; the `baseUrl` handed to us in `ytInitialPlayerResponse` does not carry one.
+  - Login state is **not** the variable. A signed-in session answers identically to a throwaway profile.
 
-  | Environment | Result |
-  | --- | --- |
-  | Headless / headed / headed with GPU | Video plays (`paused=false`, `t≈15s`), player issues **0** caption requests |
-  | Background tab in a real Chrome | `video.readyState=0`, `networkState=2`, `document.hidden=true` — throttled; `play()` neither resolves nor rejects, so playback never starts and **0** requests are made |
+  So the whole-track path is **timing-dependent, not permanently broken**: `extractCues()` nudges the player and sniffs the token from the request the player then makes itself, and whether that lands inside the ~10 s window decides the outcome. The same command on the same video produced both `60/60 cues translated` (token sniffed in time) and a fall-through (token arrived too late) across consecutive runs.
 
-  So a red smoke run currently proves only that **captions never began rendering**. It does not prove the extension is broken, and it does not prove YouTube changed the interface. Settling it requires a **visible, foreground** tab playing for ~15 seconds, then `npm run inspect:refresh`. **That test has not been run.**
-
-  `npm run smoke` records every `/api/timedtext` request over CDP — its `pot`, its HTTP status, and the **initiator** that issued it. Attribution prefers CDP's initiator and says "unknown" when there is none, rather than guessing: `inject.js` builds its URL *from the player's own baseUrl*, so the extension's request and the player's can be byte-identical and the URL alone cannot tell them apart.
+  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is *still rendering the lines it is speaking* into `.ytp-caption-segment`. `live.js` reads those and translates them one at a time. You get subtitles either way; the fallback trades the pre-fetch ahead of the playhead for a beat of latency, one line at a time, and says so on screen instead of going blank. That a fallback engaged is reported by `npm run smoke`, which counts the lines read and translated rather than just printing a status.
+- On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path is slower and translates line by line rather than ahead of the playhead.
 - Only the Chinese UI ships today. `_locales` is on the roadmap; the settings page and popup are Chinese until then.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.
-- Live streams fall back to per-sentence realtime translation, which is slower and less accurate than the whole-track pre-fetch used for VOD.
+- Live streams use the same realtime path by necessity — there is no whole track to pre-fetch.
 - Verified on Chrome on macOS. Edge is untested; **Firefox would need separate MV3 work.**
 - The `<all_urls>` host permission is what makes whole-page translation and the user-defined provider possible. If you only want YouTube subtitles, delete the third `content_scripts` entry and `<all_urls>` from `manifest.json`.
 
@@ -128,7 +129,7 @@ CI runs the three offline suites. `test:e2e` and `smoke` are deliberately not in
 
 ## Contributing
 
-**The most useful thing you could contribute right now:** a screenshot or a 10-second GIF of the YouTube subtitle overlay. The headline feature is the one thing that has never been captured in automation — the paragraph harness renders web pages, not video players — so it is currently the only feature without a picture. (Windows and Linux screenshots of the overlay are welcome too; this has only been verified on macOS so far.)
+**The most useful thing you could contribute right now:** a screenshot or a 10-second GIF of the subtitle overlay captured from a **real** YouTube page on **Windows or Linux** — this has only ever been verified on macOS. The overlay itself is no longer the gap it once was (the harness renders it from the real `overlay.js`, so the README image cannot drift from the code), but every screenshot here was produced on one machine, and a real capture from another platform is worth more than another mock.
 
 Issues and PRs welcome. Before reporting a caption problem, please run the **diagnostics page** (extension icon → 诊断 → **copy**) and paste the output: "no captions found" and "captions found but the fetch came back empty" are entirely different failures with entirely different fixes, and that report is the only thing that tells them apart. It contains no API key and no translated text.
 

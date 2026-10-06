@@ -197,6 +197,13 @@ const popupProbe = (expectMode) => `
       note: $('note').hidden ? '' : $('note').textContent,
       noteTone: $('note').dataset.tone || '',
       tracksVisible: !$('trackField').hidden,
+      // Realtime mode translates line by line and stores no cue list, so these
+      // four used to go blank/disabled while subtitles were visibly rendering.
+      progressVisible: !$('progressBox').hidden,
+      progressNum: ($('progressNum') || {}).textContent || '',
+      progressLabel: ($('progressLabel') || {}).textContent || '',
+      retranslateDisabled: $('retranslate').disabled,
+      retranslateText: $('retranslate').textContent,
       // Chrome caps a popup at 600px and then scrolls, so this is a real budget,
       // not a style preference. Measure the .pop box itself — scrollHeight
       // reports the viewport when the content is shorter, which hides the fact.
@@ -290,6 +297,89 @@ const NO_CUES_STATE = {
   },
 };
 
+/**
+ * A caption response that arrived and could not be read.
+ *
+ * Same `status: 'empty'` and same zero cues as `NO_CUES_STATE`, but the cause is
+ * the opposite: the server DID send a body (`trackBytes` > 0) and our parser
+ * dropped it. Reporting this as "nothing came back" told the user to retry a
+ * parser bug, which cannot work, and kept a real bug invisible in every issue
+ * that got filed. The two must be distinguishable on screen and in the report.
+ */
+const UNPARSED_STATE = {
+  subtitle: {
+    status: 'empty',
+    reason: 'unparsed-track',
+    trackBytes: 4096,
+    videoId: 'dQw4w9WgXcQ',
+    liveMode: false,
+    error: '',
+    cueCount: 0,
+    translated: 0,
+    tracks: [{ languageCode: 'en', name: 'English', kind: '' }],
+    sourceTrack: { languageCode: 'en', name: 'English' },
+    enabled: true,
+  },
+};
+
+/**
+ * The state the realtime fallback produces — asserted against two screens.
+ *
+ * `cueCount` is 0 because realtime mode never fills the cue store: it reads and
+ * translates the single line the player is speaking. Both the popup and the
+ * diagnostics page read progress and status from `cueCount` alone, and both got
+ * it wrong in the same way — the popup hid its progress row and disabled its
+ * button while lines were being translated, and the page reported "0 条" with no
+ * sign that anything had worked.
+ *
+ * `isLiveStream: false` makes this the VOD-degraded cause specifically. The two
+ * causes of `status: 'live'` need different verdicts: a live stream has no whole
+ * track by nature, while a VOD here means the PoToken race was lost and the fast
+ * path degraded — recoverable by reloading, and worth reporting.
+ */
+const REALTIME_STATE = {
+  subtitle: {
+    status: 'live',
+    reason: '',
+    videoId: 'dQw4w9WgXcQ',
+    liveMode: true,
+    isLiveStream: false,
+    error: '',
+    cueCount: 0,
+    translated: 0,
+    live: { lines: 4, translated: 2, lastOriginal: 'Sage nie Goodbye', lastTranslated: '〔译〕别说再见' },
+    tracks: [{ languageCode: 'de-DE', name: 'Deutsch', kind: '' }],
+    sourceTrack: { languageCode: 'de-DE', name: 'Deutsch' },
+    enabled: true,
+  },
+};
+
+/**
+ * The two causes of `status: 'live'`, which need different verdicts.
+ *
+ * A live stream legitimately has no whole track, so realtime is the normal path.
+ * A VOD reaching the same status means the PoToken race was lost and the fast
+ * path degraded — recoverable by reloading. Reporting both as "直播字幕" told a
+ * VOD user their ordinary video was a stream, and hid a bug worth reporting.
+ * `cueCount` is 0 in both, so the split has to come from `isLiveStream`.
+ */
+const LIVE_STREAM_STATE = {
+  subtitle: {
+    status: 'live',
+    reason: '',
+    videoId: 'dQw4w9WgXcQ',
+    liveMode: true,
+    isLiveStream: true,
+    error: '',
+    cueCount: 0,
+    translated: 0,
+    live: { lines: 3, translated: 3 },
+    tracks: [{ languageCode: 'en', name: 'English', kind: 'asr' }],
+    sourceTrack: { languageCode: 'en', name: 'English (auto-generated)' },
+    enabled: true,
+  },
+};
+
 const PAGES = [
   { file: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, kind: 'popup', probe: popupProbe('网页翻译') },
   { file: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, kind: 'popup', probe: popupProbe('视频字幕') },
@@ -300,6 +390,24 @@ const PAGES = [
     width: 356,
     kind: 'popup-no-cues',
     label: '弹窗 · 字幕轨在但没取到数据',
+    probe: popupProbe('视频字幕'),
+  },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: UNPARSED_STATE },
+    width: 356,
+    kind: 'popup-unparsed',
+    label: '弹窗 · 取回非空数据但解析不出',
+    probe: popupProbe('视频字幕'),
+  },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: REALTIME_STATE },
+    width: 356,
+    kind: 'popup-realtime',
+    label: '弹窗 · 实时兜底模式',
     probe: popupProbe('视频字幕'),
   },
   { file: 'src/options/options.html', tabUrl: 'https://example.com/', width: 1180, kind: 'options', probe: OPTIONS_PROBE },
@@ -318,6 +426,33 @@ const PAGES = [
     width: 900,
     kind: 'diagnostics-no-cues',
     label: '诊断页 · 字幕轨在但没取到数据',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: UNPARSED_STATE },
+    width: 900,
+    kind: 'diagnostics-unparsed',
+    label: '诊断页 · 取回非空数据但解析不出',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: REALTIME_STATE },
+    width: 900,
+    kind: 'diagnostics-realtime',
+    label: '诊断页 · 点播降级为实时',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: LIVE_STREAM_STATE },
+    width: 900,
+    kind: 'diagnostics-live-stream',
+    label: '诊断页 · 真实直播',
     probe: DIAGNOSTICS_PROBE,
   },
   {
@@ -388,6 +523,19 @@ function dumpDom(file, width = 1180, timeoutMs = 25000) {
 let bad = 0;
 let passed = 0;
 
+/**
+ * The number of assertions this suite is expected to make.
+ *
+ * The READMEs and ci.yml quote these figures. Before this pin existed, a figure
+ * could go stale and nothing noticed: the docs-drift guard re-ran only the two
+ * browser-free suites, so a wrong count for a Chrome-backed suite was
+ * unverifiable and sailed through CI (it happened — the docs said 104 while the
+ * suite ran 114). The suite now checks its own count on every run, and the guard
+ * reads this constant statically, so all four figures are verifiable even on a
+ * machine with no browser.
+ */
+const EXPECTED_ASSERTIONS = 125;
+
 function check(ok, name, detail) {
   if (ok) {
     passed++;
@@ -445,7 +593,7 @@ for (const page of PAGES) {
   }
 
   // --- popup: one contextual panel, plus a switcher only where both apply ----
-  if (page.kind === 'popup' || page.kind === 'popup-no-cues') {
+  if (/^popup/.test(page.kind)) {
     const p = probe.initial;
     check(
       p.modeLabel === p.expect,
@@ -477,6 +625,29 @@ for (const page of PAGES) {
       check(/诊断页|上报/.test(p.note), 'the note tells the user to report it', p.note);
       check(p.tracksVisible === true, 'the track picker stays available — those tracks are real');
       check(p.noteTone === 'warn', 'the tone stays a warning, not an error', p.noteTone);
+    } else if (page.kind === 'popup-unparsed') {
+      // Same status and same zero cues as `popup-no-cues`, opposite cause: the
+      // body came back and we dropped it. The pill must not say "无字幕" (the
+      // tracks are listed right there) and must not be confused with the
+      // fetch-failed case, which needs different advice.
+      check(p.pill !== '无字幕', 'the pill stops claiming there are no captions', p.pill);
+      check(/解析失败/.test(p.pill), 'the pill names parsing as the failed step', p.pill);
+      check(p.pill !== '取字幕失败', 'it is not confused with the empty-response case', p.pill);
+      check(/解析/.test(p.note), 'the note explains that the data arrived but was unreadable', p.note);
+      check(!/没有可用字幕/.test(p.note), 'the note never claims there are no captions', p.note);
+      check(/上报/.test(p.note), 'the note tells the user to report it', p.note);
+      check(p.noteTone === 'warn', 'the tone stays a warning, not an error', p.noteTone);
+    } else if (page.kind === 'popup-realtime') {
+      // Realtime mode stores no cues, so progress must NOT be read from
+      // cueCount — that hid the row and disabled the button while lines were
+      // being translated. This is the degraded path, so it is also the state a
+      // user is most likely to open the popup in and look for a way out.
+      check(p.progressVisible === true, 'the progress row is shown in realtime mode');
+      check(/2/.test(p.progressNum), 'the progress figure counts translated lines', p.progressNum);
+      check(/实时/.test(p.progressLabel), 'the label says this is realtime, not stuck', p.progressLabel);
+      check(p.retranslateDisabled === false, 'the button stays usable — a retry often wins the race', String(p.retranslateDisabled));
+      check(p.retranslateText === '重新翻译', 'the label reflects that lines have already landed', p.retranslateText);
+      check(p.pill !== '无字幕', 'the pill does not claim the video lacks captions', p.pill);
     } else if (p.expect === '视频字幕') {
       // The user's request: web-page translation must be reachable from a
       // YouTube video page, because the description and comments are prose.
@@ -511,6 +682,7 @@ for (const page of PAGES) {
   if (/^diagnostics/.test(page.kind)) {
     const dead = page.kind === 'diagnostics-dead';
     const noCues = page.kind === 'diagnostics-no-cues';
+    const unparsed = page.kind === 'diagnostics-unparsed';
     check(probe.options >= 1, 'the page offers a tab to inspect', `options=${probe.options}`);
     check(
       /^Lingua \d/.test(probe.report || ''),
@@ -530,6 +702,49 @@ for (const page of PAGES) {
       check(
         !/— 视频字幕 —/.test(probe.report || ''),
         'it does not print sections it could not read'
+      );
+    } else if (unparsed) {
+      // The body arrived and we dropped it. This must NOT be described like the
+      // empty-response case: retrying cannot fix a parser gap, and saying
+      // "nothing came back" hides a bug that is entirely ours.
+      check(probe.tone === 'warn', 'an unreadable caption body is a warning', probe.tone);
+      check(/解析/.test(probe.verdict || ''), 'the verdict names parsing, not the network', probe.verdict);
+      check(/重试没有意义|重试无用/.test(probe.verdict || ''), 'it says a retry will not help', probe.verdict);
+      check(
+        !/一条字幕数据都没取回来/.test(probe.report || '') && !/一条字幕数据都没取回来/.test(probe.verdict || ''),
+        'it never claims nothing came back'
+      );
+      check(/字幕响应大小\s+\d+\s*字节/.test(probe.report || ''), 'the report shows the response size', probe.report);
+    } else if (page.kind === 'diagnostics-realtime' || page.kind === 'diagnostics-live-stream') {
+      const isStream = page.kind === 'diagnostics-live-stream';
+      // In realtime mode `字幕条数` is legitimately 0. Reported alone it reads as
+      // "nothing worked", so the counters that actually move must be present —
+      // otherwise the report cannot tell a working fallback from a dead one.
+      check(
+        /实时已读行数\s+[1-9]/.test(probe.report || ''),
+        'the report counts the lines the fallback actually read',
+        (probe.report || '').match(/实时已读行数.*/)?.[0] || 'missing'
+      );
+      check(
+        /实时已译行数\s+[1-9]/.test(probe.report || ''),
+        'the report counts the lines the fallback actually translated',
+        (probe.report || '').match(/实时已译行数.*/)?.[0] || 'missing'
+      );
+      // The two causes must not be described identically: one is expected, the
+      // other is a degradation the user can act on.
+      if (isStream) {
+        check(/直播间|直播流/.test(probe.report || ''), 'a live stream is labelled as one');
+        check(probe.tone === 'ok', 'a live stream is normal, not a warning', probe.tone);
+        check(/重新加载/.test(probe.verdict || '') === false, 'it does not tell a stream user to reload');
+      } else {
+        check(/点播降级/.test(probe.report || ''), 'a degraded VOD is named as such', probe.report);
+        check(probe.tone === 'warn', 'a degraded VOD is a warning, not ok', probe.tone);
+        check(/重新加载/.test(probe.verdict || ''), 'it offers the reload that often recovers the fast path', probe.verdict);
+      }
+      // The report gets pasted into public issues; it must not carry dialogue.
+      check(
+        !/Sage nie Goodbye|别说再见/.test(probe.report || ''),
+        'the report carries counts, never the video dialogue'
       );
     } else if (noCues) {
       // The report prints the track list; the verdict used to say no track was
@@ -617,5 +832,9 @@ for (const page of PAGES) {
   }
 }
 
+if (passed !== EXPECTED_ASSERTIONS) {
+  console.log(`FAIL assertion count drifted: the pin says ${EXPECTED_ASSERTIONS}, this run made ${passed}`);
+  bad++;
+}
 console.log(`\n${passed} passed, ${bad} failed`);
 process.exitCode = bad ? 1 : 0;

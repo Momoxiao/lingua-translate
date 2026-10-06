@@ -10,13 +10,17 @@
     "test:dom": "node scripts/test-dom.mjs",
     "test:pages": "node scripts/check-pages.mjs",
     "test:e2e": "node scripts/e2e-extension.mjs",
-    "check": "npm test && npm run test:dom && npm run test:pages",
+    "check": "npm test && npm run test:live && npm run test:dom && npm run test:pages && npm run check:docs",
+    "check:docs": "node scripts/check-docs.mjs",
     "smoke": "node scripts/smoke-youtube.mjs",
     "smoke:headed": "node scripts/smoke-youtube.mjs --headed",
     "dist": "node scripts/package.mjs",
     "inspect": "node scripts/inspect-live.mjs",
     "inspect:refresh": "node scripts/inspect-live.mjs --refresh",
     "preview": "node scripts/preview.mjs",
-    "icons": "python3 scripts/make-icons.py"
+    "shots": "node scripts/store-shots.mjs",
+    "icons": "python3 scripts/make-icons.py",
+    "test:live": "node scripts/test-live.mjs",
+    "probe:transcript": "node scripts/probe-transcript.mjs"
   }
 }

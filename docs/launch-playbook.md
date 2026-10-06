@@ -77,17 +77,29 @@ Two things that turned out to be genuinely hard, in case they're useful:
    same video answers the same fetch with HTTP 200 and a 0-byte body, and its
    baseUrl carries no pot either. Login state is not the variable.
 
-   The variable I had not controlled for is *playback*. The player only fetches a
-   caption track once it is genuinely playing and rendering captions, and neither
-   automated environment gets there — a headless window sits at paused=false,
-   t≈15s and issues zero requests, and a background tab in a real Chrome is
-   throttled to readyState=0 with document.hidden=true, where play() neither
-   resolves nor rejects. So the honest version of this finding is "0 requests
-   means captions never began rendering", not "YouTube refused us". The test now
-   records each /api/timedtext request's pot, status and CDP initiator, and says
-   "unknown" when there is no initiator instead of guessing from the URL —
-   because inject.js builds its URL from the player's baseUrl, so the two can be
-   byte-identical.
+   Then I blamed *playback* — "the player only fetches a caption track once it is
+   genuinely playing, and automation never gets there". Also false, and it stood
+   for longer because it sounded unfalsifiable. A headed run shows the player
+   issuing 6-9 /api/timedtext requests while the video plays; the requests
+   without a pot come back HTTP 200 with a 0-byte body, and the ones with a pot
+   come back with ~1.1-1.3 KB of real caption data. The "zero requests" runs the
+   theory rested on were simply runs where nothing had asked the player to show
+   captions — I read an absence of requests as evidence about the request path,
+   which does not follow.
+
+   The real property is timing: the extension nudges the player and sniffs the
+   token out of the request the player then makes, so whether that token arrives
+   inside the window decides the outcome. Same command, same video, consecutive
+   runs: sometimes 60/60 cues translated, sometimes a fall-through. So I added a
+   realtime fallback that reads the lines the player renders into the DOM and
+   translates them one at a time. You get subtitles either way; the fallback just
+   costs the pre-fetch ahead of the playhead, and it says so on screen instead of
+   going blank.
+
+   The test now records each /api/timedtext request's pot, status and CDP
+   initiator, and says "unknown" when there is no initiator instead of guessing
+   from the URL — because inject.js builds its URL from the player's baseUrl, so
+   the two can be byte-identical.
 
 2. display's *computed* value lies. A flex container blockifies its children, so
    <nav style="display:flex"><a>Home</a></nav> reports display:block for the link.

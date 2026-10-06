@@ -126,9 +126,18 @@
       };
     }
     if (sub.status === 'live') {
+      // This status now covers two different situations: a live stream, and a
+      // VOD whose whole-track fetch came back empty (the PoToken timing case).
+      // Describing both as "直播字幕" told a VOD user their ordinary video was a
+      // stream, and hid the fact that the fast path had degraded.
+      const isStream = !!sub.isLiveStream;
       return {
-        tone: 'ok',
-        text: '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。',
+        tone: isStream ? 'ok' : 'warn',
+        text: isStream
+          ? '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。'
+          : '整轨字幕没取回来（YouTube 的 PoToken 时序问题），已自动切换为实时抓取：' +
+            '逐句读取播放器正在显示的那一行并翻译，所以这里没有条数。' +
+            '能正常出字幕，但比点播的「提前翻译」慢半拍。重新加载页面常能让整轨路径成功。',
       };
     }
     if (!sub.cueCount) {
@@ -139,6 +148,17 @@
       // page exists to prevent.
       const note = emptySubtitleNote(sub);
       const count = (sub.tracks || []).length;
+      if (note.reason === 'unparsed-track') {
+        // The body arrived and we could not read it. A retry will not help, so
+        // this must not be phrased like the PoToken case above it.
+        return {
+          tone: 'warn',
+          text:
+            `取回了非空的字幕数据（${sub.trackBytes || 0} 字节）却一条都没解析出来——` +
+            '这是本扩展的解析问题：数据到了，是我们没读懂。重试没有意义，' +
+            '直接复制下面这段信息开 Issue，响应大小能定位到是哪一种格式。',
+        };
+      }
       if (note.reason === 'empty-track') {
         return {
           tone: 'warn',
@@ -212,8 +232,24 @@
     out.push(row('字幕轨', tracks.length ? `${tracks.length} 条：${tracks.map(trackLabel).join(', ')}` : '0 条'));
     if (sub.sourceTrack) out.push(row('当前字幕轨', trackLabel(sub.sourceTrack)));
     out.push(row('字幕条数', String(sub.cueCount || 0)));
+    // Only meaningful when a track was attempted; it is the one number that
+    // separates "the server sent nothing" from "we could not read what it sent".
+    if (sub.trackBytes) out.push(row('字幕响应大小', `${sub.trackBytes} 字节`));
     out.push(row('已翻译', String(sub.translated || 0)));
     out.push(row('直播模式', sub.liveMode ? '是' : '否'));
+    // `status: live` has two causes and the fix differs, so name which one this
+    // is rather than leaving triage to infer it from a single status string.
+    if (sub.status === 'live') {
+      out.push(row('模式来源', sub.isLiveStream ? '直播间（预期行为）' : '点播降级（PoToken 时序）'));
+    }
+    // In realtime mode `字幕条数` is legitimately 0 — there is no cue list. On its
+    // own that reads as "nothing worked" when lines may be flowing fine, so
+    // report the counters that actually move. Counts only: this block is meant to
+    // be pasted into a public issue, so it should not carry video dialogue.
+    if (sub.live) {
+      out.push(row('实时已读行数', String(sub.live.lines || 0)));
+      out.push(row('实时已译行数', String(sub.live.translated || 0)));
+    }
     if (sub.error) out.push(row('错误', sub.error));
 
     const p = s.page;

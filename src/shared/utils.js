@@ -155,6 +155,18 @@
     if (reason === 'not-a-video') {
       return { tone: 'info', reason, text: '当前不是 YouTube 视频播放页，不会加载字幕。' };
     }
+    if (reason === 'unparsed-track') {
+      // The body came back non-empty and yielded no cues. That is a parser gap on
+      // our side, not a network or PoToken problem, and the advice differs: a
+      // retry cannot fix it. Reported separately so it stops being invisible.
+      return {
+        tone: 'warn',
+        reason,
+        text:
+          `字幕数据取回来了（响应非空），但一条都没解析出来——这是本扩展的解析问题，` +
+          '不是视频没字幕、也不是网络问题，重试无用。到诊断页复制信息上报，报告里带着响应大小。',
+      };
+    }
     if (reason === 'empty-track' || tracks.length) {
       return {
         tone: 'warn',
@@ -172,6 +184,7 @@
     'not-a-video': '页面不是视频播放页',
     'no-captions': '播放器没有报告任何字幕轨',
     'empty-track': '字幕轨在，但取回的字幕数据是空的',
+    'unparsed-track': '取回了非空字幕数据，但没有任何一条能解析',
     'ad': '正在播放广告，字幕加载已推迟',
   };
 

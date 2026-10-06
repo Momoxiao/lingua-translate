@@ -5,14 +5,19 @@
  * CDP): a temporary copy of the page is written next to the original — so all
  * relative script/CSS paths keep working — with a chrome.* stub injected as the
  * first script. Any runtime error is written into the DOM, which we read back
- * via --dump-dom. A PNG screenshot is captured alongside it.
+ * via --dump-dom: a page that threw is reported as FAIL and the run exits
+ * non-zero, so a broken demo can never ship as a plausible-looking screenshot.
+ * A PNG screenshot is captured in the same run.
  *
- * Usage: node scripts/preview.mjs [outDir]
+ * Usage: node scripts/preview.mjs [outDir] [pageName]
+ *
+ * One page per invocation — a full pass is 10 separate runs, and this sandbox
+ * kills a shell that launches Chrome more than a couple of times in a row.
  */
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -241,6 +246,9 @@ function buildBallDemo() {
   <p>三处不可见的悬停桥：球与面板之间、贴边滑走后让出的那条带、以及进度环所在的一圈。少任何一处，鼠标移过去都会中途丢失 hover，球就缩回去。</p>
   <p class="hint">下面是状态预览（静态截图，实际可交互）</p>
 </div>
+<!-- constants.js first: ball.js reads its font stack from Lingua.constants.FONTS,
+     so loading ball.js alone throws at parse time and the ball never mounts. -->
+<script src="src/shared/constants.js"></script>
 <script src="src/content/page/ball.js"></script>
 <script>
 (function () {
@@ -253,10 +261,11 @@ function buildBallDemo() {
     runtime: { id: 'preview', lastError: undefined, sendMessage: function () {} }
   };
   function report(e) {
-    var el = document.getElementById('__errs');
+    // Same id as every other demo page, so one convention covers them all.
+    var el = document.getElementById('__lingua_errs');
     if (!el) {
       el = document.createElement('div');
-      el.id = '__errs';
+      el.id = '__lingua_errs';
       el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;' +
         'font:11px/1.5 ui-monospace,monospace;padding:6px 8px;white-space:pre-wrap');
       document.body.appendChild(el);
@@ -369,6 +378,49 @@ function buildPageDemo({ mode, style }) {
 let bad = 0;
 
 /**
+ * Render one page with headless Chrome.
+ *
+ * Chrome does not exit after writing a screenshot, so a blocking spawnSync sits
+ * on its timeout for every single page — 60s x 10 pages of doing nothing. Bail
+ * out as soon as the closing tag arrives instead; test-dom.mjs and check-pages
+ * already use this trick.
+ *
+ * `--dump-dom` rides along in the same run on purpose. It costs nothing extra
+ * and it is the only way to notice a fixture that threw: a demo page whose
+ * script list has drifted from its module's imports renders a red banner
+ * instead of the component, and the bare screenshot looks like a plausible but
+ * empty page rather than a failure.
+ */
+function renderChrome(args, timeoutMs = 30000) {
+  return new Promise((resolve) => {
+    const proc = spawn(chromePath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try {
+        proc.kill('SIGKILL');
+      } catch (e) {
+        /* ignore */
+      }
+      resolve({ stdout: out, stderr: err });
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    proc.stdout.on('data', (chunk) => {
+      out += chunk.toString();
+      if (out.includes('</html>')) setTimeout(finish, 80);
+    });
+    proc.stderr.on('data', (chunk) => {
+      err += chunk.toString();
+    });
+    proc.on('exit', () => setTimeout(finish, 80));
+  });
+}
+
+/**
  * Headless Chrome follows the OS appearance, so a machine in dark mode renders
  * every page dark. To preview the other half of the theme the palette has to be
  * forced. Extract it from theme.css rather than duplicating the values here —
@@ -434,10 +486,11 @@ for (const page of PAGES) {
     '--force-device-scale-factor=2',
     '--virtual-time-budget=3500',
     `--screenshot=${shotPath}`,
+    '--dump-dom',
     `file://${tmpPath}${HASH}`,
   ];
 
-  const run = spawnSync(chromePath, base, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60000 });
+  const run = await renderChrome(base);
 
   // Best-effort: Chrome may still be flushing its cache into the profile
   // directory, and an ENOTEMPTY here would abort the whole render pass. The
@@ -450,7 +503,15 @@ for (const page of PAGES) {
   fs.unlinkSync(tmpPath);
 
   const label = page.html || page.name;
-  if (!fs.existsSync(shotPath)) {
+  // A demo page that threw leaves a red banner in the DOM instead of the
+  // component under test. Without this the render is reported as "ok" and the
+  // broken screenshot ships in the README.
+  const errBanner = /id="__lingua_errs"[^>]*>([\s\S]*?)<\/div>/.exec(run.stdout);
+  if (errBanner) {
+    bad++;
+    console.log(`FAIL ${label} — page reported an error`);
+    console.log(`      ${errBanner[1].trim().split('\n').slice(0, 3).join(' | ')}`);
+  } else if (!fs.existsSync(shotPath)) {
     bad++;
     console.log(`FAIL ${label} — no screenshot produced`);
     const stderr = (run.stderr || '').split('\n').filter(Boolean).slice(0, 3).join(' | ');

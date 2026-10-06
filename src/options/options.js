@@ -96,7 +96,9 @@
   function markSaved() {
     const el = $('saveState');
     el.dataset.state = 'ok';
-    el.textContent = '已同步';
+    // "已同步" would promise a cloud sync. Settings live in chrome.storage.local
+    // — one machine, one profile — so the honest word is 已保存.
+    el.textContent = '已保存';
   }
   function markError(msg) {
     const el = $('saveState');
@@ -665,7 +667,9 @@
       await new Promise((resolve) => chrome.runtime.sendMessage({ type: MSG.CLEAR_CACHE }, resolve));
       await refreshCache();
       btn.textContent = '已清空';
-      setTimeout(() => (btn.textContent = '清空缓存'), 1600);
+      // Back to the label the markup ships with — it used to restore a longer
+      // one ("清空缓存"), so the button silently grew after the first click.
+      setTimeout(() => (btn.textContent = '清空'), 1600);
     } finally {
       btn.disabled = false;
     }

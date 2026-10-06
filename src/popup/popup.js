@@ -134,7 +134,7 @@
     const model = modelOf(settings.provider);
     ui.providerName.textContent = provider
       ? `${provider.label}${model ? ' · ' + model : ''}${ready ? '' : ' · 未配置'}`
-      : '服务未选择';
+      : '未选择供应商';
     ui.providerName.dataset.state = ready ? 'ready' : 'missing';
     ui.enabled.checked = !!settings.enabled;
     ui.target.value = settings.targetLang;
@@ -145,7 +145,7 @@
     ui.pageMode.value = (settings.page && settings.page.displayMode) || 'bilingual';
     ui.pageStyle.value = (settings.page && settings.page.style) || 'underline';
     ui.pageBall.checked = !settings.page || settings.page.showBall !== false;
-    ui.footHint.textContent = provider ? `${provider.label} → ${labelOf(settings.targetLang)}` : '未配置服务';
+    ui.footHint.textContent = provider ? `${provider.label} → ${labelOf(settings.targetLang)}` : '未配置翻译服务';
   }
 
   /** Short "which model am I actually using" label for the popup header. */
@@ -179,7 +179,9 @@
       ui.progressBox.hidden = false;
       const pct = Math.round(((s.translated || 0) / s.cueCount) * 100);
       ui.progressBar.style.width = `${pct}%`;
-      ui.progressNum.textContent = `${s.translated || 0} / ${s.cueCount}`;
+      // No spaces around the slash: the page panel, the ball and this row all
+      // show the same "done/total" shape, and they used to disagree.
+      ui.progressNum.textContent = `${s.translated || 0}/${s.cueCount}`;
       ui.progressLabel.textContent = (s.translated || 0) >= s.cueCount ? '翻译完成' : s.liveMode ? '实时翻译' : '翻译中';
     }
 
@@ -192,7 +194,7 @@
     } else if (!settings.enabled) {
       setNote(ui.note, '已暂停，字幕不会翻译。', 'info');
     } else if (!NS.settings.providerReady(settings)) {
-      setNote(ui.note, '尚未配置翻译服务，请前往设置填写 API。', 'warn');
+      setNote(ui.note, '尚未配置翻译服务，请前往设置填写凭据。', 'warn');
     } else {
       setNote(ui.note, '');
     }
@@ -213,8 +215,11 @@
 
   function renderPagePanel(state) {
     const p = state.page || {};
-    const tone = p.status === 'error' ? 'err' : p.active ? 'ok' : 'idle';
-    if (activeTab === 'page') setStatus(tone, pageStatusText(p));
+    // Same table the video panel uses. Hand-rolling this mapped "translating"
+    // to green (it tested `active`, which is also true once finished), so the
+    // pill said green while the card below it said orange — for one state.
+    const meta = PAGE_STATUS[p.status] || PAGE_STATUS.idle;
+    if (activeTab === 'page') setStatus(meta.tone, pageStatusText(p));
 
     ui.pageHost.textContent = state.host || '—';
     ui.pageStateTitle.textContent = pageStatusText(p);
@@ -252,7 +257,7 @@
     } else if (p.rule === 'skip') {
       setNote(ui.pageNote, '已把本站设为「不翻译」。改回「手动翻译」即可恢复。', 'info');
     } else if (!NS.settings.providerReady(settings)) {
-      setNote(ui.pageNote, '尚未配置翻译服务，请前往设置填写 API。', 'warn');
+      setNote(ui.pageNote, '尚未配置翻译服务，请前往设置填写凭据。', 'warn');
     } else if (!p.active && p.showBall !== false) {
       setNote(ui.pageNote, '提示：页面上的悬浮球也能直接开始翻译。', 'info');
     } else {

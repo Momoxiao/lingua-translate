@@ -29,7 +29,7 @@
         </nav>
 
         <div class="rail__foot">
-          <span class="saveState" id="saveState">已同步</span>
+          <span class="saveState" id="saveState">已保存</span>
         </div>
       </aside>
 
@@ -105,7 +105,7 @@
             </div>
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="bottomOffset">距底部</label>
+                <label class="label" for="bottomOffset">距画面底部</label>
                 <span class="num" id="bottomOffsetVal"></span>
               </div>
               <input type="range" id="bottomOffset" min="2" max="40" step="1" />
@@ -199,18 +199,18 @@
             <label class="label" for="pageLinkMode">「仅译文」如何处理含链接的段落</label>
             <select id="pageLinkMode">
               <option value="translate">译文里保留链接（推荐）</option>
-              <option value="keep">保留原文 + 译文（链接用原链接）</option>
+              <option value="keep">退回双语（链接保持可点）</option>
               <option value="strict">严格替换（链接会丢失）</option>
             </select>
             <div class="hint">
               选「译文里保留链接」时，链接会被包成占位符一起送去翻译，回来再重建，所以译文里的链接照样能点。
-              若模型弄坏了占位符，该段落会自动退回「保留原文 + 译文」。
+              若模型弄坏了占位符，该段落会自动退回双语显示。
             </div>
           </div>
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">在页面上显示悬浮球</span>
+              <span class="switchRow__title">页面悬浮球</span>
               <span class="hint">可拖动，点一下即翻译，位置按站点记住</span>
             </span>
             <span class="switch">

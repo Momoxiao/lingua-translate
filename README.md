@@ -103,9 +103,18 @@ CI runs the three offline suites. `test:e2e` and `smoke` are deliberately not in
 
 - **The caption path depends on YouTube's private interface and is not covered by CI.** `youtube.js` / `inject.js` / `bridge.js` lean on the player's internal response and on a Proof-of-Origin token. YouTube can change it without notice. This is the project's single largest risk and it is stated here rather than buried.
 
-  Measured, not assumed: run against a **throwaway, signed-out Chrome profile**, YouTube reports 6 caption tracks and the player never issues a single `/api/timedtext` request — no token is minted for a session like that, so every caption fetch comes back HTTP 200 and empty. Reproduced in three browser configurations (headless, headed, headed with the GPU enabled), so it is not a headless artifact. In a real, long-lived, signed-in profile the pipeline does work — the sample output in the [Chinese README](README.zh-CN.md#七开发) records `cues 163 (translated 163)`.
+  **What has actually been measured, and what has not.** A zero-cue result was first blamed on the throwaway, signed-out profile "not being handed a PoToken". That explanation is **wrong**, and measurably so: against a real, signed-in session, the same video answers the same `fetch(baseUrl&fmt=json3&c=WEB)` with **HTTP 200 and a 0-byte body** — identical to the throwaway profile — and its `baseUrl` carries no `pot` either. Login state is not the variable.
 
-  `npm run smoke` counts and attributes every caption request over CDP — **who** issued it, whether it carried a token, and what the HTTP status was — so "YouTube refused us" and "nothing ever asked for a caption" can be told apart instead of guessed at. `npm run inspect:refresh` does the same read-only, against your own browser.
+  The untested variable is **playback**. The player only fetches a caption track once it is genuinely playing and rendering captions, and neither automated environment gets there:
+
+  | Environment | Result |
+  | --- | --- |
+  | Headless / headed / headed with GPU | Video plays (`paused=false`, `t≈15s`), player issues **0** caption requests |
+  | Background tab in a real Chrome | `video.readyState=0`, `networkState=2`, `document.hidden=true` — throttled; `play()` neither resolves nor rejects, so playback never starts and **0** requests are made |
+
+  So a red smoke run currently proves only that **captions never began rendering**. It does not prove the extension is broken, and it does not prove YouTube changed the interface. Settling it requires a **visible, foreground** tab playing for ~15 seconds, then `npm run inspect:refresh`. **That test has not been run.**
+
+  `npm run smoke` records every `/api/timedtext` request over CDP — its `pot`, its HTTP status, and the **initiator** that issued it. Attribution prefers CDP's initiator and says "unknown" when there is none, rather than guessing: `inject.js` builds its URL *from the player's own baseUrl*, so the extension's request and the player's can be byte-identical and the URL alone cannot tell them apart.
 - Only the Chinese UI ships today. `_locales` is on the roadmap; the settings page and popup are Chinese until then.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.

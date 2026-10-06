@@ -133,28 +133,40 @@ async function refreshAndWatch(cdp, view, iso) {
 
 function captionVerdict(state, net) {
   const s = (state && state.subtitle) || {};
-  const { ours, theirs, potty } = net.counts();
+  const c = net.counts();
+  const vague = c.unknown ? `其中 ${c.unknown}/${c.total} 条无法判定来源（CDP 未给出 initiator）。` : '';
   if (!s.trackCount) return { tone: 'warn', text: '没有解析出任何字幕轨。' };
   if (!s.cueCount) {
-    if (!net.all.length) {
-      return {
-        tone: 'warn',
-        text: `有 ${s.trackCount} 条轨，但一次 /api/timedtext 都没发出去——播放器没走到取字幕那一步。`,
-      };
-    }
-    if (theirs === 0) {
+    if (!c.total) {
       return {
         tone: 'warn',
         text:
-          `有 ${s.trackCount} 条轨，只有扩展自己发了 ${ours} 次请求（带 pot 的 ${potty} 次），body 是空的；` +
-          '播放器一次都没请求字幕——没有 pot 可以复用，「嗅探播放器请求」这条兜底路径无事可做。',
+          `有 ${s.trackCount} 条轨，但一次 /api/timedtext 都没发出去。` +
+          '播放器只在真正播放、开始渲染字幕时才会去取字幕轨——后台标签和被节流的标签都到不了那一步，' +
+          '所以这一条不能说明扩展有问题。让这个页面可见、在前台播放十几秒再跑一次。',
+      };
+    }
+    if (c.withData) {
+      return {
+        tone: 'err',
+        text:
+          `有 ${s.trackCount} 条轨，${c.withData}/${c.finished} 次请求**确实拿到了数据**（${net.describe()}），` +
+          '但一条 cue 都没解析出来——问题在解析或音轨选择这一步，不在 YouTube。',
+      };
+    }
+    if (!c.withPot) {
+      return {
+        tone: 'warn',
+        text:
+          `有 ${s.trackCount} 条轨，${c.total} 次字幕请求里一个 pot 都没有、${c.emptyBodies} 次确认返回 0 字节` +
+          `（${net.describe()}）。没有 pot 可以复用，「嗅探播放器请求」这条兜底路径无事可做。${vague}`,
       };
     }
     return {
       tone: 'warn',
       text:
-        `有 ${s.trackCount} 条轨，播放器请求了 ${theirs} 次、扩展请求了 ${ours} 次（带 pot 的 ${potty} 次），` +
-        '但一条 cue 都没解析出来。',
+        `有 ${s.trackCount} 条轨，${c.withPot}/${c.total} 次带了 pot、${c.emptyBodies} 次确认返回 0 字节` +
+        `（${net.describe()}），但一条 cue 都没解析出来。${vague}`,
     };
   }
   if (!s.translated) {

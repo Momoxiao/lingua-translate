@@ -16,17 +16,22 @@
  *   node scripts/smoke-youtube.mjs --headed        # real window, real playback
  *   SMOKE_PROFILE=~/Library/Application\ Support/Google/Chrome npm run smoke
  *
- * The last one is the honest control and the reason it exists: this script uses
- * a throwaway, signed-out profile, and YouTube does not hand a PoToken to a
- * profile like that. So a red result here says "this browser could not get the
- * captions", NOT "the extension is broken" — `npm run inspect` against your own
- * signed-in Chrome is what answers the second question. Quit Chrome before
- * pointing SMOKE_PROFILE at it, or Chrome will refuse the profile lock.
+ * A red result here does NOT mean the extension is broken, and the reason is not
+ * the one it first looked like. It was blamed on the signed-out profile "not
+ * being handed a PoToken" — that was wrong, and measurably so: against a real,
+ * signed-in session the same video answers the same `fetch(baseUrl&fmt=json3)`
+ * with HTTP 200 and a 0-byte body, and its baseUrl carries no `pot` either.
+ * Login state is not the variable.
+ *
+ * What is untested is *playback*. The player only fetches a caption track once
+ * it is actually playing and rendering captions, and neither automated
+ * environment gets there — a headless window has `paused=false, t≈15s` and still
+ * issues zero requests, and a background tab in a real browser is throttled to
+ * `readyState=0, hidden=true`, where `play()` neither resolves nor rejects.
+ * Settling this needs a visible, foreground tab: `npm run inspect:refresh`.
  *
  * Exit code is 0 only when captions were found AND the page reached a settled
- * state. Read the verdict, not just the code: a red result here can mean
- * "YouTube changed something" OR "this browser could not boot the player", and
- * the timeline plus the caption-request counter is what tells the two apart.
+ * state. Read the verdict, not just the code.
  *
  * Why the request counter matters: before it existed, a zero-cue result was
  * reported as "probably the PoToken path" — a guess. Counting `/api/timedtext`
@@ -61,12 +66,12 @@ const CDP_PORT = 9500 + Math.floor(Math.random() * 200);
 const HTTP_PORT = 9700 + Math.floor(Math.random() * 200);
 /**
  * A throwaway profile by default, so a run never touches the browser you are
- * logged into. That isolation is also the single biggest caveat of this script:
- * on a fresh, signed-out profile YouTube hands out 6 caption tracks but mints no
- * PoToken, the player never asks for a caption, and every result reads red even
- * though the extension works fine in a real session. `SMOKE_PROFILE` exists so
- * that difference can be tested instead of assumed — quit Chrome first, or it
- * will refuse the lock.
+ * logged into. `SMOKE_PROFILE` points it at a real one instead — quit Chrome
+ * first, or it will refuse the lock.
+ *
+ * Being throwaway is a caveat, but not the caveat it was assumed to be: a
+ * signed-out profile is NOT why captions fail here (measured — see the header).
+ * Failures come from the environment never reaching real playback.
  */
 const THROWAWAY_PROFILE = !process.env.SMOKE_PROFILE;
 const PROFILE = process.env.SMOKE_PROFILE
@@ -157,7 +162,7 @@ const PROBE = `(function () {
  * The verdict. `net` is the caption-request log — read it, do not guess.
  * Mirrors src/diagnostics/diagnostics.js so the two never disagree.
  */
-function verdict(state, net) {
+function verdict(state, net, capLog) {
   if (!state || !state.injected) {
     return { ok: false, tone: 'err', text: '内容脚本没有注入到这个页面。' };
   }
@@ -181,16 +186,22 @@ function verdict(state, net) {
   }
   if (!s.cueCount) {
     const reqs = net.all;
-    const { ours, theirs } = net.counts();
-    if (!reqs.length) {
+    const c = net.counts();
+    // Attribution caveat, always visible when it applies: CDP gives no initiator
+    // for a request whose origin is below JS, and our URL is derived from the
+    // player's baseUrl, so "we sent it" is not something the URL can prove.
+    const vague = c.unknown ? `其中 ${c.unknown}/${c.total} 条无法判定来源（CDP 未给出 initiator）。` : '';
+
+    if (!c.total) {
       return {
         ok: false,
         tone: 'warn',
         text:
           `找到 ${s.trackCount} 条字幕轨，但一次 /api/timedtext 都没发出去` +
-          `（movie_player=${p.moviePlayer} 字幕按钮=${p.subtitleButton}）。` +
-          '这一条不是扩展的锅：这个环境里播放器根本没走到请求字幕那一步。' +
-          '用 --headed 再跑一次，如果 headed 下能取到，就说明是无头环境的限制。',
+          `（movie_player=${p.moviePlayer} 字幕按钮=${p.subtitleButton} pressed=${p.subtitlesPressed}）。` +
+          '这一条不能归给扩展：没有任何一方走到请求字幕那一步。播放器只在真正进入播放、开始渲染字幕时才会去取字幕轨，' +
+          '而无头窗口、以及被 Chrome 节流的后台标签都到不了那一步（实测这两种情况下 video.readyState 一直是 0）。' +
+          '要判断真实播放时会不会请求，需要**可见、在前台**播放的标签页——用 npm run inspect:refresh。',
       };
     }
     const refused = reqs.filter((r) => r.failed || (r.status !== null && r.status >= 400));
@@ -198,48 +209,36 @@ function verdict(state, net) {
       return {
         ok: false,
         tone: 'err',
-        text: `播放器请求了 ${reqs.length} 次字幕，但全部被拒（${net.describe()}）——字幕接口这一层的问题。`,
+        text: `${c.total} 次字幕请求全部被拒（${net.describe()}）——字幕接口这一层的问题。${vague}`,
       };
     }
-    const potty = reqs.filter((r) => /[?&]pot=/.test(r.url)).length;
-    if (theirs > 0 && !potty) {
+    // What the responses actually contained, captured on the way in. This is
+    // the evidence; the wire byte counts are not (they include headers).
+    const emptyBodies = (capLog || []).filter((c) => c.len === 0).length;
+    const withBody = (capLog || []).length - emptyBodies;
+    const bodyNote = !capLog || !capLog.length
+      ? '响应体没能抓到，所以「空 body」这个说法在这次运行里未经验证。'
+      : withBody
+        ? `其中 ${withBody} 条**有正文**（响应体抓取），说明拿到数据了却没解析出来——问题在解析这一步。`
+        : `${emptyBodies} 条响应体全部读为 **0 字节**（响应体抓取，不是字节数推算）——YouTube 确实什么都没返回。`;
+
+    const pl = net.payload ? net.payload() : null;
+    if (!c.withPot) {
       return {
         ok: false,
         tone: 'warn',
         text:
-          `播放器自己请求了 ${theirs} 次字幕，但请求里一个 pot 都没有（${net.describe()}），` +
-          'HTTP 200 却是空 body——正是 youtube.js 注释里写的那个 PoToken 陷阱。' +
-          'extractCues 的第 2/3 步（复用嗅到的 pot）在这种环境下无从下手，因为根本没有 pot 可复用。',
-      };
-    }
-    if (theirs === 0) {
-      // Reproduced in three configurations — headless, headed, and headed with
-      // the GPU left on: the player turns captions on (`aria-pressed=true`) and
-      // never asks for the track. That rules out the two obvious suspects. What
-      // is left is the session: a signed-out throwaway profile gets no PoToken,
-      // and a player with no token has nothing to fetch. Say so, and name the
-      // experiment that settles it — the alternative is a red light nobody can
-      // act on.
-      const detail = `只有扩展自己发了 ${ours} 次请求（${net.describe()}），body 是空的；播放器一次都没请求字幕。`;
-      return {
-        ok: false,
-        tone: 'warn',
-        text: THROWAWAY_PROFILE
-          ? detail +
-            'headless 和 headed 都是这个结果（headed 还特意开着 GPU 跑过一次），所以不是无头环境的老问题，' +
-            '最可能是这个一次性、未登录的 profile：YouTube 不给它签 pot，播放器也就不去取。' +
-            '先拿 npm run inspect 对着你自己那个已登录的 Chrome 跑同一支视频（README.zh-CN.md 里 cues 163 那份输出就是这么来的）；' +
-            '要在这里直接对照，先完全退出 Chrome，再跑 ' +
-            'SMOKE_PROFILE="$HOME/Library/Application Support/Google/Chrome" npm run smoke。'
-          : detail + '这是个真实 profile，所以更值得深挖：播放器为什么在字幕已开启的情况下不重新请求字幕。',
+          `${c.total} 次字幕请求里，一个 pot 都没有（${net.describe()}）。` +
+          '正是 youtube.js 注释里写的那个 PoToken 陷阱：extractCues 的第 2/3 步（复用嗅到的 pot）在这种情况下无事可做，' +
+          `因为根本没有 pot 可复用。${bodyNote}${vague}`,
       };
     }
     return {
       ok: false,
       tone: 'warn',
       text:
-        `播放器请求了 ${theirs} 次、扩展请求了 ${ours} 次（${net.describe()}），` +
-        '但一条 cue 都没解析出来——请求发出去了、返回是空的。',
+        `${c.total} 次字幕请求里有 ${c.withPot} 次带了 pot（${net.describe()}），但一条 cue 都没解析出来。` +
+        `${bodyNote}${vague}`,
     };
   }
   if (!s.translated) {
@@ -262,7 +261,7 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
   console.log(
     `[smoke] profile: ${
       THROWAWAY_PROFILE
-        ? '一次性、未登录 —— YouTube 不会给它签 pot，所以红灯是预期内的，别当成扩展坏了'
+        ? '一次性、未登录 —— 记住：登录状态不是字幕失败的原因（已实测），红灯来自这里到不了真正的播放'
         : PROFILE
     }`
   );
@@ -298,7 +297,16 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
 
   let ws;
   let view;
-  let net = { all: [], counts: () => ({ ours: 0, theirs: 0, potty: 0, total: 0 }), describe: () => '0' };
+  let net = {
+    all: [],
+    counts: () => ({
+      extension: 0, page: 0, unknown: 0, total: 0,
+      withPot: 0, finished: 0, emptyBodies: 0, withData: 0,
+    }),
+    describe: () => '0',
+    initiators: () => [],
+    payload: () => null,
+  };
   let code = 1;
   try {
     const { cdp, ws: sock } = await connect(CDP_PORT);
@@ -365,6 +373,62 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
         .catch(() => {});
     }
     await cdp.send('Page.enable', {}, pageSession);
+
+    // Capture the *content* of caption responses, installed before any page
+    // script runs. `Network.getResponseBody` fails here, and re-fetching the
+    // signed URL later returns 0 bytes — the URL carries `expire`/`signature` and
+    // is time-limited. So the only reliable way to see what YouTube sent is to
+    // read it as it arrives.
+    //
+    // TRADE-OFF, deliberately taken and visible in the output: wrapping
+    // `window.fetch` here makes this script the outermost caller, so CDP's
+    // initiator stack no longer names `inject.js` and attribution degrades to
+    // "来源未知". Body evidence beats attribution here — attribution was already
+    // established in runs without this block, and remains available from
+    // `npm run smoke` invocations that skip it. To get both at once, hook
+    // `Lingua.subtitles.parseTimedText` in the isolated world after load instead
+    // of the page's fetch; that sees every body `extractCues` parses without
+    // touching the page's call chain. Not done yet.
+    await cdp
+      .send(
+        'Page.addScriptToEvaluateOnNewDocument',
+        {
+          source: `
+(function () {
+  window.__capLog = [];
+  function rec(url, status, body) {
+    try { window.__capLog.push({ url: String(url).slice(-90), status: status, len: body.length, head: body.slice(0, 220) }); } catch (e) {}
+  }
+  var nf = window.fetch;
+  if (typeof nf === 'function') {
+    window.fetch = function (input, init) {
+      var u = typeof input === 'string' ? input : (input && input.url);
+      var p = nf.apply(this, arguments);
+      if (/timedtext/.test(u || '')) {
+        p.then(function (r) { r.clone().text().then(function (b) { rec(u, r.status, b); }).catch(function () {}); }).catch(function () {});
+      }
+      return p;
+    };
+  }
+  var XO = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (m, u) { this.__u = u; return XO.apply(this, arguments); };
+  var XS = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function () {
+    var u = this.__u;
+    if (/timedtext/.test(u || '')) {
+      var self = this;
+      this.addEventListener('loadend', function () {
+        try { rec(u, self.status, self.responseText || ''); } catch (e) {}
+      });
+    }
+    return XS.apply(this, arguments);
+  };
+})();
+`,
+        },
+        pageSession
+      )
+      .catch(() => {});
     await cdp.send('Page.navigate', { url: URL_UNDER_TEST }, pageSession);
 
     view = await attach(cdp, target.targetId);
@@ -374,6 +438,8 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
     const started = Date.now();
     let last = '';
     let final = null;
+    let isoWorld = null;
+    let capLog = [];
     while (Date.now() - started < TIMEOUT_MS) {
       await sleep(2000);
       const iso = await view.findWorld();
@@ -384,6 +450,7 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
         }
         continue;
       }
+      isoWorld = iso;
       let state;
       try {
         state = JSON.parse(await view.evalIn(PROBE, iso.id));
@@ -406,6 +473,34 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
     if (final) {
       const s = final.subtitle || {};
       const p = final.player || {};
+
+      // When nothing parsed, read what YouTube actually sent — through the
+      // extension's own fetch path, so it is the same request `extractCues`
+      // makes. Reading the body is the only way to tell "YouTube returned an
+      // empty document" from "we got data and failed to parse it"; inferring it
+      // from `cueCount === 0`, or from a byte count, is how the wrong
+      // explanation got written down twice.
+      let payloadProbe = null;
+      if (!s.cueCount && isoWorld && (s.trackCount || 0) > 0) {
+        try {
+          payloadProbe = JSON.parse(
+            await view.evalIn(
+              `(function () {
+                var tracks = (Lingua.store.state.tracks || []);
+                var t = tracks.filter(function (x) { return x.languageCode === 'en'; })[0] || tracks[0];
+                if (!t || !t.baseUrl) return JSON.stringify({ err: 'no baseUrl on the picked track' });
+                return Lingua.bridge.fetchTrack(t.baseUrl).then(function (r) {
+                  return JSON.stringify({ status: r.status, empty: !!r.empty, error: r.error || '', len: (r.body || '').length, head: (r.body || '').slice(0, 240) });
+                });
+              })()`,
+              isoWorld.id
+            )
+          );
+        } catch (e) {
+          payloadProbe = { err: e.message };
+        }
+      }
+
       console.log(`  ${'视频 ID'.padEnd(12)} ${s.videoId || '(无)'}`);
       console.log(`  ${'字幕轨'.padEnd(12)} ${s.trackCount ? `${s.trackCount} 条：${(s.trackLangs || []).join(', ')}` : '0 条'}`);
       console.log(`  ${'当前轨'.padEnd(12)} ${s.sourceTrack || '(无)'}`);
@@ -413,12 +508,40 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       console.log(`  ${'状态'.padEnd(12)} ${s.status || '?'}${s.reason ? ` · reason=${s.reason}` : ''}`);
       console.log(`  ${'播放器'.padEnd(12)} movie_player=${p.moviePlayer} 字幕按钮=${p.subtitleButton} pressed=${p.subtitlesPressed} 暂停=${p.paused} t=${p.currentTime}`);
       console.log(`  ${'字幕请求'.padEnd(12)} ${net.describe()}`);
+      if (payloadProbe) {
+        console.log(
+          `  ${'重取字幕体'.padEnd(12)} ${
+            payloadProbe.err
+              ? `读不到：${payloadProbe.err}`
+              : `HTTP ${payloadProbe.status} · ${payloadProbe.len}B · empty=${payloadProbe.empty} · ${payloadProbe.head}`
+          }`
+        );
+      }
+      // What YouTube actually sent, captured as it arrived.
+      try {
+        const got = JSON.parse(await view.evalPage('JSON.stringify(window.__capLog || [])'));
+        if (Array.isArray(got)) capLog = got;
+        if (capLog.length) {
+          console.log(`  ${'响应体正文'.padEnd(12)} 抓到 ${capLog.length} 条：`);
+          for (const c of capLog.slice(0, 4)) {
+            console.log(`                 HTTP ${c.status} · ${c.len}B · ${String(c.head).replace(/\s+/g, ' ')}`);
+          }
+        }
+      } catch (e) {
+        /* capture script not installed (older Chrome) — nothing to add */
+      }
+      // The initiator is what attribution actually rests on, so print it rather
+      // than leaving the reader to trust the label in the line above.
+      const inits = net.initiators();
+      if (inits.length) console.log(`  ${'发起者'.padEnd(12)} ${inits[0]}`);
+      const pl = net.payload ? net.payload() : null;
+      if (pl) console.log(`  ${'响应体'.padEnd(12)} ${pl.bytes}B  ${pl.text.slice(0, 150)}`);
       if (s.firstCue) console.log(`  ${'首条原文'.padEnd(12)} ${s.firstCue}`);
       if (s.firstTranslation) console.log(`  ${'首条译文'.padEnd(12)} ${s.firstTranslation}`);
       if (s.error) console.log(`  ${'错误'.padEnd(12)} ${s.error}`);
     }
 
-    const v = verdict(final, net);
+    const v = verdict(final, net, capLog);
     console.log(`\n${TONE_MARK[v.tone]}  ${v.text}`);
     if (view.consoleErrors.length) {
       console.log(`\n  console errors (${view.consoleErrors.length}):`);

@@ -70,12 +70,24 @@ Two things that turned out to be genuinely hard, in case they're useful:
    that looks exactly like success. So the extension reuses the token the player
    already obtained, with four fallbacks.
 
-   While testing this I found something I'd been wrong about: in a throwaway,
-   signed-out Chrome profile, YouTube reports 6 caption tracks and the player
-   never issues a single caption request at all. No token is minted for a session
-   like that. I'd been blaming headless mode for weeks; it reproduces headed, with
-   the GPU on. The test now counts and attributes every caption request over CDP
-   so "YouTube refused us" and "nothing ever asked" can't be confused again.
+   While testing this I got the diagnosis wrong twice, which turned out to be the
+   more useful story. First I blamed headless mode; it reproduces headed, with the
+   GPU on. Then I blamed the signed-out throwaway profile "not being handed a
+   token" — and that is measurably false: against a real, signed-in session, the
+   same video answers the same fetch with HTTP 200 and a 0-byte body, and its
+   baseUrl carries no pot either. Login state is not the variable.
+
+   The variable I had not controlled for is *playback*. The player only fetches a
+   caption track once it is genuinely playing and rendering captions, and neither
+   automated environment gets there — a headless window sits at paused=false,
+   t≈15s and issues zero requests, and a background tab in a real Chrome is
+   throttled to readyState=0 with document.hidden=true, where play() neither
+   resolves nor rejects. So the honest version of this finding is "0 requests
+   means captions never began rendering", not "YouTube refused us". The test now
+   records each /api/timedtext request's pot, status and CDP initiator, and says
+   "unknown" when there is no initiator instead of guessing from the URL —
+   because inject.js builds its URL from the player's baseUrl, so the two can be
+   byte-identical.
 
 2. display's *computed* value lies. A flex container blockifies its children, so
    <nav style="display:flex"><a>Home</a></nav> reports display:block for the link.

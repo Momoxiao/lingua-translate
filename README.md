@@ -61,10 +61,32 @@
 
 ## 二、安装
 
+**方式一：下载安装包（推荐）**
+
+从 [Releases](https://github.com/Momoxiao/lingua-translate/releases/latest) 下载 `lingua-<版本>.zip` 并解压，然后：
+
 1. 打开 `chrome://extensions`（Edge 为 `edge://extensions`）
 2. 右上角开启 **开发者模式**
-3. 点击 **加载已解压的扩展程序**，选择本目录 `yt-subtitle-translator/`
+3. 点击 **加载已解压的扩展程序**，选择解压出来的目录
 4. 首次安装会自动打开设置页；填入翻译服务后即可使用
+
+安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，40 个文件、约 110 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
+
+```bash
+shasum -a 256 -c lingua-0.1.0.zip.sha256
+```
+
+**方式二：直接用源码**
+
+克隆仓库后按同样步骤选择仓库根目录即可。源码里多了测试、文档配图和 CI 配置，扩展运行时用不到。
+
+**自己打包**
+
+```bash
+npm run dist     # 生成 dist/lingua-<版本>.zip
+```
+
+打包脚本会校验 `manifest.json` 引用的每个文件都在包里，缺一个就报错退出——避免发出一个「装得上、跑起来才报错」的包。输出是确定性的（固定时间戳、条目排序），所以同样的源码每次打出的字节完全一致，Release 里公布的 SHA-256 才有意义。
 
 > 需要 Chrome 111+（用到了 content script 的 `world: "MAIN"`）。
 
@@ -381,6 +403,7 @@ npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自�
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
 npm run icons       # 重新生成图标
+npm run dist        # 打出可分发的 dist/lingua-<版本>.zip（发布时作为 Release 附件）
 npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效果并截图
 ```
 

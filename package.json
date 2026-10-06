@@ -11,6 +11,7 @@
     "test:pages": "node scripts/check-pages.mjs",
     "test:e2e": "node scripts/e2e-extension.mjs",
     "check": "npm test && npm run test:dom && npm run test:pages",
+    "dist": "node scripts/package.mjs",
     "inspect": "node scripts/inspect-live.mjs",
     "preview": "node scripts/preview.mjs",
     "icons": "python3 scripts/make-icons.py"

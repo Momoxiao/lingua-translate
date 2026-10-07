@@ -172,7 +172,26 @@ const PROBE = `(function () {
       // the store, so without this a "live" status says only that polling began,
       // not that anything was read or translated.
       live: Lingua.live && Lingua.live.stats ? Lingua.live.stats() : null
-    } : null
+    } : null,
+    // "Did the player render the line itself?" This is the question that decides
+    // whether the realtime fallback can work at all, and it was previously
+    // inferred rather than measured: reading 0 lines looks identical whether the
+    // playhead sat on silence, our CSS/readout was wrong, or the player had
+    // nothing to render because its own caption request came back empty. The
+    // segment count is the only thing that separates those.
+    capDom: (function () {
+      var win = document.querySelector('.ytp-caption-window-container .ytp-caption-window-bottom') ||
+        document.querySelector('.ytp-caption-window-container');
+      var segs = document.querySelectorAll('.ytp-caption-segment');
+      var text = segs.length
+        ? Array.prototype.map.call(segs, function (x) { return x.textContent; }).join(' ')
+        : (win ? win.textContent : '');
+      return {
+        container: !!document.querySelector('.ytp-caption-window-container'),
+        segs: segs.length,
+        text: String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+      };
+    })()
   });
 })()`;
 
@@ -223,12 +242,36 @@ function verdict(state, net, capLog) {
         text: `实时兜底读到了 ${L.lines} 行字幕，但一行都没翻译出来——问题在翻译调用，不在取字幕。`,
       };
     }
+    // Zero lines. Two very different causes, and the DOM settles it: either the
+    // playhead sat on silence (benign, nothing to read yet), or the player
+    // rendered nothing at all. Saying "run it again to find out" made the reader
+    // re-run to learn something we can measure in the same pass.
+    const cd = state.capDom || {};
+    const at = p.currentTime;
+    if (cd.segs > 0 || cd.text) {
+      return {
+        ok: false,
+        tone: 'err',
+        text:
+          `实时兜底读到 0 行，但播放器 DOM 里其实有字幕（${cd.segs} 段：「${(cd.text || '').slice(0, 40)}」）` +
+          '——说明取字幕的选择器或读取时机不对，问题在我们这一侧，重跑无用。',
+      };
+    }
+    if (!cd.container) {
+      return {
+        ok: false,
+        tone: 'warn',
+        text:
+          '已切到实时兜底，但播放器始终没有创建字幕容器——它的字幕没有渲染到 DOM，兜底没有东西可读。' +
+          (s.trackCount ? `页面确实报了 ${s.trackCount} 条字幕轨，所以更像是取字幕请求被挡下了。` : ''),
+      };
+    }
     return {
       ok: false,
       tone: 'warn',
       text:
-        '已切到实时兜底，但一行字幕都没读到。可能是这段时间里播放位置没有落在任何字幕上，' +
-        '也可能是播放器的字幕并没有真的渲染到 DOM。多等一会儿再跑一次即可区分。',
+        `已切到实时兜底，字幕容器在、但没有内容：播放位置 t=${at == null ? '?' : at}s 这一段没有台词。` +
+        '这属于正常——等到有台词的片段即可，不是故障。',
     };
   }
   if (!s.cueCount) {
@@ -561,6 +604,11 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       if (s.live && (s.live.lines || s.live.translated || s.status === 'live')) {
         const L = s.live;
         console.log(`  ${'实时兜底'.padEnd(12)} 读到 ${L.lines} 行 · 译出 ${L.translated} 行`);
+        const cd = state.capDom || {};
+        console.log(
+          `  ${'播放器字幕DOM'.padEnd(12)} 容器=${cd.container ? '有' : '无'} · ${cd.segs || 0} 段` +
+            (cd.text ? ` · 「${cd.text}」` : '')
+        );
         if (L.lastOriginal) {
           console.log(`  ${''.padEnd(12)} 最后一行：${L.lastOriginal.slice(0, 50)}`);
           console.log(`  ${''.padEnd(12)}        →  ${(L.lastTranslated || '(未译)').slice(0, 50)}`);

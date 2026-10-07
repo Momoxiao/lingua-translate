@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 36;
+const EXPECTED_ASSERTIONS = 46;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -102,14 +102,20 @@ function makeEnv({ captions = [], live = false, duration = 300, tracklist = null
 
 /** Load live.js fresh against a given document, with minimal Lingua stubs. */
 function loadLive(env, overrides = {}) {
-  const calls = { notices: [], live: [], badge: [], forceCaption: 0, intervals: [] };
+  const calls = { notices: [], live: [], badge: [], forceCaption: 0, intervals: [], timers: [] };
   const sandbox = {
     console,
     Date,
     Map,
-    setTimeout: (fn, ms) => { calls.notices.push({ ms }); return 0; },
+    setTimeout: (fn, ms) => {
+      calls.notices.push({ ms });
+      // Keep the callback: the grace-period notice only decides inside it, so a
+      // test that cannot run it is testing the scheduler, not the decision.
+      calls.timers.push(fn);
+      return 0;
+    },
     clearTimeout: () => {},
-    setInterval: (fn, ms) => { calls.intervals.push(ms); return 1; },
+    setInterval: (fn, ms) => { calls.intervals.push(ms); calls.poll = fn; return 1; },
     clearInterval: () => {},
     document: env.doc,
     globalThis: null,
@@ -212,6 +218,109 @@ console.log('\n实时字幕兜底 · start/stop 的行为');
   const timers = calls.notices.filter((n) => n.ms);
   check('start 会安排一个延迟提示，用于解释降级模式', timers.length === 1);
   check('该延迟足够长，不会误报', timers.length === 1 && timers[0].ms >= 8000, JSON.stringify(timers));
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」');
+
+{
+  // The measured dead end: a VOD whose caption requests all came back 0 bytes
+  // and which never created a caption container. Polling can never produce a
+  // line, so an 8s "realtime mode" notice would expire and leave a blank overlay
+  // with no explanation — after having implied it was working.
+  const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  const grace = calls.timers[calls.timers.length - 1];
+  check('宽限期回调被安排下来了', typeof grace === 'function');
+  if (grace) grace();
+
+  const fired = calls.notices.filter((n) => n.msg).pop() || {};
+  check(
+    '没有字幕容器时，提示说明「本页字幕拿不到」而不是「已切换为实时」',
+    /无法获取|拿不到/.test(fired.msg || '') && !/已切换为逐句实时/.test(fired.msg || ''),
+    fired.msg || '(无)'
+  );
+  check('这条提示不自动消失（ms=0），因为情况不会自己好转', fired.ms === 0, String(fired.ms));
+}
+
+{
+  // The benign case: the container exists, the playhead is just on silence. This
+  // does resolve itself, so the notice must still expire.
+  const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
+  // Force the container to exist even with no segments.
+  env.doc.querySelector = ((orig) => (sel) =>
+    sel === '.ytp-caption-window-container' ? env.container : orig(sel))(env.doc.querySelector);
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  const grace = calls.timers[calls.timers.length - 1];
+  if (grace) grace();
+  const fired = calls.notices.filter((n) => n.msg).pop() || {};
+  check(
+    '容器在、只是当前静音时，仍按「已降级为实时」说明',
+    /已切换为逐句实时/.test(fired.msg || ''),
+    fired.msg || '(无)'
+  );
+  check('这条提示会自动消失（ms>0），因为静音段会过去', fired.ms > 0, String(fired.ms));
+}
+
+{
+  // A real stream has no container either, but it is not a failure — the live
+  // copy must still be used, not the "unavailable" one.
+  const env = makeEnv({ captions: [], live: true });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  const grace = calls.timers[calls.timers.length - 1];
+  if (grace) grace();
+  const fired = calls.notices.filter((n) => n.msg).pop() || {};
+  check('直播流不会收到「本页字幕拿不到」的提示', !/无法获取/.test(fired.msg || ''), fired.msg || '(无)');
+}
+
+{
+  // The permanent notice is a claim about the future; the first real line must
+  // retract it, or the overlay shows a translation AND a denial at once.
+  const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+
+  // 1. The permanent notice is showing.
+  const grace = calls.timers[calls.timers.length - 1];
+  if (grace) grace();
+  check(
+    '永久提示先立起来（前置条件）',
+    calls.notices.some((n) => n.msg && n.ms === 0),
+    JSON.stringify(calls.notices.filter((n) => n.msg))
+  );
+
+  // 2. A caption finally appears in the DOM. Both levels must resolve: the
+  //    document hands back the container, and the container hands back a segment.
+  const seg = makeEl('span', { textContent: 'a real line' });
+  const win = makeEl('div', {
+    querySelectorAll: (sel) => (sel === '.ytp-caption-segment' ? [seg] : []),
+    textContent: 'a real line',
+  });
+  const container = makeEl('div', {
+    querySelector: (sel) => (sel === '.ytp-caption-window-bottom' ? win : null),
+    querySelectorAll: (sel) => (sel === '.ytp-caption-segment' ? [seg] : []),
+    textContent: 'a real line',
+  });
+  env.doc.querySelector = ((orig) => (sel) =>
+    sel.includes('caption-window-container') ? container : orig(sel))(env.doc.querySelector);
+
+  calls.notices.length = 0;
+  check('轮询回调已挂上', typeof calls.poll === 'function');
+  if (calls.poll) calls.poll();
+
+  check(
+    '读到第一行后撤掉永久提示（否则同时显示译文和「拿不到字幕」）',
+    calls.notices.some((n) => n.msg === ''),
+    JSON.stringify(calls.notices)
+  );
+  check(
+    '并且确实把那行原文送进了悬浮层',
+    calls.live.some(([o]) => o === 'a real line'),
+    JSON.stringify(calls.live)
+  );
 }
 
 // ---------------------------------------------------------------------------

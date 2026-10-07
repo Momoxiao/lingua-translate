@@ -118,7 +118,15 @@
     const text = readCaption();
     // A single line is enough to prove the player really is rendering captions,
     // which is what cancels the "could not get the track" notice.
-    if (text) sawAnyCaption = true;
+    if (text) {
+      // The permanent "captions are unavailable here" notice is a claim about
+      // the future, so the first line that contradicts it must retract it —
+      // otherwise the overlay shows a translated line *and* says none can be
+      // fetched, which is the kind of self-contradiction this file exists to
+      // avoid. A no-op when no notice is showing.
+      if (!sawAnyCaption) overlay.setNotice('');
+      sawAnyCaption = true;
+    }
 
     if (text !== currentOriginal) {
       currentOriginal = text;
@@ -209,14 +217,38 @@
     const isLive = !!document.querySelector('.ytp-live') || (v && v.duration === Infinity);
     store.state.isLiveStream = !!isLive;
     noticeTimer = setTimeout(() => {
-      if (running && !sawAnyCaption) {
+      if (!running || sawAnyCaption) return;
+      // Two situations look identical on a blank overlay, and they need opposite
+      // treatment:
+      //
+      //   no caption container  the player never rendered captions at all, so
+      //                         polling can NEVER produce a line. Measured: a VOD
+      //                         made 8 caption requests, every body 0 bytes, and
+      //                         created no `.ytp-caption-window-container` — the
+      //                         player had nothing to render. A notice that timed
+      //                         out after 8s left the user with a blank overlay
+      //                         and no explanation, having been told a moment
+      //                         earlier that realtime mode was working.
+      //   container, no text    the playhead is simply on silence. This does
+      //                         resolve itself, so the notice should expire.
+      //
+      // So the first case gets a notice that stays until something changes, and
+      // says the honest thing: this cannot work here.
+      const win = document.querySelector('.ytp-caption-window-container');
+      if (!win && !isLive) {
         overlay.setNotice(
-          isLive
-            ? '直播模式：逐句实时翻译，比点播稍慢'
-            : '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
-          8000
+          '整轨字幕和播放器自绘字幕都没拿到——这个视频的字幕无法获取，本页翻译不可用。' +
+            '可到诊断页复制信息上报',
+          0
         );
+        return;
       }
+      overlay.setNotice(
+        isLive
+          ? '直播模式：逐句实时翻译，比点播稍慢'
+          : '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
+        8000
+      );
     }, FIRST_LINE_GRACE_MS);
   }
 

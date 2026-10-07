@@ -150,9 +150,14 @@
    *
    * This used to require `isLive`, which excluded the case that needs it most: a
    * VOD whose track fetch came back empty. The player renders captions on VOD
-   * exactly as it does on a stream (measured — five consecutive lines read out of
-   * the DOM while `fetch(track.baseUrl)` returned HTTP 200 with a 0-byte body),
-   * so the only requirements are a video and a player that has captions on.
+   * too — measured: a fallback run whose caption requests carried no `pot` at all
+   * still read real lines out of the DOM (2 read, 1 translated) — so the only
+   * requirements are a video and a player that has captions on.
+   *
+   * "Often", not "always". In the same batch of runs one VOD fetched 8 caption
+   * responses, all of them 0 bytes, created no caption container, and left this
+   * with nothing to read. So this is a rescue for the common case, and the caller
+   * must still be able to say that it read nothing rather than implying success.
    *
    * The caller decides WHEN to use this: `youtube.js` only reaches here after the
    * whole-track path has already been tried and failed, so this never displaces

@@ -265,5 +265,44 @@ for (const [suite, script] of [
   );
 }
 
+// ---------------------------------------------------------------------------
+// 6. The realtime fallback is a rescue for the common case, not a guarantee
+// ---------------------------------------------------------------------------
+// An earlier revision claimed the fallback meant "you get subtitles either way".
+// That was one measurement too confident: headed runs on the same video produced
+// a fast-path success, a fallback that genuinely read lines with no `pot` in any
+// request, AND a total failure (8 requests, all bodies 0 bytes, no caption
+// container created, 0 lines read). Overclaiming here is the exact mistake this
+// file exists to catch, so the correction is pinned rather than trusted to stay
+// edited. Both READMEs must keep the measured wording, and the code comment must
+// not re-acquire the specific figure that was never measured.
+const readmeZh = read('README.zh-CN.md');
+check(
+  !/get subtitles either way/i.test(readmeEn),
+  'the English README does not promise subtitles either way',
+  'the overconfident claim is back'
+);
+check(
+  !/两条路都能出字幕/.test(readmeZh),
+  'the Chinese README does not promise subtitles either way',
+  'the overconfident claim is back'
+);
+check(
+  /读到 2 行/.test(readmeZh) && /0 bytes/.test(readmeEn),
+  'both READMEs keep the measurements the correction rests on',
+  'the evidence for "often, not always" was dropped'
+);
+const liveSrc = read('src/content/live.js');
+check(
+  !/five consecutive lines/.test(liveSrc),
+  'no unmeasured figure is quoted as measurement in live.js',
+  'the "five consecutive lines" claim is back'
+);
+check(
+  /Often.*not.*always|not.*always/.test(liveSrc) || /一个 pot 都没有/.test(liveSrc) || /measured/.test(liveSrc),
+  'live.js still records why this is a common-case rescue',
+  'the caveat was dropped from live.js'
+);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

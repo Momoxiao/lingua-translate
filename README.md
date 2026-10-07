@@ -11,6 +11,10 @@
 
 A Chrome / Edge extension (Manifest V3) that translates **YouTube captions in sync with playback** and **web pages without destroying the original**. You bring the translation service — OpenAI-compatible (OpenAI, DeepSeek, Kimi, GLM, Qwen, SiliconFlow, OpenRouter, Groq, or your own Ollama / LM Studio / one-api), DeepL, Google, Microsoft Azure, or literally any HTTP endpoint you describe yourself.
 
+| YouTube · captions translated in sync with playback |
+| --- |
+| ![bilingual YouTube subtitles, original above and translation below](docs/player-yt-1x.png) |
+
 | Web page · bilingual | Web page · translated only | Popup · video panel | Diagnostics |
 | --- | --- | --- | --- |
 | ![bilingual web page](docs/page-bilingual.png) | ![translated-only web page](docs/page-replace.png) | ![popup video panel](docs/popup.png) | ![diagnostics page](docs/diagnostics.png) |
@@ -27,7 +31,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **10,677 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **10,682 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -90,7 +94,7 @@ npm run test:live   #  36 — the realtime caption fallback, and when it must NO
 npm run test:dom    # 164 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 145 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  74 — real Chrome, unpacked extension, real HTTP page
-npm run check:docs  #  46 — the numbers quoted in this file are still true
+npm run check:docs  #  51 — the numbers quoted in this file are still true
 
 npm run preview     # render every UI surface to PNG
 npm run smoke       # live captions against real YouTube (throwaway profile)
@@ -114,7 +118,9 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   So the whole-track path is **timing-dependent, not permanently broken**: `extractCues()` nudges the player and sniffs the token from the request the player then makes itself, and whether that lands inside the ~10 s window decides the outcome. The same command on the same video produced both `60/60 cues translated` (token sniffed in time) and a fall-through (token arrived too late) across consecutive runs.
 
-  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is *still rendering the lines it is speaking* into `.ytp-caption-segment`. `live.js` reads those and translates them one at a time. You get subtitles either way; the fallback trades the pre-fetch ahead of the playhead for a beat of latency, one line at a time, and says so on screen instead of going blank. That a fallback engaged is reported by `npm run smoke`, which counts the lines read and translated rather than just printing a status.
+  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time, trading the pre-fetch ahead of the playhead for a beat of latency, one line at a time, and saying so on screen instead of going blank.
+
+  **"Often", not "always" — and that distinction is measured, not hedged.** Across one evening of headed runs on the same video: three runs took the fast path (`pot=有`, ~1.2 KB responses, 60/60 cues); one run fell back and *did* read real lines (`实时兜底 读到 2 行 · 译出 1 行`) even though none of the requests in that run carried a `pot`; and one run failed completely — 8 caption requests, none with a `pot`, all 8 response bodies read as **0 bytes** (captured bodies, not a byte-count inference), the player created no caption container, and the fallback read 0 lines. So the fallback rescues the common case, not every case, and the earlier wording promised captions on both paths, and that was one measurement too confident. `npm run smoke` prints the DOM reading beside the line counters — container present or not, how many `.ytp-caption-segment` nodes, and their text — so a zero-line fallback now says which of the two it was instead of telling you to run it again.
 - On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path is slower and translates line by line rather than ahead of the playhead.
 - Only the Chinese UI ships today. `_locales` is on the roadmap; the settings page and popup are Chinese until then.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.

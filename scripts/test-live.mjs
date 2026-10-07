@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 33;
+const EXPECTED_ASSERTIONS = 36;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -313,10 +313,22 @@ function makeYouTube(opts) {
     },
     bridge: {
       probe() {}, setBadge() {}, initPageChannel() {},
-      onCaption() {}, onTranscript() {},
+      onCaption(cb) { sandbox.onCaptionCb = cb; }, onTranscript() {},
       onTracks(cb) { sandbox.onTracksCb = cb; },
       onWireCaptions() {},
-      fetchTrack: async () => ({ body: feed.body, status: 200 }),
+      fetchTrack: async () => {
+        // The player's own caption response, delivered the way inject.js
+        // delivers it. Done here so it lands after `waitForWireCaptions` has
+        // registered its sniffer (it runs first in `extractCues`) but before the
+        // clamped-to-0 timeout resolves the promise.
+        if (!feed.wirePushed && o.wireBody !== undefined) {
+          feed.wirePushed = true;
+          if (sandbox.onCaptionCb) {
+            sandbox.onCaptionCb({ body: o.wireBody, url: 'https://example/timedtext?sig=abc&pot=xyz' });
+          }
+        }
+        return { body: feed.body, status: 200 };
+      },
       translate: async () => ({ results: [] }),
       isAlive: () => true,
       contextError: () => ({ message: '' }),
@@ -342,8 +354,8 @@ function makeYouTube(opts) {
     // `start()` has registered the track handler and entered `load()`, which is
     // now parked on `waitForTracks`. Hand it the track list the player reported.
     sandbox.onTracksCb({ tracks, defaultIndex: 0, videoId: 'abc' });
-    // Let the pipeline unwind: waitForTracks -> extractCues -> (fallback | setCues).
-    for (let i = 0; i < 12; i++) await new Promise((r) => setTimeout(r, 0));
+    // Let it finish: extractCues -> (fallback | setCues).
+    for (let i = 0; i < 16; i++) await new Promise((r) => setTimeout(r, 0));
   }
 
   return { Y, calls, load, store };
@@ -440,6 +452,37 @@ function makeYouTube(opts) {
   await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
   check('空响应兜底时原因记为 empty-track', yt.calls.reasons.includes('empty-track'), JSON.stringify(yt.calls.reasons));
   check('空响应不会记成解析问题', !yt.calls.reasons.includes('unparsed-track'), JSON.stringify(yt.calls.reasons));
+}
+
+{
+  // The PLAYER's own caption response is a caption response. If it is non-empty
+  // and our parser reads none of it, the fault is ours — but only the direct
+  // fetches were counted, so a 4 KB body the player fetched was reported as the
+  // PoToken timing race. Same wrong layer, one level further in.
+  const yt = makeYouTube({ canHandle: false, body: '', wireBody: 'a player-fetched body we cannot parse' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check(
+    '播放器自己取回的非空响应也算进响应大小',
+    yt.calls.reasons.includes('unparsed-track'),
+    JSON.stringify(yt.calls.reasons)
+  );
+  check(
+    '不会把播放器取回的数据说成「没取回来」',
+    !yt.calls.reasons.includes('empty-track'),
+    JSON.stringify(yt.calls.reasons)
+  );
+}
+
+{
+  // And the wire path must not invent a size: when the player fetched nothing
+  // either, it is still the PoToken case.
+  const yt = makeYouTube({ canHandle: false, body: '', wireBody: '' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check(
+    '播放器也没取回数据时仍是 empty-track',
+    yt.calls.reasons.includes('empty-track'),
+    JSON.stringify(yt.calls.reasons)
+  );
 }
 
 // ---------------------------------------------------------------------------

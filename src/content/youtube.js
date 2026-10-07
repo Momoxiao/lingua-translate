@@ -154,16 +154,25 @@
   function waitForWireCaptions(timeoutMs = 9000) {
     return new Promise((resolve) => {
       let settled = false;
+      // The largest body the player fetched, even when we cannot parse it. This
+      // is the only place that sees the player's own response: if the player got
+      // 4 KB and our parser read none of it, the failure is ours, but without
+      // recording the size the caller counts only its own (empty) responses and
+      // reports the PoToken timing race instead. Same wrong-layer bug as the
+      // direct path, one layer further in.
+      let wireBytes = 0;
       const done = (payload) => {
         if (settled) return;
         settled = true;
         captionSniffers.delete(onCaption);
         transcriptSniffers.delete(onTranscript);
         clearTimeout(timer);
-        resolve(payload);
+        resolve({ wireBytes, ...payload });
       };
       const onCaption = ({ body, url }) => {
-        const cues = subtitles.parseTimedText(body);
+        const text = body || '';
+        if (text.length > wireBytes) wireBytes = text.length;
+        const cues = subtitles.parseTimedText(text);
         if (cues.length) done({ cues, url: url || null });
       };
       const onTranscript = (json) => {
@@ -279,6 +288,9 @@
     // 3. whatever the player just fetched for us (it was nudged above)
     const sniffed = await wirePromise;
     if (sniffed.url) signedTemplate = sniffed.url;
+    // The player's own fetch is a caption response too, so its size counts. Its
+    // body was already parsed above; only the size survives to here.
+    if (sniffed.wireBytes) maxBytes = Math.max(maxBytes, sniffed.wireBytes);
 
     signed = potParamsFrom(sniffed.url);
     if (signed) {

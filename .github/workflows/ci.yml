@@ -23,7 +23,7 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # 28 assertions, pure Node: the realtime caption fallback. Pins both
+      # 33 assertions, pure Node: the realtime caption fallback. Pins both
       # directions — a VOD whose whole-track fetch failed must be handled, and a
       # video with no captions at all must NOT be, or a clear error would turn
       # into a permanent blank.
@@ -36,7 +36,7 @@ jobs:
       - name: DOM tests
         run: npm run test:dom
 
-      # 125 assertions: popup panel switching, the 600px popup height budget,
+      # 145 assertions: popup panel switching, the 600px popup height budget,
       # settings-page interactions, custom-provider validation, and the
       # diagnostics verdicts (including the two `status: 'empty'` causes, which
       # must not be described with the same sentence).

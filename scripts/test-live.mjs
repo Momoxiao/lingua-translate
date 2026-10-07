@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 28;
+const EXPECTED_ASSERTIONS = 33;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -419,6 +419,27 @@ function makeYouTube(opts) {
   const msg = (yt.calls.notices[0] || {}).msg || '';
   check('空响应的提示仍建议刷新重试', /刷新/.test(msg), msg);
   check('空响应的提示不谎称数据已取回', !/已取回/.test(msg), msg);
+}
+
+{
+  // Fallback engaged AND the response was non-empty. `status: 'live'` alone says
+  // what we fell back to, not what failed — the diagnostics page described every
+  // degraded VOD as the PoToken timing problem, including this one, where the
+  // cause was our parser and reloading could not possibly help.
+  const yt = makeYouTube({ canHandle: true, body: 'not a caption format we know' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check('兜底接管后仍记录真实原因', yt.calls.reasons.includes('unparsed-track'), JSON.stringify(yt.calls.reasons));
+  check('仍然进入实时兜底', yt.calls.liveStarted === 1, `started=${yt.calls.liveStarted}`);
+  check('原因不是空响应', !yt.calls.reasons.includes('empty-track'), JSON.stringify(yt.calls.reasons));
+}
+
+{
+  // The PoToken shape: nothing came back, fallback engaged. Here the cause IS the
+  // timing race, so it must stay on the other branch.
+  const yt = makeYouTube({ canHandle: true, body: '' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check('空响应兜底时原因记为 empty-track', yt.calls.reasons.includes('empty-track'), JSON.stringify(yt.calls.reasons));
+  check('空响应不会记成解析问题', !yt.calls.reasons.includes('unparsed-track'), JSON.stringify(yt.calls.reasons));
 }
 
 // ---------------------------------------------------------------------------

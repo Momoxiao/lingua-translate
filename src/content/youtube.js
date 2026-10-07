@@ -545,14 +545,23 @@
     if (gen !== generation) return;
 
     if (!cues.length) {
+      // Why we ended up here. `status: 'live'` says what we fell back TO, not
+      // what failed: a zero-byte body (the PoToken timing case) and a non-empty
+      // body we could not parse are both "whole-track fetch failed", and the
+      // diagnostics page described both as the PoToken problem. Recording the
+      // cause lets it name the layer that actually broke.
+      const cause = meta.bytes > 0 ? 'unparsed-track' : 'empty-track';
+      store.state.trackBytes = meta.bytes || 0;
+
       // Live / no-track fallback: realtime DOM scraping.
       if (NS.live && NS.live.canHandle()) {
-        store.setStatus(store.STATUS.LIVE);
+        // `setStatus` clears `reason` unless it is passed, so it must travel
+        // with the status that it explains.
+        store.setStatus(store.STATUS.LIVE, { reason: cause });
         NS.live.start(settings);
         return;
       }
-      store.state.trackBytes = meta.bytes || 0;
-      store.setStatus(store.STATUS.EMPTY, { reason: meta.bytes > 0 ? 'unparsed-track' : 'empty-track' });
+      store.setStatus(store.STATUS.EMPTY, { reason: cause });
       // Two causes, two instructions. Telling a user to refresh when the fault is
       // our parser sends them to retry something that cannot work, and hides the
       // bug behind a message that reads like a network hiccup.

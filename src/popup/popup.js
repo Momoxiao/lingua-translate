@@ -188,7 +188,13 @@
           ? '解析失败'
           : empty && empty.reason === 'empty-track'
             ? '取字幕失败'
-            : meta.text;
+            : // `live` covers a real stream AND a VOD whose whole-track fetch
+              // failed. Telling a VOD user "直播模式" says their ordinary video
+              // is a stream, which is both wrong and useless — the actionable
+              // fact is that the fast path degraded and a re-run may recover it.
+              s.status === 'live' && !s.isLiveStream
+              ? '实时兜底'
+              : meta.text;
       setStatus(empty ? empty.tone : meta.tone, pill);
     }
 

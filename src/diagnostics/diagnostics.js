@@ -131,13 +131,34 @@
       // Describing both as "直播字幕" told a VOD user their ordinary video was a
       // stream, and hid the fact that the fast path had degraded.
       const isStream = !!sub.isLiveStream;
+      // And the degraded case itself has two causes, which `reason` separates: a
+      // zero-byte body is the PoToken race (a reload can win it), while a
+      // non-empty body we failed to parse is a parser gap (a reload cannot).
+      // Reporting the second as the first sent users to reload for something
+      // reloading cannot touch — the same "wrong layer" mistake this page exists
+      // to prevent.
+      const unparsed = sub.reason === 'unparsed-track';
+      if (isStream) {
+        return {
+          tone: 'ok',
+          text: '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。',
+        };
+      }
+      if (unparsed) {
+        return {
+          tone: 'warn',
+          text:
+            `整轨字幕取回了非空数据（${sub.trackBytes || 0} 字节）却一条都没解析出来，已自动切换为实时抓取兜底。` +
+            '这是本扩展的解析问题，不是 PoToken 时序问题——重新加载不会解决它。' +
+            '能正常出字幕，但比点播的「提前翻译」慢半拍。请复制下面这段信息开 Issue。',
+        };
+      }
       return {
-        tone: isStream ? 'ok' : 'warn',
-        text: isStream
-          ? '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。'
-          : '整轨字幕没取回来（YouTube 的 PoToken 时序问题），已自动切换为实时抓取：' +
-            '逐句读取播放器正在显示的那一行并翻译，所以这里没有条数。' +
-            '能正常出字幕，但比点播的「提前翻译」慢半拍。重新加载页面常能让整轨路径成功。',
+        tone: 'warn',
+        text:
+          '整轨字幕没取回来（YouTube 的 PoToken 时序问题），已自动切换为实时抓取：' +
+          '逐句读取播放器正在显示的那一行并翻译，所以这里没有条数。' +
+          '能正常出字幕，但比点播的「提前翻译」慢半拍。重新加载页面常能让整轨路径成功。',
       };
     }
     if (!sub.cueCount) {

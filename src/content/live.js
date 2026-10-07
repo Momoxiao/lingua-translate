@@ -56,6 +56,20 @@
 
   const MAX_CACHE = 500;
 
+  /**
+   * Can the player render a caption here at all?
+   *
+   * This is the difference between "the playhead is on silence" (benign, and it
+   * passes) and "this page will never show a caption" (permanent), and the two
+   * need opposite words. Measured: a VOD whose 8 caption responses were all 0
+   * bytes never created the container, so polling could not have succeeded no
+   * matter how long it ran. Published so the popup can say the same thing the
+   * overlay does, instead of "waiting for the first line" forever.
+   */
+  function hasCaptionContainer() {
+    return !!document.querySelector('.ytp-caption-window-container');
+  }
+
   function readCaption() {
     const win = document.querySelector('.ytp-caption-window-container .ytp-caption-window-bottom') ||
       document.querySelector('.ytp-caption-window-container');
@@ -234,8 +248,7 @@
       //
       // So the first case gets a notice that stays until something changes, and
       // says the honest thing: this cannot work here.
-      const win = document.querySelector('.ytp-caption-window-container');
-      if (!win && !isLive) {
+      if (!hasCaptionContainer() && !isLive) {
         overlay.setNotice(
           '整轨字幕和播放器自绘字幕都没拿到——这个视频的字幕无法获取，本页翻译不可用。' +
             '可到诊断页复制信息上报',
@@ -269,5 +282,14 @@
     overlay.setLive(null);
   }
 
-  NS.live = { start, stop, canHandle, stats: () => ({ ...liveStats }) };
+  // `hasContainer` is part of the stats a surface reads: the popup uses it to
+  // stop printing "waiting for the first line" for a page that will never render
+  // one, which is the same false-comfort this file's notice guards against.
+  NS.live = {
+    start,
+    stop,
+    canHandle,
+    hasCaptionContainer,
+    stats: () => ({ ...liveStats, hasContainer: hasCaptionContainer() }),
+  };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

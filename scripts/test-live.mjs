@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 46;
+const EXPECTED_ASSERTIONS = 49;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -274,6 +274,22 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   if (grace) grace();
   const fired = calls.notices.filter((n) => n.msg).pop() || {};
   check('直播流不会收到「本页字幕拿不到」的提示', !/无法获取/.test(fired.msg || ''), fired.msg || '(无)');
+}
+
+{
+  // The popup needs the same fact the overlay uses, and it must be published
+  // rather than re-derived: a second copy of "is there a container" in popup.js
+  // is how two surfaces end up disagreeing about the same page.
+  const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
+  const { live } = loadLive(env);
+  check('没有字幕容器时，stats 里 hasContainer 为 false', live.stats().hasContainer === false, JSON.stringify(live.stats()));
+  check('hasCaptionContainer 也对外可直接调用', live.hasCaptionContainer() === false);
+}
+
+{
+  const env = makeEnv({ captions: ['hi'], duration: 300, tracklist: [{ languageCode: 'en' }] });
+  const { live } = loadLive(env);
+  check('有字幕容器时，stats 里 hasContainer 为 true', live.stats().hasContainer === true, JSON.stringify(live.stats()));
 }
 
 {

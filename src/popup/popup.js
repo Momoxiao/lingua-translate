@@ -214,7 +214,17 @@
       ui.progressBox.hidden = false;
       ui.progressBar.style.width = '100%';
       ui.progressNum.textContent = `${liveStats ? liveStats.translated || 0 : 0} 句`;
-      ui.progressLabel.textContent = liveStats && liveStats.lines ? '实时翻译中' : '实时翻译（等待第一句）';
+      // "等待第一句" is right when the player renders captions and the playhead
+      // is merely on silence. It is false comfort when the player never created
+      // a caption container: nothing will ever arrive, so waiting is not the
+      // action — the overlay says the same thing, and both read the one measured
+      // fact rather than each guessing.
+      const doomed = liveStats && liveStats.hasContainer === false && !s.isLiveStream;
+      ui.progressLabel.textContent = doomed
+        ? '取不到字幕（本页不可用）'
+        : liveStats && liveStats.lines
+          ? '实时翻译中'
+          : '实时翻译（等待第一句）';
     } else {
       ui.progressBox.hidden = false;
       const pct = Math.round(((s.translated || 0) / s.cueCount) * 100);

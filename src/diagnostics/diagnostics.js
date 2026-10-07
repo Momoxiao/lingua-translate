@@ -38,7 +38,11 @@
   }
 
   function row(label, value) {
-    return `  ${pad(label, 14)}${value}`;
+    // Always keep at least one space: a label that reaches the column width
+    // exactly (e.g. a 7-character CJK label at 14 columns) would otherwise butt
+    // straight against its value, and since this text is copied into issue
+    // reports, "播放器字幕容器不存在" reads as one run-on token.
+    return `  ${label}${' '.repeat(Math.max(1, 14 - displayWidth(label)))}${value}`;
   }
 
   function section(title) {
@@ -270,6 +274,13 @@
     if (sub.live) {
       out.push(row('实时已读行数', String(sub.live.lines || 0)));
       out.push(row('实时已译行数', String(sub.live.translated || 0)));
+      // The count above is 0 in two situations needing opposite advice: the
+      // playhead is on silence (it will pass), or the player never created a
+      // caption container (it never will). Without this row neither the reporter
+      // nor a maintainer reading the issue can tell which one they have.
+      if (sub.live.hasContainer === false) {
+        out.push(row('播放器字幕容器', '不存在 —— 实时兜底不可能读到任何一行'));
+      }
     }
     if (sub.error) out.push(row('错误', sub.error));
 

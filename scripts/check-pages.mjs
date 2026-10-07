@@ -355,6 +355,31 @@ const REALTIME_STATE = {
 };
 
 /**
+ * A fallback that cannot succeed: the player never created a caption container.
+ *
+ * Measured: 8 caption responses, every body 0 bytes, no
+ * `.ytp-caption-window-container`. `lines` stays 0 forever, so any surface that
+ * reads "0 lines" as "not yet" is telling the user to wait for something that
+ * will never come. The popup printed `实时翻译（等待第一句）` here.
+ */
+const REALTIME_DOOMED_STATE = {
+  subtitle: {
+    status: 'live',
+    reason: 'empty-track',
+    videoId: 'dQw4w9WgXcQ',
+    liveMode: true,
+    isLiveStream: false,
+    error: '',
+    cueCount: 0,
+    translated: 0,
+    live: { lines: 0, translated: 0, hasContainer: false },
+    tracks: [{ languageCode: 'en', name: 'English', kind: '' }],
+    sourceTrack: { languageCode: 'en', name: 'English' },
+    enabled: true,
+  },
+};
+
+/**
  * The two causes of `status: 'live'`, which need different verdicts.
  *
  * A live stream legitimately has no whole track, so realtime is the normal path.
@@ -439,6 +464,15 @@ const PAGES = [
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: REALTIME_DOOMED_STATE },
+    width: 356,
+    kind: 'popup-realtime-doomed',
+    label: '弹窗 · 兜底注定无效',
+    probe: popupProbe('视频字幕'),
+  },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     patch: { __state: LIVE_STREAM_STATE },
     width: 356,
     kind: 'popup-live-stream',
@@ -479,6 +513,15 @@ const PAGES = [
     width: 900,
     kind: 'diagnostics-realtime-unparsed',
     label: '诊断页 · 点播降级且响应非空',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __state: REALTIME_DOOMED_STATE },
+    width: 900,
+    kind: 'diagnostics-realtime-doomed',
+    label: '诊断页 · 兜底不可能成功',
     probe: DIAGNOSTICS_PROBE,
   },
   {
@@ -578,7 +621,7 @@ let passed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 145;
+const EXPECTED_ASSERTIONS = 162;
 
 function check(ok, name, detail) {
   if (ok) {
@@ -681,7 +724,7 @@ for (const page of PAGES) {
       check(!/没有可用字幕/.test(p.note), 'the note never claims there are no captions', p.note);
       check(/上报/.test(p.note), 'the note tells the user to report it', p.note);
       check(p.noteTone === 'warn', 'the tone stays a warning, not an error', p.noteTone);
-    } else if (page.kind === 'popup-live-stream' || page.kind === 'popup-realtime') {
+    } else if (/^popup-(live-stream|realtime(-doomed)?)$/.test(page.kind)) {
       // The pill must not call a degraded VOD a "直播模式": that tells the user
       // their ordinary video is a stream, and hides the actionable fact that the
       // whole-track fast path degraded and a re-run may recover it.
@@ -694,6 +737,21 @@ for (const page of PAGES) {
           p.pill
         );
         check(/兜底|重试/.test(p.pill), 'it names the fallback instead', p.pill);
+      }
+      // When the player never created a caption container, no line can ever
+      // arrive. "等待第一句" is then not patience, it is false comfort, and it
+      // was exactly what this panel said for a page that could never work.
+      if (page.kind === 'popup-realtime-doomed') {
+        check(
+          !/等待第一句/.test(p.progressLabel),
+          'a doomed fallback does not tell the user to wait for a line',
+          p.progressLabel
+        );
+        check(
+          /取不到|不可用/.test(p.progressLabel),
+          'it says the captions cannot be fetched here',
+          p.progressLabel
+        );
       }
       // Realtime mode stores no cues, so progress must NOT be read from
       // cueCount — that hid the row and disabled the button while lines were
@@ -778,6 +836,17 @@ for (const page of PAGES) {
         'it never claims nothing came back'
       );
       check(/字幕响应大小\s+\d+\s*字节/.test(probe.report || ''), 'the report shows the response size', probe.report);
+    } else if (page.kind === 'diagnostics-realtime-doomed') {
+      // The report must say the fallback cannot succeed, not merely that 0 lines
+      // were read — those two read identically in a pasted issue, but one means
+      // "wait" and the other means "this page will never work".
+      check(/实时已读行数\s+0/.test(probe.report || ''), 'the report still prints the zero it read', probe.report);
+      check(
+        /播放器字幕容器\s+不存在/.test(probe.report || ''),
+        'the report says the container never existed, which is why nothing arrived',
+        (probe.report || '').split('\n').filter((l) => /实时|容器|字幕条数/.test(l)).join(' | ') || '(无相关行)'
+      );
+      check(probe.tone === 'warn', 'a doomed fallback is a warning', probe.tone);
     } else if (rtUnparsed) {
       // The fallback engaged, so the counters still move — but the verdict must
       // name our parser, not the PoToken race, and must not send the user to

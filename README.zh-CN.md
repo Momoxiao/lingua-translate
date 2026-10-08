@@ -78,6 +78,8 @@
 
 安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
+下载后，把 `lingua-0.2.1.zip` 和 `lingua-0.2.1.zip.sha256` 放在同一目录，从该目录执行：
+
 ```bash
 shasum -a 256 -c lingua-0.2.1.zip.sha256
 ```

@@ -84,6 +84,8 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 git clone https://github.com/Momoxiao/lingua-translate.git
 ```
 
+To verify the download, run this from the folder containing **both** downloaded files:
+
 ```bash
 shasum -a 256 -c lingua-0.2.1.zip.sha256
 ```

@@ -109,7 +109,7 @@ Two things that turned out to be genuinely hard, in case they're useful:
 
 There's no build step and no dependencies — manifest.json plus src/, ~10k lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
-the published SHA-256 means something. 467 assertions, including a real Chrome e2e.
+the published SHA-256 means something. 592 assertions, including a real Chrome e2e.
 
 Known limitation, stated up front: the caption path depends on YouTube's private
 interface and is not covered by CI. It can break without warning.
@@ -156,7 +156,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 | 2 | 商店截图 1280×800 | ✅ 已补齐 | `store/screenshots/` 5 张，全部恰好 1280×800、无 alpha，按商店尺寸重新构图（非缩放）。`npm run shots` 重新生成。详见 [`store/SUBMISSION.md`](../store/SUBMISSION.md) |
 | 3 | 300×300 商店图标 | ✅ 已补齐 | `store/icon-300.png`，由 `npm run release:assets` 单独重绘，未放大 128×128。 |
 | 4 | GitHub social preview | ✅ 已补齐 | `docs/social-preview.png`，1280×640，由 `npm run release:assets` 单独排版。 |
-| 5 | 小促销图 440×280 | ❌ 未做 | 可选，商店列表位 |
+| 5 | 商店促销图 440×280 / 1400×560 | ✅ 已补齐 | `store/promo-440x280.png`、`store/promo-1400x560.png`，由 `npm run release:assets` 重新生成 |
 
 ## 六、不要做的事
 
@@ -169,13 +169,13 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 
 ## 七、仓库设置清单（这些只能在网页后台点，我改不了）
 
-- [ ] **Topics**：`chrome-extension` `translation` `youtube` `subtitles` `bilingual` `openai` `ollama` `manifest-v3` `privacy` `edge-extension`
-- [ ] **About 描述**：一句话英文，和 README 首行一致
-- [ ] **About 里的 Website**：商店链接（上架后再填）
+- [x] **Topics**：已设置 13 个，覆盖 `chrome-extension`、`edge-extension`、`browser-extension`、`translation`、`youtube`、`subtitles`、`bilingual-subtitles`、`webpage-translation`、`openai`、`deepseek`、`ollama`、`manifest-v3`、`privacy`
+- [x] **About 描述**：已设置为英文，与 README 的定位一致
+- [x] **About 里的 Website**：暂指向最新 Release；商店上架后改成商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
-- [ ] **Discussions**：打开，收集反馈比 issue 轻
-- [ ] **Releases**：0.2.1 上传 zip + `.sha256`（`npm run dist` 已经把两个都生成好了）
-- [ ] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（现在已识别为 MIT ✓）
+- [x] **Discussions**：已打开
+- [x] **Releases**：`v0.2.1` 已上传 zip + `.sha256`
+- [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）
 

@@ -224,7 +224,8 @@ function render(args, timeoutMs = 60000) {
 
 let failed = 0;
 for (const shot of SHOTS) {
-  const tmp = path.join(ROOT, `__store-${shot.name}.html`);
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-page-${shot.name}-`));
+  const tmp = path.join(tmpDir, 'page.html');
   fs.writeFileSync(tmp, canvasHtml(shot));
   const out = path.join(OUT, `${shot.name}.png`);
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-${shot.name}-`));
@@ -249,7 +250,7 @@ for (const shot of SHOTS) {
   ]);
 
   try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* ignore */ }
-  fs.unlinkSync(tmp);
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 
   if (!dataUri(shot.src)) {
     failed++;

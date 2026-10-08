@@ -54,7 +54,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **12,344 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,400 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -116,9 +116,9 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 592 assertions across four suites, plus the docs-drift guard
+npm run check       # 601 assertions across four suites, plus the docs-drift guard
 npm test            # 190 — core logic: batching, parsing, all five providers
-npm run test:live   #  49 — the realtime caption fallback, and when it must NOT engage
+npm run test:live   #  58 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page

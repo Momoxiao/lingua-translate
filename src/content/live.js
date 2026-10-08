@@ -71,19 +71,75 @@
     return !!document.querySelector('.ytp-caption-window-container');
   }
 
+  /**
+   * Normalise a rendered caption before deciding whether it is spoken text.
+   *
+   * YouTube leaves zero-width direction marks in some segments; `trim()` does
+   * not remove them, so treating them as text produced a translated empty line
+   * in headed smoke runs. C0/C1 controls have the same problem.
+   */
+  function normaliseCaption(raw) {
+    return String(raw || '')
+      .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Is this line YouTube's caption-settings UI rather than dialogue?
+   *
+   * The player renders the "language / click / view settings" affordance into
+   * the same `.ytp-caption-segment` nodes as real captions. A headed smoke run
+   * captured it as `德语（德国） 点击 查看设置` and the fallback translated it.
+   * There is no class or ARIA marker separating the two, so the discriminator
+   * has to be the whole line's shape.
+   *
+   * Keep this deliberately narrow: it only fires when the line contains the
+   * settings affordance AND consists of a language choice and/or the expected
+   * click wording. A real sentence that merely mentions settings keeps its
+   * translation.
+   */
+  function isCaptionSettingsPrompt(text) {
+    if (!text || text.length > 120) return false;
+
+    const settings = /(?:click|tap)\b[\s\S]{0,24}\b(?:settings|options)\b|查看设置|点击\s*查看设置|點擊\s*查看設定|設定を見る|クリックして設定|설정\s*보기|ver\s+configuración|voir\s+les\s+paramètres|einstellungen\s+anzeigen/i;
+    const withoutPunctuation = text.replace(/[，。！？、,.!?;:：；—–-]/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = withoutPunctuation.split(' ').filter(Boolean);
+    const languageChunk =
+      /^(?:[\p{L}\p{M}'’.-]+\s*){1,4}$/u.test(withoutPunctuation) ||
+      /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\s]{2,16}$/u.test(withoutPunctuation);
+    const languageOnly =
+      /^(?:[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]{1,12}|[\p{L}\p{M}'’.-]+(?:\s+[\p{L}\p{M}'’.-]+){0,3})\s*[（(][^()（）]{1,24}[)）]\s*$/u;
+
+    const affordance = settings.exec(text);
+    if (!affordance) {
+      // A lone localised language name in parentheses is the other half of the
+      // same affordance on some locales.
+      return languageOnly.test(text);
+    }
+    const before = text.slice(0, affordance.index).trim();
+    if (!before) return true;
+    if (languageOnly.test(before)) return true;
+    const beforeWords = before.replace(/\s+/g, ' ').split(' ').filter(Boolean);
+    return beforeWords.length <= 4 && languageChunk && /^[\p{L}\p{M}'’().（）\s-]+$/u.test(before);
+  }
+
   function readCaption() {
     const win = document.querySelector('.ytp-caption-window-container .ytp-caption-window-bottom') ||
       document.querySelector('.ytp-caption-window-container');
     if (!win) return '';
     const segs = win.querySelectorAll('.ytp-caption-segment');
     if (segs.length) {
-      let out = '';
+      const parts = [];
       segs.forEach((s) => {
-        out += (s.textContent || '') + ' ';
+        const part = normaliseCaption(s.textContent);
+        if (part) parts.push(part);
       });
-      return out.replace(/\s+/g, ' ').trim();
+      const text = parts.join(' ');
+      return isCaptionSettingsPrompt(text) ? '' : text;
     }
-    return (win.textContent || '').replace(/\s+/g, ' ').trim();
+    const text = normaliseCaption(win.textContent);
+    return isCaptionSettingsPrompt(text) ? '' : text;
   }
 
   function translateNow(text) {

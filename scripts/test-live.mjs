@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 49;
+const EXPECTED_ASSERTIONS = 58;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -103,9 +103,16 @@ function makeEnv({ captions = [], live = false, duration = 300, tracklist = null
 /** Load live.js fresh against a given document, with minimal Lingua stubs. */
 function loadLive(env, overrides = {}) {
   const calls = { notices: [], live: [], badge: [], forceCaption: 0, intervals: [], timers: [] };
+  let now = 0;
+  const clock = {
+    now: () => now,
+    advance: (ms) => {
+      now += ms;
+    },
+  };
   const sandbox = {
     console,
-    Date,
+    Date: { now: clock.now },
     Map,
     setTimeout: (fn, ms) => {
       calls.notices.push({ ms });
@@ -139,7 +146,7 @@ function loadLive(env, overrides = {}) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'src/content/live.js'), 'utf8'), ctx, {
     filename: 'src/content/live.js',
   });
-  return { live: ctx.Lingua.live, calls };
+  return { live: ctx.Lingua.live, calls, clock };
 }
 
 // ---------------------------------------------------------------------------
@@ -208,7 +215,7 @@ console.log('\n实时字幕兜底 · start/stop 的行为');
 
 {
   const env = makeEnv({ captions: ['a'], duration: 300, tracklist: [{ languageCode: 'en' }] });
-  const { live, calls } = loadLive(env);
+  const { live, calls, clock } = loadLive(env);
   // The notice must be scheduled with a delay, not fired immediately: on a VOD
   // the opening seconds are legitimately silent, and crying failure there would
   // be wrong.
@@ -229,7 +236,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   // line, so an 8s "realtime mode" notice would expire and leave a blank overlay
   // with no explanation — after having implied it was working.
   const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
-  const { live, calls } = loadLive(env);
+  const { live, calls, clock } = loadLive(env);
   live.start({ enabled: true });
   const grace = calls.timers[calls.timers.length - 1];
   check('宽限期回调被安排下来了', typeof grace === 'function');
@@ -251,7 +258,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   // Force the container to exist even with no segments.
   env.doc.querySelector = ((orig) => (sel) =>
     sel === '.ytp-caption-window-container' ? env.container : orig(sel))(env.doc.querySelector);
-  const { live, calls } = loadLive(env);
+  const { live, calls, clock } = loadLive(env);
   live.start({ enabled: true });
   const grace = calls.timers[calls.timers.length - 1];
   if (grace) grace();
@@ -268,7 +275,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   // A real stream has no container either, but it is not a failure — the live
   // copy must still be used, not the "unavailable" one.
   const env = makeEnv({ captions: [], live: true });
-  const { live, calls } = loadLive(env);
+  const { live, calls, clock } = loadLive(env);
   live.start({ enabled: true });
   const grace = calls.timers[calls.timers.length - 1];
   if (grace) grace();
@@ -296,7 +303,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   // The permanent notice is a claim about the future; the first real line must
   // retract it, or the overlay shows a translation AND a denial at once.
   const env = makeEnv({ captions: [], duration: 300, tracklist: [{ languageCode: 'en' }], withCcButton: true });
-  const { live, calls } = loadLive(env);
+  const { live, calls, clock } = loadLive(env);
   live.start({ enabled: true });
 
   // 1. The permanent notice is showing.
@@ -361,6 +368,122 @@ console.log('\n实时字幕兜底 · 区分「直播」与「点播降级」');
   });
   live.start({ enabled: true });
   check('真实直播进入兜底时 isLiveStream 为 true', state.isLiveStream === true, `got ${state.isLiveStream}`);
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n实时字幕兜底 · 不把播放器 UI 当成台词');
+
+{
+  // Captured from a headed run on 2026-10-08. YouTube rendered its caption
+  // language/settings affordance into the same `.ytp-caption-segment` nodes as
+  // dialogue, and the fallback translated it as `〔译〕德语（德国） 点击 查看设置`.
+  const env = makeEnv({
+    captions: ['德语（德国）', '点击  查看设置'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls, clock } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check(
+    '语言/设置提示不会显示到悬浮层',
+    !calls.live.some(([o]) => /德语（德国）|查看设置/.test(o || '')),
+    JSON.stringify(calls.live)
+  );
+  check(
+    '设置提示不会触发翻译请求',
+    !calls.live.some(([o, t]) => /德语（德国）/.test(o || '') && !!t),
+    JSON.stringify(calls.live)
+  );
+}
+
+{
+  // The filter must stay narrow: a real sentence that mentions settings is
+  // still dialogue and must be translated.
+  const env = makeEnv({
+    captions: ['Open the settings menu to change the playback speed'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls, clock } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check(
+    '正常台词里出现 settings 不会被误杀',
+    calls.live.some(([o]) => o === 'Open the settings menu to change the playback speed'),
+    JSON.stringify(calls.live)
+  );
+  clock.advance(200);
+  calls.poll();
+  await new Promise((r) => setTimeout(r, 0));
+  check(
+    '正常 settings 台词仍会送去翻译',
+    calls.live.some(([o, t]) => o === 'Open the settings menu to change the playback speed' && t),
+    JSON.stringify(calls.live)
+  );
+}
+
+{
+  // Another headed-run artifact: the segment contained only zero-width bidi
+  // characters. `trim()` left them intact, so the fallback counted a line and
+  // translated an empty string.
+  const env = makeEnv({
+    captions: ['\u200b\u200e'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check('只有零宽控制字符的段视为无字幕', !calls.live.some(([o]) => o), JSON.stringify(calls.live));
+  check('零宽段不会进入翻译计数', live.stats().lines === 0, JSON.stringify(live.stats()));
+}
+
+{
+  const env = makeEnv({
+    captions: ['\u200bHello\u200e', '\u2060world'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check(
+    '零宽标记夹着正常文字时只保留文字',
+    calls.live.some(([o]) => o === 'Hello world'),
+    JSON.stringify(calls.live)
+  );
+}
+
+{
+  // The bare localised language label is the same affordance in locales that
+  // show the settings action separately.
+  const env = makeEnv({
+    captions: ['Deutsch (Deutschland)'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check('单独的本地化语言名不会当成台词', !calls.live.some(([o]) => o), JSON.stringify(calls.live));
+}
+
+{
+  // Guard the other direction: an ordinary parenthesised line must survive.
+  const env = makeEnv({
+    captions: ['This is a normal line (with a parenthetical)'],
+    duration: 300,
+    tracklist: [{ languageCode: 'en' }],
+  });
+  const { live, calls } = loadLive(env);
+  live.start({ enabled: true });
+  calls.poll();
+  check(
+    '普通括号台词不会被当成语言提示',
+    calls.live.some(([o]) => o === 'This is a normal line (with a parenthetical)'),
+    JSON.stringify(calls.live)
+  );
 }
 
 // ---------------------------------------------------------------------------

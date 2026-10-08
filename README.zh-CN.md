@@ -417,9 +417,9 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
-npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 592 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
+npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 601 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
 npm test            # 核心逻辑测试（190 项，无需浏览器、无依赖）
-npm run test:live   # 实时字幕兜底：什么时候该接管、什么时候必须拒绝接管（49 项）
+npm run test:live   # 实时字幕兜底：什么时候该接管、什么时候必须拒绝接管（58 项）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）

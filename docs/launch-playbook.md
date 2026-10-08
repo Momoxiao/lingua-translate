@@ -109,7 +109,7 @@ Two things that turned out to be genuinely hard, in case they're useful:
 
 There's no build step and no dependencies — manifest.json plus src/, ~10k lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
-the published SHA-256 means something. 592 assertions, including a real Chrome e2e.
+the published SHA-256 means something. 601 assertions, including a real Chrome e2e.
 
 Known limitation, stated up front: the caption path depends on YouTube's private
 interface and is not covered by CI. It can break without warning.
@@ -174,7 +174,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [x] **About 里的 Website**：暂指向最新 Release；商店上架后改成商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.1` 已上传 zip + `.sha256`
+- [x] **Releases**：`v0.2.2` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）

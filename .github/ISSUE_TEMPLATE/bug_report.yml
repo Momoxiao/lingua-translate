@@ -1,4 +1,4 @@
-name: 问题反馈
+name: Bug 反馈（中文）
 description: 报告一个 bug 或功能异常
 title: '[Bug] '
 labels: ['bug']

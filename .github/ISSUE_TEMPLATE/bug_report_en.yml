@@ -1,0 +1,88 @@
+name: Bug report
+description: Report a bug or unexpected behavior
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Please include the diagnostics output.**
+        "No captions were found" and "captions were found but could not be translated"
+        are different failures with different causes, and without the report we can
+        only guess which one happened.
+
+        Get it from the extension icon -> **Diagnostics** -> **Copy report**.
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics report
+      description: Click the extension icon -> Diagnostics -> Copy report. It contains no API key and no translated page text. Remove the page URL if you do not want it public.
+      placeholder: |
+        Lingua 0.2.1
+          Generated      2026-...
+          Browser        Chrome/...
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Video subtitles (YouTube)
+        - Web page translation
+        - Floating ball
+        - Settings page
+        - Translation provider
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Be as specific as possible. "It does not work on this video" and "it fails after I switch to the third caption track and seek to 2:30" are very different leads.
+      placeholder: |
+        1. Open ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: false
+
+  - type: input
+    id: video
+    attributes:
+      label: Video URL
+      description: If this is a subtitle issue, include a video that reproduces it.
+      placeholder: https://www.youtube.com/watch?v=...
+    validations:
+      required: false
+
+  - type: input
+    id: provider
+    attributes:
+      label: Translation service
+      description: OpenAI-compatible (which service and model), DeepL, Google, Microsoft Azure, or a custom provider.
+      placeholder: DeepSeek, deepseek-chat
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or extra context
+      description: Drag screenshots directly into this field.
+    validations:
+      required: false

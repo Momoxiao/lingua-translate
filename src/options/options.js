@@ -595,7 +595,9 @@
     bindRange('bottomOffset', 'bottomOffset', (v) => `${v}%`);
     bindRange('backgroundOpacity', 'backgroundOpacity', (v) => v.toFixed(2));
     bindRange('batchSize', 'batchSize', (v) => `${v} 句`);
-    bindRange('concurrency', 'concurrency', (v) => `${v} 并发`);
+    // No unit suffix on the concurrency sliders: the label already ends in 数,
+    // and "并发数 4 并发" reads like a stutter.
+    bindRange('concurrency', 'concurrency', (v) => String(v));
 
     // --- page translation ---
     $('pageAuto').addEventListener('change', () => save({ page: { autoTranslate: $('pageAuto').checked } }));
@@ -620,7 +622,7 @@
 
     bindRange('pageBatchSize', 'batchSize', (v) => `${v} 段`, 'page');
     bindRange('pageMaxChars', 'maxChars', (v) => `${v} 字`, 'page');
-    bindRange('pageConcurrency', 'concurrency', (v) => `${v} 并发`, 'page');
+    bindRange('pageConcurrency', 'concurrency', (v) => String(v), 'page');
 
     $('displayMode').addEventListener('click', (ev) => {
       const btn = ev.target.closest('button[data-mode]');

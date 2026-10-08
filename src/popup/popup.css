@@ -212,6 +212,11 @@ body {
   padding-top: var(--sp-2);
   border-top: 1px solid var(--line);
 }
+.pop__footActions {
+  display: flex;
+  gap: var(--sp-2);
+  flex: none;
+}
 .pop__footHint {
   font-size: var(--fs-11);
   color: var(--ink-3);

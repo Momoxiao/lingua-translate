@@ -29,7 +29,22 @@ function loadStub() {
   const m = src.match(/const STUB = \(tabUrl, patch\) => `([\s\S]*?)`;\n/);
   if (!m) throw new Error('could not extract STUB from scripts/preview.mjs');
   // eslint-disable-next-line no-new-func
-  return new Function('return (tabUrl, patch) => `' + m[1] + '`;')();
+  const stub = new Function('return (tabUrl, patch) => `' + m[1] + '`;')();
+
+  // The injected block is a <script>. If it does not parse, its own try/catch
+  // and error reporter never run, window.chrome is never installed, and every
+  // page silently falls back to defaults — which these assertions would happily
+  // pass. Parse it once, up front.
+  const raw = stub('https://example.com/', {});
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(raw.slice(raw.indexOf('<script>') + 8, raw.lastIndexOf('</script>')));
+  } catch (e) {
+    console.error('the injected chrome.* stub does not parse:');
+    console.error(`  ${e.message}`);
+    process.exit(1);
+  }
+  return stub;
 }
 
 const STUB = loadStub();
@@ -205,10 +220,60 @@ const popupProbe = (expectMode) => `
 })();
 </script>`;
 
+/**
+ * Interaction probe for the diagnostics page.
+ *
+ * This page is the project's answer to "YouTube changed something and all we get
+ * is 'it doesn't work'". Its whole value is that the verdict is right, so assert
+ * the verdict — including on the dead-content-script path, which is the failure
+ * people actually hit.
+ */
+const DIAGNOSTICS_PROBE = `
+<script>
+(async function () {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function report(o) {
+    const el = document.createElement('pre');
+    el.id = '__probe';
+    el.textContent = JSON.stringify(o);
+    document.body.appendChild(el);
+  }
+  try {
+    await new Promise((r) => window.addEventListener('load', r, { once: true }));
+    await sleep(500);
+    report({
+      options: document.getElementById('target').options.length,
+      tone: document.getElementById('verdict').dataset.tone,
+      verdict: document.getElementById('verdictText').textContent,
+      report: document.getElementById('report').textContent,
+    });
+  } catch (e) {
+    report({ error: String((e && e.message) || e) });
+  }
+})();
+</script>`;
+
 const PAGES = [
   { file: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, kind: 'popup', probe: popupProbe('网页翻译') },
   { file: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, kind: 'popup', probe: popupProbe('视频字幕') },
   { file: 'src/options/options.html', tabUrl: 'https://example.com/', width: 1180, kind: 'options', probe: OPTIONS_PROBE },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    width: 900,
+    kind: 'diagnostics',
+    label: '诊断页 · 一切正常',
+    probe: DIAGNOSTICS_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __dead: true },
+    width: 900,
+    kind: 'diagnostics-dead',
+    label: '诊断页 · 内容脚本没响应',
+    probe: DIAGNOSTICS_PROBE,
+  },
 ];
 
 function dumpDom(file, width = 1180, timeoutMs = 25000) {
@@ -298,7 +363,7 @@ for (const page of PAGES) {
     }
   }
 
-  const label = `${page.file} @ ${page.tabUrl.replace(/^https?:\/\//, '').slice(0, 32)}`;
+  const label = page.label || `${page.file} @ ${page.tabUrl.replace(/^https?:\/\//, '').slice(0, 32)}`;
   const err = /id="__lingua_errs"[^>]*>([\s\S]*?)<\/div>/.exec(dom);
   const errText = err ? err[1].replace(/<[^>]*>/g, '').trim() : '';
   if (errText) {
@@ -365,6 +430,37 @@ for (const page of PAGES) {
     // Chrome scrolls a popup taller than 600px; the popup should fit outright.
     check(p.height <= 600, 'the popup fits without scrolling', `${p.height}px`);
     console.log(`     info ${p.expect} popup is ${p.height}px tall`);
+    continue;
+  }
+
+  // --- diagnostics -----------------------------------------------------------
+  if (page.kind === 'diagnostics' || page.kind === 'diagnostics-dead') {
+    const dead = page.kind === 'diagnostics-dead';
+    check(probe.options >= 1, 'the page offers a tab to inspect', `options=${probe.options}`);
+    check(
+      /^Lingua \d/.test(probe.report || ''),
+      'the report leads with the extension version',
+      JSON.stringify((probe.report || '').slice(0, 24))
+    );
+    check(/— 内容脚本 —/.test(probe.report || ''), 'the report covers the content script');
+    check(!/检查中/.test(probe.report || ''), 'the placeholder is replaced');
+
+    if (dead) {
+      // The case people actually hit: the page was open before the extension was
+      // installed, so nothing answers. Reporting this as a generic failure would
+      // send the user looking in the wrong place.
+      check(probe.tone === 'err', 'a silent content script is reported as an error', probe.tone);
+      check(/刷新/.test(probe.verdict || ''), 'the verdict says what to do about it', probe.verdict);
+      check(/已注入\s+否/.test(probe.report || ''), 'the report records that nothing was injected');
+      check(
+        !/— 视频字幕 —/.test(probe.report || ''),
+        'it does not print sections it could not read'
+      );
+    } else {
+      check(probe.tone === 'ok', 'a healthy page is reported as ok', probe.tone);
+      check(/— 视频字幕 —/.test(probe.report || ''), 'the report covers the captions');
+      check(/字幕轨\s+3 条/.test(probe.report || ''), 'the report lists the caption tracks');
+    }
     continue;
   }
 

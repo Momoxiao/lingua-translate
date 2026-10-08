@@ -82,6 +82,14 @@ globalThis.fetch = async (url, opts) => {
 // ---------------------------------------------------------------------------
 // Load the real sources
 // ---------------------------------------------------------------------------
+// youtube.js parses URLs, so it needs a `location` to read. The rest of its
+// browser surface (store / bridge / overlay) is only touched inside functions
+// this file never calls — the exported helpers below are deliberately the pure
+// ones, because track selection and caption-URL handling are what actually
+// breaks when YouTube changes, and they are the part of that file a test can
+// reach without a network.
+globalThis.location = { href: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', origin: 'https://www.youtube.com' };
+
 for (const f of [
   'src/shared/constants.js',
   'src/shared/utils.js',
@@ -99,6 +107,7 @@ for (const f of [
   'src/background/translator.js',
   'src/content/page/units.js',
   'src/content/page/profile.js',
+  'src/content/youtube.js',
 ]) {
   load(f);
 }
@@ -154,6 +163,149 @@ check('dedupe keeps longest text', c4[0].text === 'the quick brown fox jumps', c
 const cues = S.parseJson3(json3);
 check('cueAt finds cue', S.cueAt(cues, cues[0].start + 0.1) === 0);
 check('cueAt returns -1 in a gap', S.cueAt(cues, 99999) === -1);
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: video id from URL');
+// ---------------------------------------------------------------------------
+const Y = NS.youtube;
+
+/** youtube.js reads the real `location`, so point it somewhere for one call. */
+function atUrl(href, fn) {
+  const prev = location.href;
+  location.href = href;
+  const out = fn();
+  location.href = prev;
+  return out;
+}
+
+check('watch page', atUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ', Y.videoIdFromUrl) === 'dQw4w9WgXcQ');
+check(
+  'extra query params are ignored',
+  atUrl('https://www.youtube.com/watch?v=abc123&t=42&list=PL1', Y.videoIdFromUrl) === 'abc123'
+);
+check('shorts', atUrl('https://www.youtube.com/shorts/xyz789', Y.videoIdFromUrl) === 'xyz789');
+check('embed', atUrl('https://www.youtube.com/embed/emb123', Y.videoIdFromUrl) === 'emb123');
+check('live', atUrl('https://www.youtube.com/live/liv123', Y.videoIdFromUrl) === 'liv123');
+check('nocookie embed', atUrl('https://www.youtube-nocookie.com/embed/nc123', Y.videoIdFromUrl) === 'nc123');
+check('watch without v is empty', atUrl('https://www.youtube.com/watch', Y.videoIdFromUrl) === '');
+check('the home page is empty', atUrl('https://www.youtube.com/', Y.videoIdFromUrl) === '');
+check('a non-YouTube host still parses (the host check lives elsewhere)',
+  atUrl('https://example.com/watch?v=nope', Y.videoIdFromUrl) === 'nope');
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: track selection');
+// ---------------------------------------------------------------------------
+const TRACKS = [
+  { languageCode: 'en', name: 'English', kind: '' },
+  { languageCode: 'en', name: 'English (auto-generated)', kind: 'asr' },
+  { languageCode: 'ja', name: '日本語', kind: '' },
+  { languageCode: 'de', name: 'Deutsch', kind: 'asr' },
+];
+
+check('no tracks -> null', Y.pickTrack([], 'auto', -1) === null);
+check('an explicit source language wins', Y.pickTrack(TRACKS, 'ja', 0) === TRACKS[2]);
+check('an explicit language wins even when it is ASR', Y.pickTrack(TRACKS, 'de', 0) === TRACKS[3]);
+check('a loose language match is accepted', Y.pickTrack(TRACKS, 'en-US', -1) === TRACKS[0]);
+check(
+  'an unknown source language falls back instead of returning nothing',
+  Y.pickTrack(TRACKS, 'xx', -1) === TRACKS[0]
+);
+check('auto is not treated as a language code', Y.pickTrack(TRACKS, 'auto', 2) === TRACKS[2]);
+// The track YouTube pairs with the audio is the video's original language, and
+// the only one guaranteed to span the whole video — a partial manual track is
+// worse. So defaultIndex outranks the manual-over-ASR preference.
+check(
+  'the default index outranks the manual-over-ASR preference',
+  Y.pickTrack(TRACKS, 'auto', 1) === TRACKS[1]
+);
+check('without a default index, manual beats ASR', Y.pickTrack(TRACKS, 'auto', -1) === TRACKS[0]);
+check('an out-of-range default index falls through', Y.pickTrack(TRACKS, 'auto', 99) === TRACKS[0]);
+const asrOnly = [
+  { languageCode: 'fr', kind: 'asr' },
+  { languageCode: 'en', kind: 'asr' },
+];
+check('with only ASR tracks, en/zh is preferred', Y.pickTrack(asrOnly, 'auto', -1) === asrOnly[1]);
+check(
+  'with only ASR tracks and no en/zh, the first is used',
+  Y.pickTrack([{ languageCode: 'fr', kind: 'asr' }], 'auto', -1).languageCode === 'fr'
+);
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: caption URL handling');
+// ---------------------------------------------------------------------------
+const SIGNED =
+  'https://www.youtube.com/api/timedtext?v=abc&lang=en&pot=TOKEN123&potc=1&c=WEB&fmt=json3&signature=xyz';
+const BAD_URL = 'http://[';
+
+const pot = Y.potParamsFrom(SIGNED);
+check('pot params extracted', !!pot && pot.pot === 'TOKEN123', JSON.stringify(pot));
+check('pot defaults fmt to json3', !!pot && pot.fmt === 'json3');
+check('pot carries potc and c through', !!pot && pot.potc === '1' && pot.c === 'WEB');
+check('a URL without pot yields null', Y.potParamsFrom('https://www.youtube.com/api/timedtext?v=abc') === null);
+check('an empty URL yields null', Y.potParamsFrom('') === null);
+check('a malformed URL yields null rather than throwing', Y.potParamsFrom(BAD_URL) === null);
+const potDefaults = Y.potParamsFrom('https://www.youtube.com/api/timedtext?pot=T&signature=s');
+check('missing potc/c get the documented defaults', potDefaults.potc === '1' && potDefaults.c === 'WEB');
+
+// The whole point of withParams: the signature and the token must survive.
+const signedMerged = Y.withParams(SIGNED, { fmt: 'json3', tlang: 'zh-Hans' });
+check('withParams keeps the signature', /signature=xyz/.test(signedMerged), signedMerged);
+check('withParams keeps the pot', /pot=TOKEN123/.test(signedMerged), signedMerged);
+check('withParams sets a new param', /tlang=zh-Hans/.test(signedMerged), signedMerged);
+check('withParams replaces rather than duplicates', (signedMerged.match(/fmt=/g) || []).length === 1, signedMerged);
+check('withParams skips null values', !/tlang=/.test(Y.withParams(SIGNED, { tlang: null })));
+check('withParams returns the input on a bad URL', Y.withParams(BAD_URL, { a: 'b' }) === BAD_URL);
+
+check('langOf reads the track language', Y.langOf(SIGNED) === 'en', Y.langOf(SIGNED));
+check('langOf is empty when absent', Y.langOf('https://www.youtube.com/api/timedtext?v=abc') === '');
+check('langOf tolerates a malformed URL', Y.langOf(BAD_URL) === '');
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: transcript panel parsing');
+// ---------------------------------------------------------------------------
+const seg = (text, startMs, endMs) => ({
+  transcriptSegmentRenderer: { snippet: { runs: [{ text }] }, startMs, endMs },
+});
+const transcriptResponse = (segments) => ({
+  actions: [
+    { someUnrelatedAction: {} },
+    {
+      updateEngagementPanelAction: {
+        content: {
+          transcriptRenderer: {
+            body: {
+              transcriptSearchPanelRenderer: {
+                body: { transcriptSegmentListRenderer: { initialSegments: segments } },
+              },
+            },
+          },
+        },
+      },
+    },
+  ],
+});
+
+const parsed = Y.parseTranscript(
+  transcriptResponse([
+    seg('Hello', 0, 1500),
+    seg('world', 1500, 3000),
+    { transcriptSegmentRenderer: { snippet: {}, startMs: 3000, endMs: 4000 } },
+    { notASegment: true },
+  ])
+);
+check('transcript segments -> cues', parsed.length === 2, `got ${parsed.length}`);
+check('transcript ms -> seconds', parsed[0].start === 0 && Math.abs(parsed[0].end - 1.5) < 1e-9, JSON.stringify(parsed[0]));
+check('transcript text comes from the runs', parsed[1].text === 'world', parsed[1].text);
+check('segments without runs are skipped', !parsed.some((c) => !c.text));
+
+// endMs is optional in this payload, and a zero-length cue would be invisible to
+// the scheduler, so it has to be defaulted rather than taken literally.
+const noEnd = Y.parseTranscript(transcriptResponse([seg('Only start', 2000, 0)]));
+check('a missing end time gets a sane default', noEnd[0].end > noEnd[0].start, JSON.stringify(noEnd[0]));
+
+check('an unrelated action yields no cues', Y.parseTranscript({ actions: [{ updateEngagementPanelAction: {} }] }).length === 0);
+check('a missing actions array yields no cues', Y.parseTranscript({}).length === 0);
+check('null yields no cues rather than throwing', Y.parseTranscript(null).length === 0);
 
 // ---------------------------------------------------------------------------
 console.log('\nbatch build / parse');

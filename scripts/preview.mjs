@@ -74,6 +74,12 @@ const STUB = (tabUrl, patch) => `
     }
     return base;
   }
+  // Test hook, stripped before the patch reaches the settings store: makes the
+  // tab refuse to answer, i.e. the page was opened before the extension was
+  // installed. That is the single most common real failure, and the diagnostics
+  // page exists to report it — so it has to be assertable, not just eyeballed.
+  const DEAD = !!PATCH.__dead;
+  delete PATCH.__dead;
   const store = {
     'lingua:settings:v1': mergeDeep({
       enabled: true, provider: 'openai', sourceLang: 'auto', targetLang: 'zh-Hans',
@@ -99,6 +105,9 @@ const STUB = (tabUrl, patch) => `
     url: TAB_URL,
     host: TAB_URL.indexOf('youtube') !== -1 ? 'youtube.com' : 'news.ycombinator.com',
     isWatchPage: TAB_URL.indexOf('/watch') !== -1,
+    hasPageModule: true,
+    bridgeAlive: true,
+    bridgeError: '',
     subtitle: {
       status: 'translating', videoId: 'dQw4w9WgXcQ', liveMode: false, error: '',
       cueCount: 412, translated: 268,
@@ -130,6 +139,10 @@ const STUB = (tabUrl, patch) => `
     runtime: {
       lastError: undefined,
       getManifest: () => ({ version: '1.0.0' }),
+      // A character class, not /^\//: inside this template literal a backslash
+      // escape collapses, and /^\// would be emitted as the invalid regex /^//,
+      // which is a syntax error that kills the whole stub script.
+      getURL: (p) => 'chrome-extension://preview/' + String(p).replace(/^[/]/, ''),
       openOptionsPage: () => {},
       onMessage: { addListener: () => {}, removeListener: () => {} },
       // Callbacks are synchronous on purpose: the page then settles inside the
@@ -145,7 +158,17 @@ const STUB = (tabUrl, patch) => `
     },
     tabs: {
       query: () => Promise.resolve([{ id: 1, url: TAB_URL }]),
+      get: (id) => Promise.resolve({ id, url: TAB_URL, title: 'Preview tab' }),
+      create: () => Promise.resolve({}),
       sendMessage: (id, msg, cb) => {
+        if (DEAD) {
+          // chrome.runtime.lastError is only readable from inside the callback,
+          // which is why it is set and cleared around the call rather than left on.
+          window.chrome.runtime.lastError = { message: 'Could not establish connection. Receiving end does not exist.' };
+          if (cb) cb(undefined);
+          window.chrome.runtime.lastError = undefined;
+          return;
+        }
         if (cb) cb({ ok: true, state: STATE });
       }
     }
@@ -156,6 +179,30 @@ const STUB = (tabUrl, patch) => `
 })();
 </script>
 `;
+
+/**
+ * The stub is injected as a <script>, and a syntax error inside it is the worst
+ * possible failure mode: the whole block fails to parse, so its own try/catch and
+ * error reporter never run, `window.chrome` is never installed, the page quietly
+ * falls back to its defaults — and the harness reports a healthy render of the
+ * wrong thing. Parsing it here turns that into a loud failure at startup.
+ *
+ * (Found the hard way: `.replace(/^\//, '')` inside this template literal emits
+ * `/^//`, because a backslash escape collapses in a template literal.)
+ */
+function assertStubParses() {
+  const raw = STUB('https://example.com/', {});
+  const body = raw.slice(raw.indexOf('<script>') + 8, raw.lastIndexOf('</script>'));
+  try {
+    // Parses without executing; we only care that it is valid JavaScript.
+    new Function(body);
+  } catch (e) {
+    console.error('preview stub does not parse — every page would render against a dead chrome.* stub:');
+    console.error(`  ${e.message}`);
+    process.exit(1);
+  }
+}
+assertStubParses();
 
 const PAGES = [
   // The light/dark flags are explicit: headless Chrome follows the OS
@@ -213,6 +260,17 @@ const PAGES = [
       },
     },
   },
+  // The diagnostics page exists to be read by whoever triages an issue, so it
+  // gets a screenshot too — pointed at a YouTube watch page, which is the case
+  // people actually file issues about.
+  {
+    html: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    width: 900,
+    height: 900,
+    name: 'diagnostics',
+    light: true,
+  },
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },
   { build: buildBallDemo, state: 'translating', width: 760, height: 420, name: 'ball' },
@@ -237,7 +295,7 @@ function buildBallDemo() {
 <div class="page">
   <h1>悬浮球（悬停滑出 + 面板展开）</h1>
   <p>平时贴边半隐藏，只露出一小条；鼠标移上去才滑出来。点击即翻译，可拖动，位置按站点记住。</p>
-  <p>外圈就是进度环，不需要额外的进度条。悬停向左展开操作面板：只显示原文 / 重新翻译 / 停止。右键打开设置。</p>
+  <p>外圈就是进度环，不需要额外的进度条。悬停向左展开操作面板：暂时收起译文 / 重新翻译 / 停止。右键打开设置。</p>
   <p>三处不可见的悬停桥：球与面板之间、贴边滑走后让出的那条带、以及进度环所在的一圈。少任何一处，鼠标移过去都会中途丢失 hover，球就缩回去。</p>
   <p class="hint">下面是状态预览（静态截图，实际可交互）</p>
 </div>
@@ -495,7 +553,10 @@ for (const page of PAGES) {
   } catch (e) {
     /* ignore */
   }
-  fs.unlinkSync(tmpPath);
+  // PREVIEW_KEEP_TMP=1 keeps the generated page so it can be opened by hand —
+  // the fastest way to see what the harness actually handed to Chrome.
+  if (!process.env.PREVIEW_KEEP_TMP) fs.unlinkSync(tmpPath);
+  else console.log('      kept: ' + tmpPath);
 
   const label = page.html || page.name;
   // A demo page that threw leaves a red banner in the DOM instead of the

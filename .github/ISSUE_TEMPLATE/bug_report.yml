@@ -1,0 +1,86 @@
+name: 问题反馈
+description: 报告一个 bug 或功能异常
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。**请务必附上诊断信息**——「拿不到字幕」和「拿到了但翻不动」是两种完全不同的故障，
+        没有这段信息只能靠猜。
+
+        获取方式：点扩展图标 → 右下角 **诊断** → **复制诊断信息**。
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息
+      description: 点扩展图标 → 右下角「诊断」→「复制诊断信息」，粘贴到这里。其中不含 API Key 或任何译文内容；页面地址如果不想公开可以删掉。
+      placeholder: |
+        Lingua 0.1.0
+          生成时间        2026-...
+          浏览器          Chrome/...
+        ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: 出了什么问题
+      description: 期望发生什么，实际发生了什么。
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及的功能
+      multiple: true
+      options:
+        - 视频字幕（YouTube）
+        - 网页翻译
+        - 页面悬浮球
+        - 设置页
+        - 翻译接口 / 供应商
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 越具体越好。「打开某个视频就不行」和「切到第 3 条字幕轨、拖进度条到 2:30 后不行」是完全不同的线索。
+      placeholder: |
+        1. 打开 ...
+        2. 点击 ...
+        3. 看到 ...
+    validations:
+      required: false
+
+  - type: input
+    id: video
+    attributes:
+      label: 视频链接
+      description: 如果是视频字幕的问题，贴一条能复现的视频链接。
+      placeholder: https://www.youtube.com/watch?v=...
+    validations:
+      required: false
+
+  - type: input
+    id: provider
+    attributes:
+      label: 用的哪个翻译服务
+      description: OpenAI 兼容（哪个服务、哪个模型）／ DeepL ／ Google ／ 微软 Azure ／ 自定义供应商。
+      placeholder: DeepSeek，deepseek-chat
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: 截图或其他补充
+      description: 截图可以直接拖进来。
+    validations:
+      required: false

@@ -121,8 +121,13 @@
           </div>
           <label class="pop__switchRow pop__switchRow--tight">
             <span class="pop__switchText">
-              <span class="pop__switchTitle">只显示原文</span>
-              <span class="hint">暂时收起译文，页面恢复原样</span>
+              <!-- "只显示原文" read as a synonym of the video panel's 仅原文
+                   display mode, but the two behave differently: this one is a
+                   temporary toggle, that one is a persistent mode. Naming this
+                   by what it does removes the collision — and on a YouTube
+                   video page both panels are one click apart. -->
+              <span class="pop__switchTitle">暂时收起译文</span>
+              <span class="hint">译文不会丢，随时可以恢复</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="pageShowOriginal" />
@@ -158,7 +163,12 @@
 
       <footer class="pop__foot">
         <span class="pop__footHint" id="footHint"></span>
-        <button class="btn btn--ghost btn--sm" id="openOptions" type="button">设置</button>
+        <!-- Grouped: with three children, the footer's space-between would push
+             the two buttons apart instead of keeping them together. -->
+        <div class="pop__footActions">
+          <button class="btn btn--ghost btn--sm" id="openDiagnostics" type="button">诊断</button>
+          <button class="btn btn--ghost btn--sm" id="openOptions" type="button">设置</button>
+        </div>
       </footer>
     </div>
 

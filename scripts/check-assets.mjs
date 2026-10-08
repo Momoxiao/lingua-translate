@@ -163,5 +163,20 @@ for (const file of [...new Set(referencedDocs)].sort()) {
   check(fs.existsSync(path.join(ROOT, file)), `README image exists: ${file}`);
 }
 
+// The project homepage is the other public entry point. These are the two
+// conversion paths the mobile layout used to lose: neither the source link nor
+// a legible caption demo was reachable in the first mobile viewport.
+const siteHtml = readText('docs/index.html');
+const siteCss = readText('docs/site.css');
+check(
+  /class="nav-source"/.test(siteHtml) && !/@media \(max-width: 430px\)[\s\S]*?\.nav-source\s*\{[\s\S]*?display:\s*none/.test(siteCss),
+  'the project homepage keeps its source link on phones'
+);
+check(
+  /@media \(max-width: 760px\)[\s\S]*?\.hero-media\s*\{[\s\S]*?aspect-ratio:\s*4 \/ 3/.test(siteCss) &&
+    /\.hero-media img\s*\{[\s\S]*?object-position:\s*center 72%/.test(siteCss),
+  'the project homepage keeps the caption demo legible on phones'
+);
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode = failed ? 1 : 0;

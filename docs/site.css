@@ -874,9 +874,12 @@ html:not([data-locale="zh"]) .text-link-zh {
   .privacy-layout,
   .diagnostics-layout,
   .providers-layout,
-  .limits-layout,
-  .install-layout {
+  .limits-layout {
     grid-template-columns: 1fr;
+  }
+
+  .install-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .hero-layout {
@@ -969,7 +972,11 @@ html:not([data-locale="zh"]) .text-link-zh {
   }
 
   .hero-media {
-    aspect-ratio: 16 / 10;
+    aspect-ratio: 4 / 3;
+  }
+
+  .hero-media img {
+    object-position: center 72%;
   }
 
   .proof-grid {
@@ -1045,10 +1052,6 @@ html:not([data-locale="zh"]) .text-link-zh {
 }
 
 @media (max-width: 430px) {
-  .nav-source {
-    display: none;
-  }
-
   .proof-grid {
     grid-template-columns: 1fr;
   }

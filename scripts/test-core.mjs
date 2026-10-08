@@ -28,7 +28,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 196;
+const EXPECTED_ASSERTIONS = 198;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -161,6 +161,26 @@ check('xml entity decoded', c3[0].text === 'One & two', c3[0].text);
 check('parseTimedText auto-detects json', S.parseTimedText(JSON.stringify(json3)).length >= 2);
 check('parseTimedText auto-detects xml', S.parseTimedText(xml).length === 2);
 check('parseTimedText handles empty', S.parseTimedText('').length === 0);
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: pb3 envelope without cues');
+// ---------------------------------------------------------------------------
+// YouTube can answer a timedtext request with HTTP 200 and a non-empty pb3
+// document that contains only style tables and no `events`. Length alone is not
+// success; treating it as usable makes the caller retry with the same value and
+// report a parser failure for what is really an empty response.
+const pb3Stub = JSON.stringify({
+  wireMagic: 'pb3',
+  pens: [{}],
+  wsWinStyles: [{}, { mhModeHint: 2 }],
+  wpWinPositions: [{}, { apPoint: 6 }],
+});
+const pb3Real = JSON.stringify({
+  wireMagic: 'pb3',
+  events: [{ tStartMs: 0, dDurationMs: 1200, segs: [{ utf8: 'Hello' }] }],
+});
+check('pb3 style-only envelope parses to zero cues', S.parseTimedText(pb3Stub).length === 0);
+check('pb3 envelope with events still parses', S.parseTimedText(pb3Real).length === 1);
 
 // ---------------------------------------------------------------------------
 console.log('\nwebvtt (the wire-sniffed caption body we used to drop)');

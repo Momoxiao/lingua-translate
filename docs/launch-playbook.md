@@ -107,9 +107,9 @@ Two things that turned out to be genuinely hard, in case they're useful:
    navbars onto two lines. The rule now treats "inline tag + flex/grid parent" as
    still inline, but only for short text.
 
-There's no build step and no dependencies — manifest.json plus src/, 12,655 lines.
+There's no build step and no dependencies — manifest.json plus src/, 12,688 lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
-the published SHA-256 means something. 628 assertions, including a real Chrome e2e.
+the published SHA-256 means something. 632 assertions, including a real Chrome e2e.
 
 Known limitation, stated up front: the caption path depends on YouTube's private
 interface and is not covered by CI. It can break without warning.

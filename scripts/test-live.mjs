@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 79;
+const EXPECTED_ASSERTIONS = 81;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -696,6 +696,7 @@ function makeYouTube(opts) {
   const feed = { tracks: [], cues: [], body: 'body' in o ? o.body : '' };
   let pendingTracks = null;
   let timerSeq = 0;
+  let ad = !!o.ad;
 
   const store = {
     state: { cues: [], tracks: [], translations: [], enabled: true, videoId: '', liveMode: false },
@@ -728,10 +729,22 @@ function makeYouTube(opts) {
       const record = calls.timers.find((t) => t.id === id);
       if (record) record.cancelled = true;
     },
-    setInterval: () => 0,
-    clearInterval: () => {},
+    setInterval: (fn, ms) => {
+      const record = { id: ++timerSeq, fn, ms: ms || 0, cancelled: false, ran: false, interval: true };
+      calls.timers.push(record);
+      return record.id;
+    },
+    clearInterval: (id) => {
+      const record = calls.timers.find((t) => t.id === id);
+      if (record) record.cancelled = true;
+    },
     requestAnimationFrame: () => 0,
-    document: { addEventListener() {}, querySelector: () => null, getElementById: () => null },
+    document: {
+      addEventListener() {},
+      querySelector: () => null,
+      getElementById: (id) =>
+        id === 'movie_player' && ad ? { classList: { contains: (c) => c === 'ad-showing' } } : null,
+    },
     // `bindNavigation()` also hooks `window` (popstate).
     window: { addEventListener() {} },
     history: { pushState() {}, replaceState() {} },
@@ -837,6 +850,9 @@ function makeYouTube(opts) {
     runTimer,
     runTimers,
     pushTracks: () => sandbox.onTracksCb(pendingTracks),
+    setAd: (value) => {
+      ad = !!value;
+    },
     settle,
   };
 }
@@ -1003,6 +1019,25 @@ function makeYouTube(opts) {
     '升级成功后 store 不再处于 liveMode',
     yt.store.state.liveMode === false,
     `liveMode=${yt.store.state.liveMode}`
+  );
+}
+
+{
+  // A pre-roll can last longer than the retry budget. The fallback retries must
+  // pause during the ad and resume after it instead of burning every attempt on
+  // an ad player-response that cannot contain the video's caption track.
+  const yt = makeYouTube({ canHandle: true, body: '' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  const firstRetry = yt.pendingTimers().find((t) => t.ms === 1200);
+  yt.setAd(true);
+  await yt.runTimer(firstRetry);
+  check('广告期间的升级重试被暂停而不是直接耗尽', yt.pendingTimers().some((t) => t.ms === 500), JSON.stringify(yt.pendingTimers().map((t) => t.ms)));
+  yt.setAd(false);
+  await yt.runTimers((t) => t.ms === 500);
+  check(
+    '广告结束后会重新安排整轨升级',
+    yt.pendingTimers().some((t) => t.ms >= 1200),
+    JSON.stringify(yt.pendingTimers().map((t) => t.ms))
   );
 }
 

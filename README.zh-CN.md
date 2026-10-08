@@ -6,7 +6,7 @@
 
 **官网：** [Lingua 项目主页](https://momoxiao.github.io/lingua-translate/) · **源码：** [GitHub](https://github.com/Momoxiao/lingua-translate)
 
-> **早期版本（0.2.5）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.6）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -78,12 +78,12 @@
 3. 点击 **加载已解压的扩展程序**，选择解压出来的目录
 4. 首次安装会自动打开设置页；填入翻译服务后即可使用
 
-安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
+安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 159 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
-下载后，把 `lingua-0.2.5.zip` 和 `lingua-0.2.5.zip.sha256` 放在同一目录，从该目录执行：
+下载后，把 `lingua-0.2.6.zip` 和 `lingua-0.2.6.zip.sha256` 放在同一目录，从该目录执行：
 
 ```bash
-shasum -a 256 -c lingua-0.2.5.zip.sha256
+shasum -a 256 -c lingua-0.2.6.zip.sha256
 ```
 
 **方式二：直接用源码**
@@ -370,7 +370,7 @@ yt-subtitle-translator/
 ├── store/SUBMISSION.md            上架提交材料：单句用途、权限理由、数据用途声明
 ├── scripts/
 │   ├── make-icons.py              纯 stdlib 图标生成（4x 超采样）
-│   ├── test-core.mjs              核心逻辑测试（196 项，无需浏览器）
+│   ├── test-core.mjs              核心逻辑测试（198 项，无需浏览器）
 │   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（168 项，真实浏览器）
 │   ├── check-pages.mjs            弹窗、设置页与诊断页的启动 + 交互检查（72 项）
 │   ├── e2e-extension.mjs          真机端到端（75 项，自建 CDP 客户端）
@@ -419,9 +419,9 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
-npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 628 项，末尾再核对文档数字、商店素材与 i18n 目录（CI 跑的就是这个）
-npm test            # 核心逻辑测试（196 项，无需浏览器、无依赖）
-npm run test:live   # 实时字幕兜底：流式译文、最新字幕优先、整轨自动恢复与接管边界（79 项）
+npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 632 项，末尾再核对文档数字、商店素材与 i18n 目录（CI 跑的就是这个）
+npm test            # 核心逻辑测试（198 项，无需浏览器、无依赖）
+npm run test:live   # 实时字幕兜底：流式译文、最新字幕优先、整轨自动恢复与接管边界（81 项）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）

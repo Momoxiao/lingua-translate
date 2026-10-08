@@ -35,7 +35,7 @@
   let liveFallbackReason = '';
   let liveUpgradeTimer = 0;
   let liveUpgradeAttempt = 0;
-  const LIVE_UPGRADE_DELAYS_MS = [1200, 2500, 5000, 10000, 20000];
+  const LIVE_UPGRADE_DELAYS_MS = [1200, 2500, 5000, 10000, 20000, 30000, 45000];
 
   // ---------------------------------------------------------------------------
   // Track discovery
@@ -644,7 +644,13 @@
     // the caption tracks and the reported duration belong to the ad. Wait it out.
     if (adShowing()) {
       if (preserveLive) {
-        scheduleLiveUpgrade();
+        // A pre-roll can outlast the whole upgrade window. Do not spend the
+        // limited retries polling during an ad whose player response has no
+        // usable caption track; wait for real playback, then resume sniffing.
+        waitForAdEnd().then(() => {
+          if (gen !== generation) return;
+          if (liveFallbackActive) scheduleLiveUpgrade();
+        });
         return;
       }
       store.setStatus(store.STATUS.LOADING, { reason: 'ad' });

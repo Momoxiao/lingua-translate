@@ -186,6 +186,33 @@
     }
   }
 
+  /**
+   * Is this response body a caption document with usable cues?
+   *
+   * YouTube now answers some requests with HTTP 200 and a non-empty `pb3`
+   * envelope that only contains styling (`pens`, `wsWinStyles`,
+   * `wpWinPositions`) and no `events`. Length alone called that success, so
+   * `fetchTrack` returned it to `tryFetch`, which parsed zero cues and made the
+   * caller report an unparsed body. Treating it as empty lets the next signed
+   * retry actually ask again instead of reusing an ad-time stub.
+   */
+  function hasUsableCues(body) {
+    const text = String(body || '').trim();
+    if (!text) return false;
+    if (text.charAt(0) === '{' || text.charAt(0) === '[') {
+      try {
+        const data = JSON.parse(text);
+        const events = (data && data.events) || [];
+        return events.some((ev) => ev && ev.segs && ev.segs.length);
+      } catch (e) {
+        return false;
+      }
+    }
+    if (text.indexOf('<p ') !== -1 || text.indexOf('<p>') !== -1) return true;
+    if (text.indexOf('<text') !== -1) return true;
+    return text.indexOf('WEBVTT') !== -1;
+  }
+
   async function fetchTrack(url, requestId) {
     const attempt = async (target) => {
       try {
@@ -202,7 +229,7 @@
 
     // Pass 1: the URL exactly as the player handed it to us, forced to json3.
     let out = await attempt(withJson3(url));
-    if (out.body && out.body.length > 4) {
+    if (hasUsableCues(out.body)) {
       post('bridge:fetch-result', { requestId, ...out });
       return;
     }
@@ -220,7 +247,7 @@
     })();
     if (plain !== withJson3(url)) {
       out = await attempt(plain);
-      if (out.body && out.body.length > 4) {
+      if (hasUsableCues(out.body)) {
         post('bridge:fetch-result', { requestId, ...out });
         return;
       }

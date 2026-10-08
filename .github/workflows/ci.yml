@@ -19,11 +19,11 @@ jobs:
       # dependency-free, so there is nothing to install and no lockfile to
       # drift. If this ever needs an install step, that is a design change.
 
-      # 196 assertions, pure Node — no browser required.
+      # 198 assertions, pure Node — no browser required.
       - name: Unit tests
         run: npm test
 
-      # 79 assertions, pure Node: the realtime caption fallback. Pins both
+      # 81 assertions, pure Node: the realtime caption fallback. Pins both
       # directions — a VOD whose whole-track fetch failed must be handled, and a
       # video with no captions at all must NOT be, or a clear error would turn
       # into a permanent blank.

@@ -13,6 +13,7 @@
     "check": "npm test && npm run test:live && npm run test:dom && npm run test:pages && npm run check:docs && npm run check:assets && node scripts/check-smoke.mjs",
     "check:docs": "node scripts/check-docs.mjs",
     "check:assets": "node scripts/check-assets.mjs",
+    "check:links": "node scripts/check-links.mjs",
     "smoke": "node scripts/smoke-youtube.mjs",
     "smoke:headed": "node scripts/smoke-youtube.mjs --headed",
     "dist": "node scripts/package.mjs",

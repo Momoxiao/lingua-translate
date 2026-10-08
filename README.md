@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Momoxiao/lingua-translate?style=social"></a>
+  <a href="https://github.com/Momoxiao/lingua-translate"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Momoxiao/lingua-translate?style=social"></a>
 </p>
 
 <p align="center">

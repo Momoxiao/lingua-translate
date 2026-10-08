@@ -55,6 +55,12 @@ jobs:
       - name: Documentation drift
         run: npm run check:docs
 
+      # Release-facing images have exact size and channel requirements, and a
+      # regeneration on a different machine can silently violate them. Check the
+      # committed bytes before a human ever gets to the store upload form.
+      - name: Release assets
+        run: npm run check:assets
+
       # NOT run here, on purpose:
       #   npm run test:e2e  — loads the unpacked extension into a real Chrome
       #                       profile over CDP: slow and environment-sensitive.

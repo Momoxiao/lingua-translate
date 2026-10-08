@@ -17,3 +17,7 @@ dist/
 # 编辑器
 .vscode/
 .idea/
+
+# 本地浏览器验证产物
+.playwright-cli/
+output/

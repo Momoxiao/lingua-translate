@@ -1,0 +1,16 @@
+{
+  "name": "Lingua",
+  "short_name": "Lingua",
+  "description": "Bilingual YouTube captions and reversible web page translation with your own API provider.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f1",
+  "theme_color": "#f3f5f1",
+  "icons": [
+    {
+      "src": "icon-300.png",
+      "sizes": "300x300",
+      "type": "image/png"
+    }
+  ]
+}

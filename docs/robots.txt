@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://momoxiao.github.io/lingua-translate/sitemap.xml

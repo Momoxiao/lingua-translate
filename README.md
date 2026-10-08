@@ -9,7 +9,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip"><b>Download Lingua 0.2.1</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip"><b>Download Lingua 0.2.2</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -71,7 +71,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.1 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.2 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -87,7 +87,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 To verify the download, run this from the folder containing **both** downloaded files:
 
 ```bash
-shasum -a 256 -c lingua-0.2.1.zip.sha256
+shasum -a 256 -c lingua-0.2.2.zip.sha256
 ```
 
 ## Configure

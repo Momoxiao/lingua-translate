@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
 
-> **早期版本（0.2.1）。** 功能完整，有 590 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.2）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -78,10 +78,10 @@
 
 安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
-下载后，把 `lingua-0.2.1.zip` 和 `lingua-0.2.1.zip.sha256` 放在同一目录，从该目录执行：
+下载后，把 `lingua-0.2.2.zip` 和 `lingua-0.2.2.zip.sha256` 放在同一目录，从该目录执行：
 
 ```bash
-shasum -a 256 -c lingua-0.2.1.zip.sha256
+shasum -a 256 -c lingua-0.2.2.zip.sha256
 ```
 
 **方式二：直接用源码**

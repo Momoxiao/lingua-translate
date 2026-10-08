@@ -23,11 +23,27 @@
     const st = NS.store.state;
     return {
       status: st.status,
+      // Why we are in this status. Without it "empty" reads as "this video has
+      // no captions" even when six caption tracks are listed right below.
+      reason: st.reason,
+      // How big the caption response was. `reason` says whether we got anything,
+      // but only this number shows the difference between "server sent 0 bytes"
+      // and "server sent 4 KB that we failed to parse".
+      trackBytes: st.trackBytes || 0,
       videoId: st.videoId,
       liveMode: st.liveMode,
+      // Why realtime mode was entered. Both a live stream and a VOD whose
+      // whole-track fetch failed end up as `status: 'live'`, and they need
+      // different explanations: one is normal, the other is a degraded path.
+      isLiveStream: !!st.isLiveStream,
       error: st.error,
       cueCount: st.cues.length,
       translated: NS.store.translatedCount(),
+      // Realtime mode translates line by line and never writes cues into the
+      // store, so `cueCount` stays 0 and anything that reads progress from it
+      // reports nothing while subtitles are visibly working. The popup did
+      // exactly that: it hid the progress row and disabled "re-translate".
+      live: NS.live && NS.live.stats ? NS.live.stats() : null,
       tracks: st.tracks.map((t) => ({ languageCode: t.languageCode, name: t.name, kind: t.kind })),
       sourceTrack: st.sourceTrack ? { languageCode: st.sourceTrack.languageCode, name: st.sourceTrack.name } : null,
       enabled: st.enabled,

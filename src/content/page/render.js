@@ -36,14 +36,14 @@
   /** Links we relocated into a translation, so they can be put back exactly. */
   const movedLinks = new WeakMap();
 
-  const MARK_RE = /⟦(\d+)⟧([\s\S]*?)⟦\/\1⟧/g;
+  const MARK_RE = /⟦(c?)(\d+)⟧([\s\S]*?)⟦\/\1\2⟧/g;
   /**
    * Tolerant cleanup for placeholder residue. Models occasionally emit a mangled
    * marker (observed in the wild: `⟦1⟧X⟦/1⟧` came back as `X⟧/1⟧`, losing the
    * opening bracket). A strict pattern would leave that on screen, so match any
    * bracket run that still looks like a marker.
    */
-  const MARK_ANY_RE = /⟦\s*\/?\s*\d*\s*⟧?|⟧\s*\/?\s*\d*\s*⟧?|\/\s*\d+\s*⟧/g;
+  const MARK_ANY_RE = /⟦\s*\/?\s*c?\d*\s*⟧?|⟧\s*\/?\s*c?\d*\s*⟧?|\/\s*c?\d+\s*⟧/g;
 
   const CSS = `
 /* --- block translation (default) ---------------------------------------- */
@@ -174,7 +174,7 @@ html.${ROOT_FLAG} .lingua-pg-src{ display:revert !important; }
    * duplicated or renumbered a marker — the caller then keeps the original
    * visible instead of silently losing the links.
    *
-   * @returns {Array<{type:'text'|'link', value:string, index?:number}>|null}
+   * @returns {Array<{type:'text'|'link'|'code', value:string, index?:number}>|null}
    */
   function parseMarked(text, expected) {
     const src = String(text || '');
@@ -185,11 +185,11 @@ html.${ROOT_FLAG} .lingua-pg-src{ display:revert !important; }
     let m;
     MARK_RE.lastIndex = 0;
     while ((m = MARK_RE.exec(src))) {
-      const idx = Number(m[1]);
+      const idx = Number(m[2]);
       if (!(idx >= 1 && idx <= expected) || seen.has(idx)) return null;
       seen.add(idx);
       if (m.index > last) parts.push({ type: 'text', value: src.slice(last, m.index) });
-      parts.push({ type: 'link', index: idx, value: m[2] });
+      parts.push({ type: m[1] === 'c' ? 'code' : 'link', index: idx, value: m[3] });
       last = m.index + m[0].length;
     }
     if (last < src.length) parts.push({ type: 'text', value: src.slice(last) });
@@ -207,7 +207,11 @@ html.${ROOT_FLAG} .lingua-pg-src{ display:revert !important; }
         continue;
       }
       const src = marks[p.index - 1];
-      if (src) frag.appendChild(takeLink(src, stripMarks(p.value)));
+      if (!src) continue;
+      // Code markers are literal by contract: move the original node back, but
+      // never let a model rewrite the text inside it.
+      const value = p.type === 'code' ? src.textContent || '' : stripMarks(p.value);
+      frag.appendChild(takeLink(src, value));
     }
     return frag;
   }
@@ -317,16 +321,19 @@ html.${ROOT_FLAG} .lingua-pg-src{ display:revert !important; }
     // copies are on screen, which is exactly bilingual rendering.
     let replacing = mode === 'replace' && !showOriginal;
     let parts = null;
-    if (replacing && unit.hasLink) {
-      if (linkMode === 'keep') {
+    if (replacing && unit.marks && unit.marks.length) {
+      parts = parseMarked(text, unit.marks.length);
+      if (unit.hasLink && linkMode === 'keep') {
         replacing = false; // keep the original so its links stay usable
-      } else if (linkMode === 'translate') {
-        // Rebuild the translation with its own links; if the model broke the
-        // placeholders we cannot, so fall back to keeping the original.
-        parts = unit.marks && unit.marks.length ? parseMarked(text, unit.marks.length) : null;
+      } else if (!unit.hasLink || linkMode === 'translate') {
+        // Rebuild the translation with its own links/code; if the model broke the
+        // placeholders we cannot, so fall back to keeping the original. Inline
+        // literals cannot be recovered as plain text, so this also prevents the
+        // code element itself from disappearing.
         if (!parts) replacing = false;
       }
-      // linkMode === 'strict': replace and accept that the links are lost
+      // unit.hasLink && linkMode === 'strict': replace and accept link loss.
+      if (!unit.hasLink && !parts) replacing = false;
     }
 
     const host = unit.wrap ? ensureTextWrap(el) : el;

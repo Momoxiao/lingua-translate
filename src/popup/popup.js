@@ -9,6 +9,7 @@
   const NS = globalThis.Lingua;
   const { LANGUAGES, PROVIDERS } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
+  const { emptySubtitleNote } = NS.utils;
 
   const el = (id) => document.getElementById(id);
   const ui = {
@@ -66,6 +67,9 @@
     loading: { tone: 'busy', text: '读取字幕' },
     translating: { tone: 'busy', text: '翻译中' },
     ready: { tone: 'ok', text: '已就绪' },
+    // Both 'empty' cases get the pill from emptySubtitleNote() below: the tracks
+    // ARE there in the more common of the two, and calling that "无字幕" is the
+    // same lie the note used to tell.
     empty: { tone: 'warn', text: '无字幕' },
     error: { tone: 'err', text: '出错' },
     live: { tone: 'busy', text: '直播模式' },
@@ -169,13 +173,58 @@
 
   function renderVideoPanel(state) {
     const s = state.subtitle || {};
+    // 'empty' covers two unrelated failures; emptySubtitleNote() is the single
+    // source of the wording for both, shared with the diagnostics page.
+    const empty = s.status === 'empty' ? emptySubtitleNote(s) : null;
     const meta = VIDEO_STATUS[s.status] || VIDEO_STATUS.idle;
-    if (activeTab === 'video') setStatus(meta.tone, meta.text);
+    if (activeTab === 'video') {
+      // The pill is 4 characters wide — it cannot carry the explanation, but it
+      // must at least stop claiming the video has no captions when it does.
+      // `unparsed-track` matters here too: the data arrived and we failed to read
+      // it, so falling through to the `empty` default would print "无字幕" — the
+      // exact false claim this split exists to remove.
+      const pill =
+        empty && empty.reason === 'unparsed-track'
+          ? '解析失败'
+          : empty && empty.reason === 'empty-track'
+            ? '取字幕失败'
+            : // `live` covers a real stream AND a VOD whose whole-track fetch
+              // failed. Telling a VOD user "直播模式" says their ordinary video
+              // is a stream, which is both wrong and useless — the actionable
+              // fact is that the fast path degraded and a re-run may recover it.
+              s.status === 'live' && !s.isLiveStream
+              ? '实时兜底'
+              : meta.text;
+      setStatus(empty ? empty.tone : meta.tone, pill);
+    }
 
     fillTracks(state);
 
-    if (!s.cueCount) {
+    // Realtime mode has no cue list — it translates the one line being spoken —
+    // so `cueCount` is always 0 there. Reading progress from cueCount alone hid
+    // the progress row and disabled the button while subtitles were working.
+    const liveStats = s.live || null;
+    const inRealtime = s.status === 'live' || !!(liveStats && (liveStats.lines || liveStats.translated));
+
+    if (!s.cueCount && !inRealtime) {
       ui.progressBox.hidden = true;
+    } else if (inRealtime) {
+      // There is no total to divide by: lines arrive as they are spoken. Show
+      // that lines are landing rather than a percentage that would be a lie.
+      ui.progressBox.hidden = false;
+      ui.progressBar.style.width = '100%';
+      ui.progressNum.textContent = `${liveStats ? liveStats.translated || 0 : 0} 句`;
+      // "等待第一句" is right when the player renders captions and the playhead
+      // is merely on silence. It is false comfort when the player never created
+      // a caption container: nothing will ever arrive, so waiting is not the
+      // action — the overlay says the same thing, and both read the one measured
+      // fact rather than each guessing.
+      const doomed = liveStats && liveStats.hasContainer === false && !s.isLiveStream;
+      ui.progressLabel.textContent = doomed
+        ? '取不到字幕（本页不可用）'
+        : liveStats && liveStats.lines
+          ? '实时翻译中'
+          : '实时翻译（等待第一句）';
     } else {
       ui.progressBox.hidden = false;
       const pct = Math.round(((s.translated || 0) / s.cueCount) * 100);
@@ -190,15 +239,17 @@
     // the manual start — which is the only way in when 进入视频后自动开始翻译 is
     // off — and afterwards it re-runs the pipeline. Hiding it instead would
     // strand that user with no trigger at all.
-    ui.retranslate.textContent = (s.translated || 0) > 0 ? '重新翻译' : '开始翻译';
-    ui.retranslate.disabled = !s.cueCount;
+    ui.retranslate.textContent = (s.translated || 0) > 0 || (liveStats && liveStats.translated > 0) ? '重新翻译' : '开始翻译';
+    // Realtime mode is exactly the state a user wants to escape by re-running:
+    // it means the whole-track fetch lost its race, and a retry often wins.
+    ui.retranslate.disabled = !s.cueCount && !inRealtime;
 
     if (!state.isWatchPage) {
       setNote(ui.note, '当前不是 YouTube 视频播放页。', 'info');
     } else if (s.error) {
       setNote(ui.note, s.error, 'err');
     } else if (s.status === 'empty') {
-      setNote(ui.note, '该视频没有可用字幕。', 'warn');
+      setNote(ui.note, empty.text, empty.tone);
     } else if (!settings.enabled) {
       setNote(ui.note, '已暂停，字幕不会翻译。', 'info');
     } else if (!NS.settings.providerReady(settings)) {

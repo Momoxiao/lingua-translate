@@ -16,6 +16,19 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 let passed = 0;
 let failed = 0;
+
+/**
+ * The number of assertions this suite is expected to make.
+ *
+ * The READMEs and ci.yml quote these figures. Before this pin existed, a figure
+ * could go stale and nothing noticed: the docs-drift guard re-ran only the two
+ * browser-free suites, so a wrong count for a Chrome-backed suite was
+ * unverifiable and sailed through CI (it happened — the docs said 104 while the
+ * suite ran 114). The suite now checks its own count on every run, and the guard
+ * reads this constant statically, so all four figures are verifiable even on a
+ * machine with no browser.
+ */
+const EXPECTED_ASSERTIONS = 190;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -41,14 +54,19 @@ const store = {};
 globalThis.chrome = {
   storage: {
     local: {
-      async get(key) {
-        return { [key]: store[key] };
+      async get(keys) {
+        if (Array.isArray(keys)) {
+          const out = {};
+          for (const key of keys) out[key] = store[key];
+          return out;
+        }
+        return { [keys]: store[keys] };
       },
       async set(obj) {
         Object.assign(store, obj);
       },
-      async remove(key) {
-        delete store[key];
+      async remove(keys) {
+        for (const key of Array.isArray(keys) ? keys : [keys]) delete store[key];
       },
     },
     onChanged: { addListener() {}, removeListener() {} },
@@ -143,6 +161,55 @@ check('xml entity decoded', c3[0].text === 'One & two', c3[0].text);
 check('parseTimedText auto-detects json', S.parseTimedText(JSON.stringify(json3)).length >= 2);
 check('parseTimedText auto-detects xml', S.parseTimedText(xml).length === 2);
 check('parseTimedText handles empty', S.parseTimedText('').length === 0);
+
+// ---------------------------------------------------------------------------
+console.log('\nwebvtt (the wire-sniffed caption body we used to drop)');
+// ---------------------------------------------------------------------------
+// The player's own caption requests are sniffed and handed to `parseTimedText`
+// verbatim. We force `fmt=json3` only on URLs WE construct, so a player-issued
+// VTT request produced a well-formed body with real cues that the parser
+// returned nothing for — indistinguishable from an empty response, and the
+// caller had already discarded the body by then.
+const vtt = [
+  'WEBVTT',
+  'Kind: captions',
+  'Language: en',
+  '',
+  '00:00:00.000 --> 00:00:02.000',
+  'Hello there',
+  '',
+  '00:00:02.000 --> 00:00:04.500',
+  'General Kenobi',
+  '',
+].join('\n');
+
+const cv = S.parseVtt(vtt);
+check('vtt -> cues parsed', cv.length === 2, `got ${cv.length}`);
+check('vtt text extracted', cv[0] && cv[0].text === 'Hello there', cv[0] && cv[0].text);
+check('vtt hh:mm:ss.mmm times', cv[0] && cv[0].start === 0 && Math.abs(cv[0].end - 2) < 1e-9);
+check('vtt second cue offset', cv[1] && Math.abs(cv[1].start - 2) < 1e-9);
+check('vtt fractional end kept', cv[1] && Math.abs(cv[1].end - 4.5) < 1e-9);
+
+check('parseTimedText auto-detects vtt', S.parseTimedText(vtt).length === 2);
+
+// Hours field is optional in the spec; a long video uses it.
+const vttHours = 'WEBVTT\n\n01:02:03.000 --> 01:02:05.000\nLate line\n';
+const cvh = S.parseVtt(vttHours);
+check('vtt optional hours field', cvh.length === 1 && cvh[0].start === 3723, cvh[0] && cvh[0].start);
+
+// CRLF and a comma decimal separator (SRT-flavoured) both appear in the wild.
+const vttCrlf = 'WEBVTT\r\n\r\n00:00:01,500 --> 00:00:03,000\r\nComma time\r\n';
+const cvc = S.parseVtt(vttCrlf);
+check('vtt accepts CRLF + comma separator', cvc.length === 1 && cvc[0].start === 1.5, cvc[0] && cvc[0].start);
+
+// Inline tags and cue identifiers must not leak into the text.
+const vttTags = 'WEBVTT\n\ncue-1\n00:00:00.000 --> 00:00:01.000\n<v Bob>Hi <i>there</i>\n';
+const cvt = S.parseVtt(vttTags);
+check('vtt strips inline tags and the cue id', cvt.length === 1 && cvt[0].text === 'Hi there', cvt[0] && cvt[0].text);
+
+// A header-only file is valid VTT and legitimately has no cues.
+check('vtt header with no cues -> empty', S.parseVtt('WEBVTT\n').length === 0);
+check('non-vtt input is not treated as vtt', S.parseVtt('hello world').length === 0);
 
 // rolling auto-caption dedupe
 const rolling = [
@@ -354,10 +421,61 @@ check(
 check('concurrency respected batch size', fetchCalls.some((c) => c.count === 8), JSON.stringify(fetchCalls.slice(0, 4)));
 
 // cache: second run must not hit the network
+const poisonedText = texts[0];
+const legacyKey = NS.utils.hash(`openai|test-model|en|zh-Hans|${poisonedText}`);
+store['lingua:cache:v1'] = { [legacyKey]: poisonedText };
+
+check('cache storage namespace is versioned', NS.constants.CACHE.STORAGE_KEY === 'lingua:cache:v3');
+check(
+  'legacy cache keys cannot collide with v2 keys',
+  NS.bg.cache.makeKey(poisonedText, 'en', 'zh-Hans', 'openai', 'test-model') !== legacyKey
+);
+
+const sigA = NS.bg.cache.signature(
+  Object.assign({}, settings, { providers: Object.assign({}, settings.providers, { openai: Object.assign({}, settings.providers.openai, { prompt: 'A' }) }) }),
+  'subtitle'
+);
+const sigB = NS.bg.cache.signature(
+  Object.assign({}, settings, { providers: Object.assign({}, settings.providers, { openai: Object.assign({}, settings.providers.openai, { prompt: 'B' }) }) }),
+  'subtitle'
+);
+check('cache config fingerprint changes with the prompt', sigA !== sigB);
+const withKeyA = Object.assign({}, settings, {
+  providers: Object.assign({}, settings.providers, {
+    openai: Object.assign({}, settings.providers.openai, { apiKey: 'key-a' }),
+  }),
+});
+const withKeyB = Object.assign({}, settings, {
+  providers: Object.assign({}, settings.providers, {
+    openai: Object.assign({}, settings.providers.openai, { apiKey: 'key-b' }),
+  }),
+});
+check(
+  'cache config fingerprint ignores the API key',
+  NS.bg.cache.signature(withKeyA, 'subtitle') === NS.bg.cache.signature(withKeyB, 'subtitle')
+);
+check(
+  'cache config fingerprint changes with the request kind',
+  NS.bg.cache.signature(settings, 'subtitle') !== NS.bg.cache.signature(settings, 'page')
+);
+check('cache is split into shards', NS.constants.CACHE.SHARD_COUNT > 1 && NS.bg.cache.stats().shards > 1);
+check('every cache key maps to a valid shard', NS.bg.cache.bucketOf('abc') < NS.constants.CACHE.SHARD_COUNT);
+
+const streamed = [];
+const streamParser = NS.bg.llm.createStreamParser(3, (index, text) => streamed.push(text));
+streamParser.push('1. 甲\n2. 乙\n3. ');
+check('stream parser emits a line as soon as the next number confirms it', streamed.join('|') === '甲');
+check('stream parser does not emit an unconfirmed trailing line', streamed.length === 1);
+streamParser.push('丙');
+const streamedOut = streamParser.finish();
+check('stream parser emits every numbered line', streamedOut.join('|') === '甲|乙|丙', JSON.stringify(streamedOut));
+
 settings.cacheEnabled = true;
 fetchCalls = [];
 const first = await NS.bg.translator.translate(texts, { settings, from: 'en', to: 'zh-Hans' });
 const callsAfterFirst = fetchCalls.length;
+check('a poisoned legacy cache entry is not reused', first.results[0].includes('译'), first.results[0]);
+check('the legacy cache namespace is removed after migration', store['lingua:cache:v1'] === undefined);
 fetchCalls = [];
 const second = await NS.bg.translator.translate(texts, { settings, from: 'en', to: 'zh-Hans' });
 check('first run populates cache via network', callsAfterFirst > 0, `${callsAfterFirst} calls`);
@@ -421,6 +539,7 @@ check('page prompt differs from subtitle prompt', subPrompt !== pagePrompt);
 check('page prompt keeps the numbering contract', /SAME index/.test(pagePrompt));
 check('prompt names the target language', /Simplified Chinese/.test(pagePrompt));
 check('page prompt documents the link placeholders', /⟦1⟧/.test(pagePrompt) && /⟦\/1⟧/.test(pagePrompt));
+check('page prompt documents inline-code placeholders', /⟦c2⟧/.test(pagePrompt) && /⟦\/c2⟧/.test(pagePrompt));
 check('page prompt tells the model to keep the markers intact', /never translate, rename, renumber/.test(pagePrompt));
 check('subtitle prompt does NOT mention link placeholders', !/⟦/.test(subPrompt));
 
@@ -618,6 +737,52 @@ check('profileSuffix is empty for the neutral profile', apP.profileSuffix({ id: 
 check('profileSuffix starts a new paragraph', apP.profileSuffix({ id: 'tech' }).indexOf('\n\n') === 0);
 
 // ---------------------------------------------------------------------------
+console.log('\nempty-track vs unparsed-track (two failures, opposite advice)');
+// ---------------------------------------------------------------------------
+// `status: 'empty'` with zero cues has two causes and they are NOT
+// interchangeable. `empty-track` means the server sent nothing (the PoToken
+// case) — retrying or reloading is reasonable. `unparsed-track` means a
+// non-empty body arrived and we failed to read it — a parser gap, where
+// retrying is pointless and the user should file an issue instead. Before the
+// byte count was carried out of `tryFetch()`, the second was indistinguishable
+// from the first and was always reported as the first.
+const Utils = NS.utils;
+
+const noteEmpty = Utils.emptySubtitleNote({ reason: 'empty-track', tracks: [{ languageCode: 'en' }] });
+check('empty-track keeps the "nothing came back" advice', noteEmpty.reason === 'empty-track', noteEmpty.reason);
+
+const noteUnparsed = Utils.emptySubtitleNote({ reason: 'unparsed-track', tracks: [{ languageCode: 'en' }], trackBytes: 4096 });
+check('unparsed-track is reported as its own reason', noteUnparsed.reason === 'unparsed-track', noteUnparsed.reason);
+check(
+  'unparsed-track says a retry will not help',
+  noteUnparsed.text.includes('重试无用'),
+  noteUnparsed.text
+);
+check(
+  'unparsed-track does not blame the video or the network',
+  !noteUnparsed.text.includes('这个视频有'),
+  noteUnparsed.text
+);
+check(
+  'the two reasons produce different text',
+  noteEmpty.text !== noteUnparsed.text
+);
+
+// The report must show the number that distinguishes them.
+check('empty-track has its own label', Utils.emptyReasonLabel('empty-track').includes('空的'));
+check('unparsed-track has its own label', Utils.emptyReasonLabel('unparsed-track').includes('解析'));
+check(
+  'the two labels differ',
+  Utils.emptyReasonLabel('empty-track') !== Utils.emptyReasonLabel('unparsed-track')
+);
+
+// A non-empty response must never be described as "nothing came back".
+check(
+  'non-empty bytes never yield the empty-track wording',
+  Utils.emptySubtitleNote({ reason: 'unparsed-track', tracks: [], trackBytes: 1 }).reason === 'unparsed-track'
+);
+
+// ---------------------------------------------------------------------------
 console.log('\ntypography is one system across four surfaces');
 // ---------------------------------------------------------------------------
 // The popup and options page read their stacks from theme.css custom
@@ -662,6 +827,12 @@ check(
 );
 
 // ---------------------------------------------------------------------------
+// A stale figure in the docs is a lie in the project's own front page; make the
+// suite refuse to pass when it and the pin disagree.
+if (passed !== EXPECTED_ASSERTIONS) {
+  console.log(`FAIL assertion count drifted: the pin says ${EXPECTED_ASSERTIONS}, this run made ${passed}`);
+  failed++;
+}
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed) {
   console.log('failing checks: ' + failures.join(', '));

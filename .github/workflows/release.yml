@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The tag, package.json and manifest.json must all name the same release.
+      # A mismatched tag ships an artifact whose version nobody can identify
+      # later, so this fails before anything is uploaded.
+      - name: Verify version and tag
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const manifest = JSON.parse(fs.readFileSync('manifest.json', 'utf8'));
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const tag = process.env.GITHUB_REF_NAME.replace(/^v/, '');
+          if (manifest.version !== pkg.version || manifest.version !== tag) {
+            console.error(`version mismatch: manifest=${manifest.version} package=${pkg.version} tag=${process.env.GITHUB_REF_NAME}`);
+            process.exit(1);
+          }
+          if (manifest.description.length > 132) {
+            console.error('manifest.description exceeds the 132-character store limit');
+            process.exit(1);
+          }
+          console.log(`release version ${manifest.version}`);
+          NODE
+
+      - name: Test
+        run: npm run check
+
+      - name: Build the installable zip
+        run: npm run dist
+
+      # --generate-notes keeps the body derived from real commits. Do not mark
+      # this pre-release: the whole point is that the repository's "Latest"
+      # badge and the downloads page point at an installable build.
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create "${GITHUB_REF_NAME}"
+          "dist/lingua-${GITHUB_REF_NAME#v}.zip"
+          "dist/lingua-${GITHUB_REF_NAME#v}.zip.sha256"
+          --verify-tag
+          --latest
+          --generate-notes
+          --title "Lingua ${GITHUB_REF_NAME#v}"

@@ -292,6 +292,7 @@
         model: 'gpt-4o-mini',
         temperature: 0,
         prompt: '',
+        stream: true,
         /** 'off' = ask the model not to deliberate (much faster); 'auto' = leave it alone */
         reasoning: 'off',
       },
@@ -321,7 +322,10 @@
 
   /** Cache tuning */
   const CACHE = {
-    STORAGE_KEY: 'lingua:cache:v1',
+    VERSION: 3,
+    STORAGE_KEY: 'lingua:cache:v3',
+    LEGACY_STORAGE_KEYS: ['lingua:cache:v1', 'lingua:cache:v2'],
+    SHARD_COUNT: 16,
     MAX_ENTRIES: 15000,
     FLUSH_DEBOUNCE_MS: 5000,
   };

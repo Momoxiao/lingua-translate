@@ -180,7 +180,7 @@ const HEADING_CASES = [
   {
     id: 'vueh5',
     html: '<h3 id="vueh5">Reactive <code>ref()</code> basics</h3>',
-    text: 'Reactive basics',
+    text: 'Reactive ⟦c1⟧ref()⟦/c1⟧ basics',
   },
 ];
 
@@ -232,6 +232,8 @@ const FIXTURE = `<!doctype html>
   <p id="linkp">Read the <a href="https://example.com">documentation</a> for details</p>
   <p id="citep">Text with a citation<sup class="reference" id="cite1"><a href="#cite_note-1"><span class="cite-bracket">[</span>1<span class="cite-bracket">]</span></a></sup> and more.</p>
   <p id="twolinks">See <a href="https://en.wikipedia.org">Wikipedia</a> and <a href="https://developer.mozilla.org">MDN</a> for background.</p>
+  <p id="wikicode">Hyperlinks can either be added inline, which may clutter the code because of long URLs, or with named <code>alias</code> or numbered <code>id</code> references to lines containing nothing but the address and related attributes and often may be located anywhere in the document. Most languages allow the author to specify text <code>Text</code> to be displayed instead of the plain address <code><a id="codeanchor" href="http://example.com">http://example.com</a></code> and some also provide methods to set a different link title <code>Title</code> which may contain more information about the destination.</p>
+  <p id="codeonly"><code>const onlyCode = true</code></p>
   <p id="plainp">No links in this paragraph at all</p>
 ${HEADING_MARKUP}
 ${TAG_MARKUP}
@@ -249,18 +251,37 @@ function buildPage(unitsSource) {
 (function () {
   const units = Lingua.page.units.collect(document.body, { skipSelectors: '' });
   const attrs = Lingua.page.units.collectAttributes(document.body, { skipSelectors: '' });
+  const renderSummary = {};
+  if (Lingua.page.render) {
+    Lingua.page.render.ensureStyle();
+    const wiki = units.filter(function (u) { return u.el && u.el.id === 'wikicode'; })[0];
+    if (wiki) {
+      Lingua.page.render.apply(
+        wiki,
+        '链接可以用 ⟦c1⟧alias⟦/c1⟧ 或 ⟦c2⟧id⟦/c2⟧ 引用，例如 ⟦c3⟧Text⟦/c3⟧、⟦c4⟧http://example.com⟦/c4⟧ 和 ⟦c5⟧Title⟦/c5⟧。',
+        { mode: 'replace', style: 'underline', linkMode: 'translate' }
+      );
+      const dst = wiki.el.querySelector('.lingua-pg-dst');
+      renderSummary.hasReplace = wiki.el.classList.contains('lingua-pg-replace');
+      renderSummary.codeCount = dst ? dst.querySelectorAll('code').length : 0;
+      renderSummary.linkCount = dst ? dst.querySelectorAll('a[href]').length : 0;
+      renderSummary.hasMarkers = dst ? /[⟦⟧]/.test(dst.textContent) : false;
+    }
+  }
   const payload = {
-    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display, wrap: !!u.wrap, hasLink: !!u.hasLink, marks: u.marks ? u.marks.length : 0, markTags: u.marks ? u.marks.map(function (m) { return m.tagName + '.' + String(m.className || ''); }) : [] }; }),
-    attrs: attrs.map(function (u) { return { id: u.el.id || u.el.tagName, attr: u.attr, text: u.text }; })
+    units: units.map(function (u) { return { id: u.el.id || u.el.tagName, text: u.text, inline: !!u.inline, display: u.display, wrap: !!u.wrap, hasLink: !!u.hasLink, marks: u.marks ? u.marks.length : 0, markKinds: u.markKinds || [], markTags: u.marks ? u.marks.map(function (m) { return m.tagName + '.' + String(m.className || ''); }) : [] }; }),
+    attrs: attrs.map(function (u) { return { id: u.el.id || u.el.tagName, attr: u.attr, text: u.text }; }),
+    render: renderSummary
   };
   document.getElementById('out').textContent =
     'LINGUA_B64:' + btoa(unescape(encodeURIComponent(JSON.stringify(payload)))) + ':END';
 })();
 </script>`;
   // The scripts must come AFTER #out exists — they run during parsing.
+  const renderSource = fs.readFileSync(path.resolve(ROOT, 'src/content/page/render.js'), 'utf8');
   return FIXTURE.replace('<script>window.__noise = 1;</script>', '').replace(
     '<pre id="out"></pre>',
-    `<pre id="out"></pre><script>${unitsSource}</script>${runner}`
+    `<pre id="out"></pre><script>${unitsSource}</script><script>${renderSource}</script>${runner}`
   );
 }
 
@@ -321,6 +342,19 @@ function dumpDom(file, timeoutMs = 25000) {
 // Assertions
 // ---------------------------------------------------------------------------
 let passed = 0;
+
+/**
+ * The number of assertions this suite is expected to make.
+ *
+ * The READMEs and ci.yml quote these figures. Before this pin existed, a figure
+ * could go stale and nothing noticed: the docs-drift guard re-ran only the two
+ * browser-free suites, so a wrong count for a Chrome-backed suite was
+ * unverifiable and sailed through CI (it happened — the docs said 104 while the
+ * suite ran 114). The suite now checks its own count on every run, and the guard
+ * reads this constant statically, so all four figures are verifiable even on a
+ * machine with no browser.
+ */
+const EXPECTED_ASSERTIONS = 168;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -440,6 +474,33 @@ function check(name, cond, detail) {
     JSON.stringify(byId.get('twolinks'))
   );
   check('both links recorded', byId.has('twolinks') && byId.get('twolinks').marks === 2);
+  check(
+    'inline code is kept as a protected literal in the surrounding prose',
+    byId.has('wikicode') &&
+      byId.get('wikicode').text.indexOf('alias') !== -1 &&
+      byId.get('wikicode').text.indexOf('id') !== -1 &&
+      byId.get('wikicode').text.indexOf('Text') !== -1 &&
+      byId.get('wikicode').text.indexOf('Title') !== -1 &&
+      byId.get('wikicode').text.indexOf('⟦c1⟧alias⟦/c1⟧') !== -1,
+    JSON.stringify(byId.get('wikicode'))
+  );
+  check(
+    'a link nested inside inline code is protected without losing the code',
+    byId.has('wikicode') &&
+      byId.get('wikicode').text.indexOf('⟦c4⟧http://example.com⟦/c4⟧') !== -1 &&
+      byId.get('wikicode').markKinds.filter((k) => k === 'code').length === 5,
+    JSON.stringify(byId.get('wikicode') && byId.get('wikicode').markKinds)
+  );
+  check('a block containing only inline code is still skipped', !byId.has('codeonly'), JSON.stringify(byId.get('codeonly')));
+  check(
+    'rendering inline code and links rebuilds real elements without marker residue',
+    data.render &&
+      data.render.hasReplace === true &&
+      data.render.codeCount === 5 &&
+      data.render.linkCount === 1 &&
+      data.render.hasMarkers === false,
+    JSON.stringify(data.render)
+  );
 
   // --- citation markers: the whole <sup> must move, not just the <a> ---
   check(
@@ -521,6 +582,9 @@ function check(name, cond, detail) {
     wrong.join(', ')
   );
 
+  if (passed !== EXPECTED_ASSERTIONS) {
+    failures.push(`assertion count drifted: the pin says ${EXPECTED_ASSERTIONS}, this run made ${passed}`);
+  }
   console.log(`\n${passed} passed, ${failures.length} failed`);
   if (failures.length) {
     console.log('failing checks: ' + failures.join(', '));

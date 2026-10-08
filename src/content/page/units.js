@@ -31,6 +31,13 @@
   ]);
 
   /**
+   * Inline literals are never translated, but their visible text still belongs
+   * to the surrounding sentence. Dropping them made Wikipedia-style prose lose
+   * every <code> identifier between otherwise translated words.
+   */
+  const LITERAL_TAGS = new Set(['CODE', 'KBD', 'SAMP', 'VAR']);
+
+  /**
    * Tags that act as block boundaries. If an element's subtree contains any of
    * these, the element itself is a container rather than a text unit.
    */
@@ -193,7 +200,7 @@
     return containers;
   }
 
-  /** Visible text of a subtree, with skip-tags excluded and whitespace collapsed. */
+  /** Visible text of a subtree, with block skip-tags excluded and whitespace collapsed. */
   function textOf(el) {
     let out = '';
     (function dfs(node) {
@@ -204,7 +211,7 @@
           out += n.nodeValue + ' ';
         } else if (n.nodeType === 1) {
           const tag = n.tagName;
-          if (SKIP_TAGS.has(tag)) continue;
+          if (SKIP_TAGS.has(tag) && !LITERAL_TAGS.has(tag)) continue;
           if (classNameOf(n).indexOf('lingua-') !== -1) continue;
           if (tag === 'BR') {
             out += ' ';
@@ -247,18 +254,22 @@
       const structural = STRUCTURAL.has(el.tagName);
       if (!containers.has(el) && (!structural || !hasDescendableChild(el))) {
         const hasLink = hasLinkChild(el);
+        const hasLiteral = hasLiteralChild(el);
+        const hasProse = !hasLiteral || hasProseText(el);
         let text = textOf(el);
         const plainLen = text.length;
         let marks = null;
-        if (hasLink) {
-          // Protect the links with placeholders so the translation can keep them.
+        let markKinds = [];
+        if (hasLink || hasLiteral) {
+          // Protect links and inline literals so the translation can rebuild them.
           const marked = markLinks(el);
           if (marked.marks.length) {
             text = marked.text;
             marks = marked.marks;
+            markKinds = marked.markKinds;
           }
         }
-        if (isTranslatable(text)) {
+        if (hasProse && isTranslatable(text)) {
           let cs = null;
           try {
             cs = getComputedStyle(el);
@@ -284,6 +295,7 @@
                 inline: cs.display.indexOf('inline') === 0 || blockifiedByParent,
                 hasLink,
                 marks,
+                markKinds,
                 top: rectTop(el, scrollY),
               });
               return;
@@ -337,6 +349,37 @@
     }
   }
 
+  /** Does this unit contain inline code or another literal inline element? */
+  function hasLiteralChild(el) {
+    if (!el.children.length) return false;
+    try {
+      return !!el.querySelector('code, kbd, samp, var');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /** Does the unit have translatable prose outside literal inline elements? */
+  function hasProseText(el) {
+    let found = false;
+    (function dfs(node) {
+      if (found) return;
+      const kids = node.childNodes;
+      for (let i = 0; i < kids.length && !found; i++) {
+        const n = kids[i];
+        if (n.nodeType === 3) {
+          if (HAS_LETTER.test(n.nodeValue || '')) found = true;
+          continue;
+        }
+        if (n.nodeType !== 1) continue;
+        if (LITERAL_TAGS.has(n.tagName) || SKIP_TAGS.has(n.tagName)) continue;
+        if (classNameOf(n).indexOf('lingua-') !== -1) continue;
+        dfs(n);
+      }
+    })(el);
+    return found;
+  }
+
   /**
    * Walk up from a link to the outermost inline wrapper that exists only to hold
    * it. Wikipedia's citation marker is the canonical case:
@@ -371,18 +414,32 @@
   }
 
   /**
-   * Build the text of a link-bearing unit with inline placeholders around each
-   * link, e.g. `Read the ⟦1⟧documentation⟦/1⟧ for details.`
+   * Build the text of a unit with placeholders around links and inline literals,
+   * e.g. `Read the ⟦1⟧documentation⟦/1⟧ for ⟦c2⟧const x = 1⟦/c2⟧`.
    *
-   * The model translates the text but keeps the markers, so the translation can
-   * be rebuilt with working links instead of losing them. Verified against a real
-   * endpoint: 5/5 marker pairs preserved, link text translated.
+   * The model translates around the markers but keeps them intact, so links stay
+   * clickable and inline code keeps its original element and styling.
    *
-   * @returns {{text: string, marks: Element[]}}
+   * @returns {{text: string, marks: Element[], markKinds: string[]}}
    */
   function markLinks(el) {
     const marks = [];
+    const markKinds = [];
     let out = '';
+
+    function addMark(kind, unit, inner) {
+      const idx = marks.length + 1;
+      if (idx > MAX_MARKS) {
+        out += inner + ' '; // too many protected nodes — keep the text, drop the marker
+        return;
+      }
+      marks.push(unit);
+      markKinds.push(kind);
+      const open = kind === 'code' ? `${MARK_OPEN}c${idx}` : `${MARK_OPEN}${idx}`;
+      const close = kind === 'code' ? `${MARK_OPEN}/c${idx}` : `${MARK_OPEN}/${idx}`;
+      out += `${open}${MARK_CLOSE}${inner}${close}${MARK_CLOSE}`;
+    }
+
     const walkNode = (node) => {
       const kids = node.childNodes;
       for (let i = 0; i < kids.length; i++) {
@@ -394,6 +451,11 @@
         if (n.nodeType !== 1) continue;
         const tag = n.tagName;
         if (classNameOf(n).indexOf('lingua-') !== -1) continue;
+        if (LITERAL_TAGS.has(tag)) {
+          const inner = stripInvisible(n.textContent || '').replace(/\s+/g, ' ').trim();
+          if (inner) addMark('code', n, inner);
+          continue;
+        }
         if (tag === 'A' && n.getAttribute('href')) {
           const unit = atomicInline(n);
           const inner = stripInvisible(unit.textContent || '').replace(/\s+/g, ' ').trim();
@@ -404,13 +466,7 @@
           // placeholder check and fall back to the untranslated source. That is
           // why headings on docs sites stayed in English.
           if (!inner) continue;
-          const idx = marks.length + 1;
-          if (idx > MAX_MARKS) {
-            out += inner + ' '; // too many links — keep the text, drop the marker
-            continue;
-          }
-          marks.push(unit);
-          out += `${MARK_OPEN}${idx}${MARK_CLOSE}${inner}${MARK_OPEN}/${idx}${MARK_CLOSE}`;
+          addMark('link', unit, inner);
           continue;
         }
         if (SKIP_TAGS.has(tag)) continue;
@@ -418,7 +474,7 @@
       }
     };
     walkNode(el);
-    return { text: out.replace(/\s+/g, ' ').trim(), marks };
+    return { text: out.replace(/\s+/g, ' ').trim(), marks, markKinds };
   }
 
   /** Elements that carry no translatable text of their own. */
@@ -509,6 +565,7 @@
     isTranslatable,
     textOf,
     markLinks,
+    LITERAL_TAGS,
     SKIP_TAGS,
     BLOCK_TAGS,
     STRUCTURAL,

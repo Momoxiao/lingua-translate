@@ -43,8 +43,9 @@ importScripts(
     const jobId = payload.jobId || `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const ctrl = new AbortController();
     jobs.set(jobId, ctrl);
+    const started = Date.now();
+    let firstPartialAt = 0;
     try {
-      const started = Date.now();
       const { results, stats } = await translator.translate(payload.texts, {
         settings,
         from: payload.from || settings.sourceLang,
@@ -53,8 +54,16 @@ importScripts(
         profile: payload.profile || null,
         signal: ctrl.signal,
         onProgress: emit,
+        onPartial: (index, text) => {
+          if (!firstPartialAt) firstPartialAt = Date.now();
+          emit({ partial: { index, text } });
+        },
       });
-      log('translate done', { count: payload.texts.length, ms: Date.now() - started, stats });
+      stats.timing = {
+        totalMs: Date.now() - started,
+        firstPartialMs: firstPartialAt ? firstPartialAt - started : null,
+      };
+      log('translate done', { count: payload.texts.length, ms: stats.timing.totalMs, stats });
       return { ok: true, jobId, results, stats };
     } catch (err) {
       const detail = (err && (err.message || err.name)) || String(err) || '翻译失败';

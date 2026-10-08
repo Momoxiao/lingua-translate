@@ -62,5 +62,111 @@
     }
   }
 
-  BG.http = { requestJson, assertOk, ProviderError };
+  /**
+   * POST a chat request and consume a Server-Sent-Events stream.
+   *
+   * `requestJson` cannot expose anything until the whole body is ready. For a
+   * long subtitle batch that means the first cue waits for every later cue too.
+   * This helper calls `onDelta` as each content fragment arrives; the provider
+   * turns complete numbered lines into early results. It still returns the full
+   * concatenated text so callers can run the normal alignment/repair parser.
+   *
+   * Endpoints that ignore `stream: true` and answer with ordinary JSON are
+   * handled as a one-shot body.
+   */
+  async function requestJsonStream(url, options, label, onDelta, timeoutMs = 60000) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(new DOMException('timeout', 'TimeoutError')), timeoutMs);
+    const onAbort = () => ctrl.abort(options.signal && options.signal.reason);
+    if (options.signal) options.signal.addEventListener('abort', onAbort, { once: true });
+    try {
+      const res = await fetch(url, { ...options, signal: ctrl.signal });
+      await assertOk(res, label);
+      const contentType = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+
+      if (!res.body || !/text\/event-stream/i.test(contentType)) {
+        const text = await res.text();
+        let json;
+        try {
+          json = JSON.parse(text);
+        } catch (e) {
+          throw new ProviderError(`${label} 返回了非 JSON 响应`, {
+            code: 'BAD_JSON',
+            retriable: false,
+            body: text.slice(0, 300),
+          });
+        }
+        const choice = json && json.choices && json.choices[0];
+        const content = (choice && ((choice.message && choice.message.content) || choice.text)) || '';
+        if (content && onDelta) onDelta(content);
+        return content;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let pending = '';
+      let full = '';
+      let done = false;
+      while (!done) {
+        const part = await reader.read();
+        if (part.done) break;
+        pending += decoder.decode(part.value, { stream: true });
+        const lines = pending.split(/\r?\n/);
+        pending = lines.pop();
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed[0] === ':') continue;
+          const m = /^data:\s?(.*)$/.exec(trimmed);
+          if (!m) continue;
+          if (m[1] === '[DONE]') {
+            done = true;
+            break;
+          }
+          let json;
+          try {
+            json = JSON.parse(m[1]);
+          } catch (e) {
+            continue;
+          }
+          const choice = json && json.choices && json.choices[0];
+          const delta = (choice && choice.delta && choice.delta.content) || (choice && choice.text) || '';
+          if (delta) {
+            full += delta;
+            if (onDelta) onDelta(delta);
+          }
+        }
+      }
+      if (pending) {
+        const m = /^data:\s?(.*)$/.exec(pending.trim());
+        if (m && m[1] !== '[DONE]') {
+          try {
+            const json = JSON.parse(m[1]);
+            const choice = json && json.choices && json.choices[0];
+            const delta = (choice && choice.delta && choice.delta.content) || (choice && choice.text) || '';
+            if (delta) {
+              full += delta;
+              if (onDelta) onDelta(delta);
+            }
+          } catch (e) {
+            /* trailing partial event is not usable */
+          }
+        }
+      }
+      return full;
+    } catch (err) {
+      if (err instanceof ProviderError) throw err;
+      if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
+        throw new ProviderError(`${label} 请求超时或被取消`, {
+          code: err.name === 'TimeoutError' ? 'TIMEOUT' : 'ABORTED',
+          retriable: err.name === 'TimeoutError',
+        });
+      }
+      throw new ProviderError(`${label} 网络错误：${err && err.message}`, { code: 'NETWORK', retriable: true });
+    } finally {
+      clearTimeout(timer);
+      if (options.signal) options.signal.removeEventListener('abort', onAbort);
+    }
+  }
+
+  BG.http = { requestJson, requestJsonStream, assertOk, ProviderError };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

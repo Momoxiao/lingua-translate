@@ -135,6 +135,13 @@ function walk(dir, out) {
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const version = manifest.version;
 
+// Chrome Web Store rejects a description longer than 132 characters before a
+// human ever reviews the package. Catch it at build time, not at upload time.
+if (typeof manifest.description !== 'string' || manifest.description.length > 132) {
+  console.error(`manifest.description must be 1-132 characters; got ${manifest.description ? manifest.description.length : 0}`);
+  process.exit(1);
+}
+
 const entries = [];
 for (const dir of INCLUDE_DIRS) walk(path.join(ROOT, dir), entries);
 for (const file of INCLUDE_FILES) {
@@ -172,11 +179,20 @@ fs.writeFileSync(outPath, zip);
 const sha = crypto.createHash('sha256').update(zip).digest('hex');
 const kb = (n) => `${(n / 1024).toFixed(1)} KB`;
 
+// Written next to the zip instead of only printed. The published checksum has to
+// match the published bytes, and "copy the hash out of the terminal into a file"
+// is exactly the manual step where the two drift apart — most quietly when the
+// zip is rebuilt after a source change and the old hash is left in place.
+// Format is what `shasum -a 256 -c` expects: hash, two spaces, filename.
+const shaPath = `${outPath}.sha256`;
+fs.writeFileSync(shaPath, `${sha}  lingua-${version}.zip\n`);
+
 console.log(`lingua-${version}.zip`);
 console.log(`  文件数: ${entries.length}`);
 console.log(`  manifest 引用: ${new Set(referenced).size} 条，全部存在`);
 console.log(`  大小:   ${kb(zip.length)}（未压缩 ${kb(entries.reduce((s, e) => s + e.data.length, 0))}）`);
 console.log(`  sha256: ${sha}`);
+console.log(`  校验:   ${path.relative(ROOT, shaPath)}`);
 console.log(`  路径:   ${path.relative(ROOT, outPath)}`);
 console.log('');
 for (const e of entries) console.log(`  ${e.name}`);

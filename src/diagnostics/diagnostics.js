@@ -14,6 +14,7 @@
   'use strict';
   const NS = globalThis.Lingua;
   const { PROVIDERS, LANGUAGES } = NS.constants;
+  const { emptySubtitleNote, emptyReasonLabel } = NS.utils;
 
   const ISSUE_URL = 'https://github.com/Momoxiao/lingua-translate/issues/new?template=bug_report.yml';
   const OWN_URL = chrome.runtime.getURL('src/diagnostics/diagnostics.html');
@@ -37,7 +38,11 @@
   }
 
   function row(label, value) {
-    return `  ${pad(label, 14)}${value}`;
+    // Always keep at least one space: a label that reaches the column width
+    // exactly (e.g. a 7-character CJK label at 14 columns) would otherwise butt
+    // straight against its value, and since this text is copied into issue
+    // reports, "播放器字幕容器不存在" reads as one run-on token.
+    return `  ${label}${' '.repeat(Math.max(1, 14 - displayWidth(label)))}${value}`;
   }
 
   function section(title) {
@@ -124,11 +129,78 @@
         text: '字幕翻译当前是关闭的。检查弹窗里的「翻译视频字幕」开关，以及设置页的总开关。',
       };
     }
-    if (!sub.cueCount) {
+    if (sub.status === 'live') {
+      // This status now covers two different situations: a live stream, and a
+      // VOD whose whole-track fetch came back empty (the PoToken timing case).
+      // Describing both as "直播字幕" told a VOD user their ordinary video was a
+      // stream, and hid the fact that the fast path had degraded.
+      const isStream = !!sub.isLiveStream;
+      // And the degraded case itself has two causes, which `reason` separates: a
+      // zero-byte body is the PoToken race (a reload can win it), while a
+      // non-empty body we failed to parse is a parser gap (a reload cannot).
+      // Reporting the second as the first sent users to reload for something
+      // reloading cannot touch — the same "wrong layer" mistake this page exists
+      // to prevent.
+      const unparsed = sub.reason === 'unparsed-track';
+      if (isStream) {
+        return {
+          tone: 'ok',
+          text: '直播字幕走实时抓取（直接读播放器已经显示的那一行），不经过字幕轨接口，所以这里没有条数——属于正常。',
+        };
+      }
+      if (unparsed) {
+        return {
+          tone: 'warn',
+          text:
+            `整轨字幕取回了非空数据（${sub.trackBytes || 0} 字节）却一条都没解析出来，已自动切换为实时抓取兜底。` +
+            '这是本扩展的解析问题，不是 PoToken 时序问题——重新加载不会解决它。' +
+            '能正常出字幕，但比点播的「提前翻译」慢半拍。请复制下面这段信息开 Issue。',
+        };
+      }
       return {
         tone: 'warn',
-        text: '页面已连通，但一条字幕轨都没找到。可能是这个视频确实没有字幕；如果你确认它有，那就是 YouTube 改了字幕接口——这正是最需要上报的情况。',
+        text:
+          '整轨字幕没取回来（YouTube 的 PoToken 时序问题），已自动切换为实时抓取：' +
+          '逐句读取播放器正在显示的那一行并翻译，所以这里没有条数。' +
+          '能正常出字幕，但比点播的「提前翻译」慢半拍。重新加载页面常能让整轨路径成功。',
       };
+    }
+    if (!sub.cueCount) {
+      // "No subtitles" and "subtitles exist but the fetch came back empty" are
+      // both `status: 'empty'`, and the report prints the track list right above
+      // this line. Getting them the wrong way round told the user their video
+      // was untranslatable when the fault was ours — the exact confusion this
+      // page exists to prevent.
+      const note = emptySubtitleNote(sub);
+      const count = (sub.tracks || []).length;
+      if (note.reason === 'unparsed-track') {
+        // The body arrived and we could not read it. A retry will not help, so
+        // this must not be phrased like the PoToken case above it.
+        return {
+          tone: 'warn',
+          text:
+            `取回了非空的字幕数据（${sub.trackBytes || 0} 字节）却一条都没解析出来——` +
+            '这是本扩展的解析问题：数据到了，是我们没读懂。重试没有意义，' +
+            '直接复制下面这段信息开 Issue，响应大小能定位到是哪一种格式。',
+        };
+      }
+      if (note.reason === 'empty-track') {
+        return {
+          tone: 'warn',
+          text:
+            `播放器报告了 ${count} 条字幕轨，但一条字幕数据都没取回来——视频本身是有字幕的，` +
+            '卡住的是「取字幕」这一步。这是最需要上报的情况：直接复制下面这段信息开 Issue。',
+        };
+      }
+      if (note.reason === 'no-captions') {
+        return {
+          tone: 'warn',
+          text:
+            '页面已连通，但播放器没有报告任何字幕轨。可能这个视频确实没有字幕；' +
+            '如果你在网页上能看到它，那就是 YouTube 改了字幕接口——请上报。',
+        };
+      }
+      return { tone: 'idle', text: note.text };
     }
     if (!s.providerReady) {
       return {
@@ -176,13 +248,40 @@
     const sub = s.subtitle || {};
     out.push(section('视频字幕'));
     out.push(row('状态', sub.status || '—'));
+    // Raw code plus a readable gloss: whoever triages the issue needs to tell
+    // "the video has no captions" from "our fetch failed" at a glance, and the
+    // status alone does not say which.
+    if (sub.reason) out.push(row('状态原因', `${emptyReasonLabel(sub.reason)}（${sub.reason}）`));
     out.push(row('视频 ID', sub.videoId || '—'));
     const tracks = sub.tracks || [];
     out.push(row('字幕轨', tracks.length ? `${tracks.length} 条：${tracks.map(trackLabel).join(', ')}` : '0 条'));
     if (sub.sourceTrack) out.push(row('当前字幕轨', trackLabel(sub.sourceTrack)));
     out.push(row('字幕条数', String(sub.cueCount || 0)));
+    // Only meaningful when a track was attempted; it is the one number that
+    // separates "the server sent nothing" from "we could not read what it sent".
+    if (sub.trackBytes) out.push(row('字幕响应大小', `${sub.trackBytes} 字节`));
     out.push(row('已翻译', String(sub.translated || 0)));
     out.push(row('直播模式', sub.liveMode ? '是' : '否'));
+    // `status: live` has two causes and the fix differs, so name which one this
+    // is rather than leaving triage to infer it from a single status string.
+    if (sub.status === 'live') {
+      out.push(row('模式来源', sub.isLiveStream ? '直播间（预期行为）' : '点播降级（PoToken 时序）'));
+    }
+    // In realtime mode `字幕条数` is legitimately 0 — there is no cue list. On its
+    // own that reads as "nothing worked" when lines may be flowing fine, so
+    // report the counters that actually move. Counts only: this block is meant to
+    // be pasted into a public issue, so it should not carry video dialogue.
+    if (sub.live) {
+      out.push(row('实时已读行数', String(sub.live.lines || 0)));
+      out.push(row('实时已译行数', String(sub.live.translated || 0)));
+      // The count above is 0 in two situations needing opposite advice: the
+      // playhead is on silence (it will pass), or the player never created a
+      // caption container (it never will). Without this row neither the reporter
+      // nor a maintainer reading the issue can tell which one they have.
+      if (sub.live.hasContainer === false) {
+        out.push(row('播放器字幕容器', '不存在 —— 实时兜底不可能读到任何一行'));
+      }
+    }
     if (sub.error) out.push(row('错误', sub.error));
 
     const p = s.page;

@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 58;
+const EXPECTED_ASSERTIONS = 64;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -71,6 +71,10 @@ function makeEl(tag, props = {}) {
 
 function makeEnv({ captions = [], live = false, duration = 300, tracklist = null, withCcButton = true } = {}) {
   const segEls = captions.map((t) => makeEl('span', { textContent: t, getAttribute: () => null }));
+  function setCaption(text) {
+    if (!segEls[0]) segEls.push(makeEl('span', { textContent: text, getAttribute: () => null }));
+    else segEls[0].textContent = text;
+  }
   const win = makeEl('div', {
     children: segEls,
     querySelectorAll: (sel) => (sel === '.ytp-caption-segment' ? segEls : []),
@@ -97,12 +101,12 @@ function makeEnv({ captions = [], live = false, duration = 300, tracklist = null
     getElementById: (id) => byId[id] || null,
   };
 
-  return { doc, video, container, ccButton };
+  return { doc, video, container, ccButton, segEls, setCaption };
 }
 
 /** Load live.js fresh against a given document, with minimal Lingua stubs. */
 function loadLive(env, overrides = {}) {
-  const calls = { notices: [], live: [], badge: [], forceCaption: 0, intervals: [], timers: [] };
+  const calls = { notices: [], live: [], badge: [], forceCaption: 0, intervals: [], timers: [], translates: [], cancels: [] };
   let now = 0;
   const clock = {
     now: () => now,
@@ -129,12 +133,17 @@ function loadLive(env, overrides = {}) {
   };
   sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
+  const bridge = {
+    translate: async (arr, opts) => {
+      calls.translates.push({ arr, opts });
+      return { results: arr.map((t) => '译:' + t) };
+    },
+    cancel: (jobId) => calls.cancels.push(jobId),
+    setBadge: (b) => calls.badge.push(b),
+  };
   ctx.Lingua = {
     store: { state: { liveMode: false, status: 'empty' }, setStatus() {}, setCues() {} },
-    bridge: {
-      translate: async (arr) => ({ results: arr.map((t) => '译:' + t) }),
-      setBadge: (b) => calls.badge.push(b),
-    },
+    bridge,
     overlay: {
       mount() {}, applyStyles() {}, setVisible() {}, start() {}, stop() {},
       setLive: (o, t) => calls.live.push([o, t]),
@@ -143,6 +152,7 @@ function loadLive(env, overrides = {}) {
     youtube: { forceCaptionRequest: () => { calls.forceCaption++; } },
     ...overrides,
   };
+  ctx.Lingua.bridge = Object.assign({}, bridge, overrides.bridge || {});
   vm.runInContext(fs.readFileSync(path.join(ROOT, 'src/content/live.js'), 'utf8'), ctx, {
     filename: 'src/content/live.js',
   });
@@ -208,6 +218,7 @@ console.log('\n实时字幕兜底 · start/stop 的行为');
   live.start({ enabled: true, sourceLang: 'en', targetLang: 'zh-Hans' });
   check('start 会主动催一次播放器字幕请求', calls.forceCaption === 1);
   check('start 会挂上轮询定时器', calls.intervals.length === 1);
+  check('轮询间隔已缩短，降低直播字幕延迟', calls.intervals[0] <= 120, String(calls.intervals[0]));
   check('start 会把徽标置为 LIVE', calls.badge.includes('LIVE'));
   live.stop();
   check('stop 后 liveMode 复位', true);
@@ -225,6 +236,69 @@ console.log('\n实时字幕兜底 · start/stop 的行为');
   const timers = calls.notices.filter((n) => n.ms);
   check('start 会安排一个延迟提示，用于解释降级模式', timers.length === 1);
   check('该延迟足够长，不会误报', timers.length === 1 && timers[0].ms >= 8000, JSON.stringify(timers));
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n实时字幕兜底 · 流式结果与最新字幕优先');
+
+{
+  const env = makeEnv({ captions: ['line A'], duration: 300, tracklist: [{ languageCode: 'en' }] });
+  const resolvers = [];
+  const { live, calls, clock } = loadLive(env, {
+    bridge: {
+      translate: (texts, opts) => {
+        calls.translates.push({ arr: texts, opts });
+        return new Promise((resolve) => resolvers.push(resolve));
+      },
+    },
+  });
+  live.start({ enabled: true, sourceLang: 'en', targetLang: 'zh-Hans' });
+
+  calls.poll(); // read A and show the source immediately
+  clock.advance(100);
+  calls.poll(); // one stable poll is enough to start the request
+  check(
+    '稳定一条后下一次轮询就发起翻译',
+    calls.translates.length === 1 && calls.translates[0].arr[0] === 'line A',
+    JSON.stringify(calls.translates.map((t) => t.arr))
+  );
+
+  calls.translates[0].opts.onPartial({ index: 0, text: '半句' });
+  check(
+    '流式片段先显示到当前字幕，且不冒充已完成行',
+    calls.live.some(([o, t]) => o === 'line A' && t === '半句') && live.stats().translated === 0,
+    JSON.stringify({ live: calls.live, stats: live.stats() })
+  );
+
+  env.setCaption('line B');
+  calls.poll(); // A's request is now stale
+  calls.translates[0].opts.onPartial({ index: 0, text: '旧译文' });
+  check(
+    '旧请求的流式片段不能覆盖新字幕',
+    !calls.live.some(([o, t]) => o === 'line B' && t === '旧译文'),
+    JSON.stringify(calls.live)
+  );
+
+  clock.advance(100);
+  calls.poll();
+  check(
+    '最新字幕会取消旧请求并成为唯一在途请求',
+    calls.cancels.length === 1 &&
+      calls.cancels[0] === calls.translates[0].opts.jobId &&
+      calls.translates.length === 2 &&
+      calls.translates[1].arr[0] === 'line B',
+    JSON.stringify({ cancels: calls.cancels, translates: calls.translates.map((t) => t.arr) })
+  );
+
+  resolvers[0]({ results: ['旧完整译文'] });
+  resolvers[1]({ results: ['新完整译文'] });
+  await new Promise((r) => setTimeout(r, 0));
+  check(
+    '旧响应不会覆盖新字幕，最新请求完成后显示完整译文',
+    !calls.live.some(([o, t]) => o === 'line B' && t === '旧完整译文') &&
+      calls.live.some(([o, t]) => o === 'line B' && t === '新完整译文'),
+    JSON.stringify(calls.live)
+  );
 }
 
 // ---------------------------------------------------------------------------

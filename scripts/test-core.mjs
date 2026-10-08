@@ -28,7 +28,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 190;
+const EXPECTED_ASSERTIONS = 192;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -469,6 +469,22 @@ check('stream parser does not emit an unconfirmed trailing line', streamed.lengt
 streamParser.push('丙');
 const streamedOut = streamParser.finish();
 check('stream parser emits every numbered line', streamedOut.join('|') === '甲|乙|丙', JSON.stringify(streamedOut));
+
+const singleStreamed = [];
+const singleParser = NS.bg.llm.createStreamParser(1, (index, text) => singleStreamed.push(`${index}:${text}`));
+singleParser.push('1. 你');
+check(
+  'single-line stream emits its first partial before the response finishes',
+  singleStreamed.join('|') === '0:你',
+  JSON.stringify(singleStreamed)
+);
+singleParser.push('好');
+const singleOut = singleParser.finish();
+check(
+  'single-line stream keeps growing and returns the finished translation',
+  singleStreamed.join('|') === '0:你|0:你好' && singleOut[0] === '你好',
+  `${JSON.stringify(singleStreamed)} / ${JSON.stringify(singleOut)}`
+);
 
 settings.cacheEnabled = true;
 fetchCalls = [];

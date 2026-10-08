@@ -189,7 +189,7 @@
 
   /**
    * @param {string[]} texts
-   * @param {{from:string,to:string,kind?:string,profile?:object,onProgress?:Function}} opts
+   * @param {{from:string,to:string,kind?:string,profile?:object,jobId?:string,onProgress?:Function,onPartial?:Function}} opts
    */
   function translate(texts, opts = {}) {
     if (!isAlive()) return Promise.reject(contextError());
@@ -207,6 +207,7 @@
             from: opts.from,
             to: opts.to,
             kind: opts.kind || 'subtitle',
+            jobId: opts.jobId || null,
             // Only the profile id and free-text note travel; the directives are
             // resolved in the worker from constants.js.
             profile: opts.profile || null,

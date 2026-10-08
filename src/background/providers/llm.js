@@ -45,12 +45,40 @@
    */
   function createStreamParser(count, onLine) {
     const pattern = /^\s*[\[\(]?\s*(\d{1,4})\s*[\]\)]?\s*[.、:：)）\-—]?\s*(.*)$/;
+    const singleNumbered = /^\s*[\[\(]?\s*(\d{1,4})\s*[\]\)]?\s*[.、:：)）\-—]\s*([\s\S]*)$/;
     const seen = new Map();
     const emitted = new Set();
     let buf = '';
+    let singleText = '';
+
+    /** Strip a numbered prefix as soon as it has a complete line to expose. */
+    function singleLineText(raw) {
+      const clean = stripDecoration(raw);
+      if (!clean) return '';
+      const numbered = singleNumbered.exec(clean);
+      if (numbered) return numbered[2].replace(/\s+/g, ' ').trim();
+      // A model may stream `1.` before the translation text. Do not flash the
+      // number as a partial result while that prefix is still arriving.
+      if (/^\s*[\[\(]?\s*\d{1,4}\s*[\]\)]?\s*(?:[.、:：)）\-—])?\s*$/.test(clean)) return '';
+      return clean.replace(/\s+/g, ' ').trim();
+    }
 
     function consume(chunk, flush) {
       buf += String(chunk || '');
+
+      // A live request contains exactly one line. Unlike a batch, there is no
+      // later numbered line to prove this one is complete, so emit the text as
+      // it grows instead of waiting for the stream to finish.
+      if (count === 1) {
+        const next = singleLineText(buf);
+        if (next && next !== singleText) {
+          singleText = next;
+          if (onLine) onLine(0, next);
+        }
+        if (flush) buf = '';
+        return;
+      }
+
       const lines = [];
       let start = 0;
       for (let i = 0; i < buf.length; i++) {
@@ -102,6 +130,10 @@
         if (chunk) buf += String(chunk);
         consume('', true);
         const out = new Array(count).fill(null);
+        if (count === 1) {
+          if (singleText) out[0] = singleText;
+          return out;
+        }
         for (const [index, text] of seen) out[index] = text || null;
         return out;
       },

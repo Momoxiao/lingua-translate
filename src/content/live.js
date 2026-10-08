@@ -25,8 +25,13 @@
   const { store, bridge, overlay } = NS;
   const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
-  const POLL_MS = 220;
-  const SETTLE_MS = 120; // wait for the caption to stop changing before translating
+  // Live captions can change several times a second. Polling less often than
+  // this puts a visible delay between the caption and the request; waiting for a
+  // long quiet period also misses captions that grow word by word. One poll is
+  // enough to prove the line is stable before sending it.
+  const POLL_MS = 100;
+  const SETTLE_MS = 60;
+  const RETRY_MS = 1500;
   /**
    * How long to wait for a first line before telling the user anything. On a VOD
    * the player only renders a caption once playback reaches one, so a video that
@@ -44,9 +49,11 @@
   let lastShownTranslated = '';
   let currentOriginal = '';
   let currentSince = 0;
-  let inflightText = '';
+  let inflight = null; // { text, jobId, gen }
+  let requestGen = 0;
   let retryTimer = 0;
   let noticeTimer = 0;
+  let lastCountedOriginal = '';
   /** Set as soon as any caption line is read, so the grace-period notice is skipped. */
   let sawAnyCaption = false;
   /**
@@ -142,46 +149,97 @@
     return isCaptionSettingsPrompt(text) ? '' : text;
   }
 
+  function cancelInflight() {
+    const job = inflight;
+    inflight = null;
+    if (job && job.jobId && bridge.cancel) {
+      try {
+        bridge.cancel(job.jobId);
+      } catch (e) {
+        /* the worker may already be gone */
+      }
+    }
+  }
+
+  function isActive(gen, text) {
+    return !!inflight && inflight.gen === gen && text === currentOriginal && running;
+  }
+
   function translateNow(text) {
-    if (!text || inflightText === text) return;
+    if (!text || !running) return;
     if (cache.has(text)) {
+      cancelInflight();
+      pendingText = text;
       show(text, cache.get(text));
       return;
     }
-    inflightText = text;
+    if (inflight && inflight.text === text) return;
+
+    // Live mode is "latest caption wins": a request for a line that is no longer
+    // on screen only wastes the provider's latency budget. Cancel it before
+    // starting the current line, so the next streaming token belongs to what the
+    // viewer is reading now.
+    cancelInflight();
+    const gen = ++requestGen;
+    const jobId = `live_${Date.now()}_${gen}`;
+    inflight = { text, jobId, gen };
     bridge
-      .translate([text], { from: settings.sourceLang, to: settings.targetLang })
+      .translate([text], {
+        from: settings.sourceLang,
+        to: settings.targetLang,
+        jobId,
+        onPartial: ({ index, text: partial }) => {
+          if (index !== 0 || !partial || !isActive(gen, text)) return;
+          show(text, partial, true);
+        },
+      })
       .then(({ results }) => {
+        if (!isActive(gen, text)) return;
         const out = (results && results[0]) || '';
+        if (!out) {
+          pendingText = '';
+          return;
+        }
         if (cache.size > MAX_CACHE) cache.clear();
         cache.set(text, out);
-        if (out && text === currentOriginal) show(text, out);
+        show(text, out);
       })
       .catch(() => {
+        if (!isActive(gen, text)) return;
+        pendingText = text;
         clearTimeout(retryTimer);
         retryTimer = setTimeout(() => {
-          inflightText = '';
-        }, 3000);
+          retryTimer = 0;
+          if (running && currentOriginal === text) pendingText = '';
+        }, RETRY_MS);
       })
       .finally(() => {
-        if (inflightText === text) inflightText = '';
+        if (inflight && inflight.gen === gen) inflight = null;
       });
   }
 
-  function show(original, translated) {
-    if (original === lastShownOriginal && translated === lastShownTranslated) return;
+  function show(original, translated, partial) {
+    const nextTranslated = translated || '';
+    const lineChanged = original !== lastShownOriginal;
+    const visualChanged = lineChanged || nextTranslated !== lastShownTranslated;
+    const countFinal = !partial && original && nextTranslated && original !== lastCountedOriginal;
+    if (!visualChanged && !countFinal) return;
+
+    if (lineChanged && original) liveStats.lines++;
     lastShownOriginal = original;
-    lastShownTranslated = translated;
+    lastShownTranslated = nextTranslated;
+    if (countFinal) {
+      lastCountedOriginal = original;
+      liveStats.translated++;
+    }
     // Counters for the smoke test. The realtime path never touches the cue
     // store, so without these the only externally visible fact is the status
     // string "live" — which cannot distinguish "translated a line" from
     // "polled forever and matched nothing". They are plain counters, not state
     // the UI reads.
-    if (original) liveStats.lines++;
-    if (original && translated) liveStats.translated++;
     liveStats.lastOriginal = original || '';
-    liveStats.lastTranslated = translated || '';
-    overlay.setLive(original, translated);
+    liveStats.lastTranslated = nextTranslated;
+    if (visualChanged) overlay.setLive(original, nextTranslated);
   }
 
   function poll() {
@@ -204,11 +262,15 @@
       currentSince = Date.now();
       if (!text) {
         // Caption cleared — clear the overlay too.
+        cancelInflight();
+        pendingText = '';
         show('', '');
         return;
       }
       // Immediately surface a cached translation to avoid flicker.
       if (cache.has(text)) {
+        cancelInflight();
+        pendingText = text;
         show(text, cache.get(text));
         return;
       }
@@ -217,7 +279,8 @@
     }
 
     if (!text) return;
-    // Caption has settled -> translate once.
+    // Caption has settled -> translate once. If a previous line is still in
+    // flight, translateNow cancels it and starts this one instead.
     if (Date.now() - currentSince >= SETTLE_MS && text !== pendingText) {
       pendingText = text;
       translateNow(text);
@@ -273,6 +336,7 @@
     liveStats.translated = 0;
     liveStats.lastOriginal = '';
     liveStats.lastTranslated = '';
+    lastCountedOriginal = '';
     overlay.mount();
     overlay.applyStyles(s);
     overlay.setVisible(true);
@@ -318,7 +382,7 @@
       }
       overlay.setNotice(
         isLive
-          ? tr('直播模式：逐句实时翻译，比点播稍慢', 'runtime.liveMode')
+          ? tr('直播模式：字幕出现即翻译，支持时逐字显示译文', 'runtime.liveMode')
           : tr(
               '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
               'runtime.liveFallback'
@@ -334,14 +398,16 @@
     clearInterval(timer);
     timer = 0;
     clearTimeout(retryTimer);
+    retryTimer = 0;
     clearTimeout(noticeTimer);
     noticeTimer = 0;
     sawAnyCaption = false;
-    inflightText = '';
+    cancelInflight();
     pendingText = '';
     currentOriginal = '';
     lastShownOriginal = '';
     lastShownTranslated = '';
+    lastCountedOriginal = '';
     overlay.setLive(null);
   }
 

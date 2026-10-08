@@ -11,7 +11,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip"><b>Download Lingua 0.2.3</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip"><b>Download Lingua 0.2.4</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -56,7 +56,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **12,413 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,512 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -73,7 +73,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.3 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.4 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -89,7 +89,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 To verify the download, run this from the folder containing **both** downloaded files:
 
 ```bash
-shasum -a 256 -c lingua-0.2.3.zip.sha256
+shasum -a 256 -c lingua-0.2.4.zip.sha256
 ```
 
 ## Configure
@@ -118,9 +118,9 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 601 assertions across four suites, plus the docs, asset and i18n guards
-npm test            # 190 — core logic: batching, parsing, all five providers
-npm run test:live   #  58 — the realtime caption fallback, and when it must NOT engage
+npm run check       # 609 assertions across four suites, plus the docs, asset and i18n guards
+npm test            # 192 — core logic: batching, parsing, all five providers
+npm run test:live   #  64 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
@@ -151,10 +151,10 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   So the whole-track path is **timing-dependent, not permanently broken**: `extractCues()` nudges the player and sniffs the token from the request the player then makes itself, and whether that lands inside the ~10 s window decides the outcome. The same command on the same video produced both `60/60 cues translated` (token sniffed in time) and a fall-through (token arrived too late) across consecutive runs.
 
-  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time, trading the pre-fetch ahead of the playhead for a beat of latency, one line at a time, and saying so on screen instead of going blank.
+  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time. Streaming-compatible providers can show the translation as it is written, and a newer caption cancels the stale request so the overlay follows what is being said now.
 
   **"Often", not "always" — and that distinction is measured, not hedged.** Across one evening of headed runs on the same video: three runs took the fast path (`pot=有`, ~1.2 KB responses, 60/60 cues); one run fell back and *did* read real lines (`实时兜底 读到 2 行 · 译出 1 行`) even though none of the requests in that run carried a `pot`; and one run failed completely — 8 caption requests, none with a `pot`, all 8 response bodies read as **0 bytes** (captured bodies, not a byte-count inference), the player created no caption container, and the fallback read 0 lines. So the fallback rescues the common case, not every case, and the earlier wording promised captions on both paths, and that was one measurement too confident. `npm run smoke` prints the DOM reading beside the line counters — container present or not, how many `.ytp-caption-segment` nodes, and their text — so a zero-line fallback now says which of the two it was instead of telling you to run it again.
-- On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path is slower and translates line by line rather than ahead of the playhead.
+- On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path cannot pre-translate ahead of the playhead, though streaming output and latest-caption cancellation keep the delay bounded.
 - The extension UI ships in Chinese and English. Chinese is the source language and the fallback; every non-Chinese browser gets the English catalogue.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.

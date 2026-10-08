@@ -171,7 +171,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 
 - [x] **Topics**：已设置 13 个，覆盖 `chrome-extension`、`edge-extension`、`browser-extension`、`translation`、`youtube`、`subtitles`、`bilingual-subtitles`、`webpage-translation`、`openai`、`deepseek`、`ollama`、`manifest-v3`、`privacy`
 - [x] **About 描述**：已设置为英文，与 README 的定位一致
-- [x] **About 里的 Website**：暂指向最新 Release；商店上架后改成商店链接
+- [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [x] **Discussions**：已打开
 - [x] **Releases**：`v0.2.2` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`

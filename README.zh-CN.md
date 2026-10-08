@@ -4,6 +4,8 @@
 
 [![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
 
+**官网：** [Lingua 项目主页](https://momoxiao.github.io/lingua-translate/) · **源码：** [GitHub](https://github.com/Momoxiao/lingua-translate)
+
 > **早期版本（0.2.2）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。

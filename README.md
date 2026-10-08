@@ -6,6 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/Momoxiao/lingua-translate?include_prereleases&label=release)](https://github.com/Momoxiao/lingua-translate/releases/latest)
 
+**Website:** [lingua homepage](https://momoxiao.github.io/lingua-translate/) · **Source:** [GitHub](https://github.com/Momoxiao/lingua-translate)
+
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">

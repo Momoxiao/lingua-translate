@@ -236,7 +236,7 @@ Headers: { "Authorization": "Bearer {{key}}", "Content-Type": "application/json"
 | `<button>Platform<svg/></button>`（`display:flex`） | **容器自己的文本也会被翻译**：只把那段文本节点包进一个行内 span，位置正好顶替原来的匿名 flex item，布局不变 |
 | `<nav><a>Home</a><a>About</a></nav>` | nav 只作容器，两个链接各自成单元（否则会被合并成一句） |
 | `<div><p>a</p><p>b</p></div>` | 外层 div 只作容器，两个 p 各自成单元 |
-| `<pre>` `<code>` `<textarea>` `<script>` | 直接跳过 |
+| `<pre>` `<textarea>` `<script>` | 整块跳过；行内 `<code>` `<kbd>` `<samp>` `<var>` 作为不可翻译原子片段保留在句子中 |
 | `translate="no"` / `.notranslate` / `contenteditable` | 整棵子树跳过 |
 | 纯数字、纯符号、单字符 | 不发请求 |
 | 视频播放器区域 | 内置忽略（`.html5-video-player` 等） |
@@ -351,8 +351,8 @@ yt-subtitle-translator/
 ├── docs/                          界面与效果截图
 ├── scripts/
 │   ├── make-icons.py              纯 stdlib 图标生成（4x 超采样）
-│   ├── test-core.mjs              核心逻辑测试（113 项，无需浏览器）
-│   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（164 项，真实浏览器）
+│   ├── test-core.mjs              核心逻辑测试（126 项，无需浏览器）
+│   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（168 项，真实浏览器）
 │   ├── check-pages.mjs            弹窗与设置页的启动 + 交互检查（31 项）
 │   ├── e2e-extension.mjs          真机端到端（70 项，自建 CDP 客户端）
 │   ├── inspect-live.mjs           读真实页面里扩展的状态
@@ -397,8 +397,8 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 
 ```bash
 npm run check       # 一条命令跑完下面三套不需要真机扩展的测试（CI 跑的就是这个）
-npm test            # 核心逻辑测试（113 项，无需浏览器、无依赖）
-npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（164 项，真实 Chrome）
+npm test            # 核心逻辑测试（126 项，无需浏览器、无依赖）
+npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验（31 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
@@ -488,7 +488,7 @@ npm run inspect -- youtube.com
 - 直播场景的字幕走实时逐句翻译，质量与延迟不如点播的整片预取模式。
 - `<all_urls>` 主机权限是网页翻译与「自定义供应商」所必需的；若只想要 YouTube 字幕，可把 `manifest.json` 里第三个 `content_scripts` 条目与 `<all_urls>` 一并删掉。
 - 修改「供应商 / 语言 / 批量 / 并发」会触发当前页重新加载字幕；修改字号、对齐、译文样式等仅实时生效。
-- 缓存不区分模型版本，换模型后如需重翻，可在设置页清空缓存。
+- 缓存使用版本化命名空间与配置指纹，旧格式会自动丢弃，提示词、模型、接口地址等改动也不会复用旧译文；仍可随时在设置页手动清空。
 
 ---
 
@@ -600,4 +600,3 @@ npm run inspect -- youtube.com
 ## 十二、许可证
 
 [MIT](LICENSE)。你可以自由使用、修改、再发布，包括商业用途，只需保留版权声明。欢迎在自己的 fork 上继续做。
-

@@ -28,6 +28,16 @@
         hint: '推荐用非推理模型。' },
       { key: 'temperature', label: '温度', type: 'number', min: 0, max: 2, step: 0.1, placeholder: '0' },
       {
+        key: 'stream',
+        label: '流式返回',
+        type: 'select',
+        options: [
+          { value: 'true', label: '开启（推荐，首句更快出现）' },
+          { value: 'false', label: '关闭（整批返回）' },
+        ],
+        hint: '开启后模型每译完一行就立即显示，不必等整批结束；不支持流式的接口会自动回退。',
+      },
+      {
         key: 'reasoning',
         label: '模型推理',
         type: 'select',
@@ -280,7 +290,12 @@
           o.textContent = typeof opt === 'string' ? opt : opt.label;
           input.appendChild(o);
         }
-        input.value = cfg[f.key] != null ? cfg[f.key] : typeof f.options[0] === 'string' ? f.options[0] : f.options[0].value;
+        input.value =
+          cfg[f.key] != null
+            ? String(cfg[f.key])
+            : typeof f.options[0] === 'string'
+              ? f.options[0]
+              : f.options[0].value;
       } else {
         input = document.createElement('input');
         input.type = f.type;
@@ -288,7 +303,7 @@
         if (f.max != null) input.max = f.max;
         if (f.step != null) input.step = f.step;
         if (f.placeholder) input.placeholder = f.placeholder;
-        input.value = cfg[f.key] != null ? cfg[f.key] : '';
+        input.value = cfg[f.key] != null ? String(cfg[f.key]) : '';
       }
       input.id = `f_${providerId}_${f.key}`;
       input.autocomplete = 'off';
@@ -297,6 +312,7 @@
       const commit = () => {
         let value = input.value;
         if (f.type === 'number') value = value === '' ? 0 : Number(value);
+        if (f.key === 'stream') value = value === 'true';
         saveDebounced({ providers: { [providerId]: { [f.key]: value } } });
       };
       input.addEventListener('input', commit);

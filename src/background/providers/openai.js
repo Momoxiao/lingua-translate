@@ -9,9 +9,9 @@
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
-  const { requestJson } = BG.http;
+  const { requestJson, requestJsonStream } = BG.http;
   const { buildBatchText } = NS.subtitles;
-  const { parseOutput } = BG.llm;
+  const { parseOutput, createStreamParser } = BG.llm;
   const { systemPrompt, profileSuffix } = BG.prompts;
 
   function resolveUrl(baseUrl) {
@@ -39,9 +39,12 @@
     thinking: { type: 'disabled' },
   };
   let reasoningHintsAccepted = true;
+  let streamAccepted = true;
 
-  function postJson(url, headers, body, signal) {
-    return requestJson(url, { method: 'POST', headers, body: JSON.stringify(body), signal }, 'OpenAI 兼容接口');
+  function postJson(url, headers, body, signal, onDelta) {
+    const opts = { method: 'POST', headers, body: JSON.stringify(body), signal };
+    if (onDelta) return requestJsonStream(url, opts, 'OpenAI 兼容接口', onDelta);
+    return requestJson(url, opts, 'OpenAI 兼容接口');
   }
 
   async function translateBatch(texts, ctx) {
@@ -70,29 +73,69 @@
     };
 
     const withHints = cfg.reasoning !== 'auto' && reasoningHintsAccepted;
+    const onDelta = ctx.onDelta;
+    let streamed = null;
+    if (onDelta && streamAccepted) {
+      streamed = createStreamParser(texts.length, onDelta);
+      body.stream = true;
+    }
     let json;
     try {
-      json = await postJson(url, headers, withHints ? Object.assign({}, body, REASONING_OFF) : body, signal);
+      json = await postJson(
+        url,
+        headers,
+        withHints ? Object.assign({}, body, REASONING_OFF) : body,
+        signal,
+        streamed ? (delta) => streamed.push(delta) : null
+      );
     } catch (err) {
       const rejected = withHints && err && (err.status === 400 || err.status === 422);
-      if (!rejected) throw err;
-      // This endpoint does not understand the hints — retry without them and
-      // stop sending them from now on.
-      reasoningHintsAccepted = false;
-      json = await postJson(url, headers, body, signal);
+      const streamRejected = streamed && err && (err.status === 400 || err.status === 422);
+      if (!rejected && !streamRejected) throw err;
+      // Some compatible gateways reject either the reasoning hints or
+      // `stream: true`. Drop only the feature that failed and retry once; both
+      // capabilities are remembered for the rest of the session.
+      if (rejected) reasoningHintsAccepted = false;
+      if (streamRejected) {
+        streamAccepted = false;
+        streamed = null;
+        body.stream = false;
+      }
+      json = await postJson(
+        url,
+        headers,
+        reasoningHintsAccepted ? Object.assign({}, body, REASONING_OFF) : body,
+        signal,
+        streamed ? (delta) => streamed.push(delta) : null
+      );
     }
 
-    const choice = json && json.choices && json.choices[0];
-    const msg = (choice && choice.message) || {};
-    const content = msg.content || '';
+    let content = '';
+    if (typeof json === 'string') {
+      content = json;
+    } else {
+      const choice = json && json.choices && json.choices[0];
+      const msg = (choice && choice.message) || {};
+      content = msg.content || (choice && choice.text) || '';
+    }
     if (!content) {
       const err = new Error(
-        msg.reasoning_content
+        json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.reasoning_content
           ? '模型只输出了推理过程、没有输出译文。请在设置里确认「模型推理」为关闭，或换用非推理模型'
           : '接口返回为空（检查模型名是否正确）'
       );
       err.retriable = true;
       throw err;
+    }
+    if (streamed) {
+      const out = streamed.finish();
+      // A single-line custom endpoint may answer without a "1." prefix. The
+      // normal parser accepts that; the incremental one deliberately does not,
+      // so fall back to the full raw answer here instead of reporting a miss.
+      if (texts.length === 1 && !out[0]) {
+        return parseOutput(content, 1);
+      }
+      return out;
     }
     return parseOutput(content, texts.length);
   }

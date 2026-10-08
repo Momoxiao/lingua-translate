@@ -220,6 +220,14 @@
         to: settings.targetLang,
         kind: 'page',
         profile: state.profile,
+        onPartial: ({ index, text }) => {
+          if (gen !== generation || !text) return;
+          const unit = units[chunk[index]];
+          if (!unit || !unit.el || !unit.el.isConnected || unit.ok) return;
+          page.render.apply(unit, text, renderOpts());
+          unit.ok = true;
+          recount();
+        },
       })
       .then(({ results }) => {
         if (gen !== generation) return;

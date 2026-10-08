@@ -98,8 +98,14 @@
   //   4. fall back to whatever track the player happened to fetch
   // ---------------------------------------------------------------------------
 
-  /** Last /api/timedtext URL the player itself requested (carries a valid pot). */
-  let signedTemplate = null;
+  /**
+   * Last /api/timedtext URL the player itself requested.
+   *
+   * The token is bound to the video id, so keeping a bare URL across SPA
+   * navigation made the next video spend one guaranteed-failing request on the
+   * previous video's pot. Store the id with it and only reuse on a match.
+   */
+  let signedTemplate = null; // { videoId, url }
 
   /** Extract the reusable token params from a player-issued caption URL. */
   function potParamsFrom(url) {
@@ -125,6 +131,24 @@
     } catch (e) {
       return baseUrl;
     }
+  }
+
+  function currentVideoId() {
+    try {
+      return videoIdFromUrl();
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function rememberSignedTemplate(url) {
+    const videoId = currentVideoId();
+    signedTemplate = url && videoId ? { videoId, url } : null;
+  }
+
+  function signedTemplateFor(videoId) {
+    if (!signedTemplate || !videoId) return '';
+    return signedTemplate.videoId === videoId ? signedTemplate.url : '';
   }
 
   function langOf(url) {
@@ -241,37 +265,46 @@
   }
 
   async function extractCues(track) {
-    // Start the player-fetch path FIRST: on a cold load our own request is
-    // guaranteed to come back empty, so waiting for it before nudging the player
-    // costs a full round trip of dead time. Kick both off together.
+    const videoId = currentVideoId();
     const wirePromise = waitForWireCaptions(10000);
     forceCaptionRequest(track);
 
-    // 1. plain page-context fetch of the track the player advertised
-    let cues = await tryFetch(track.baseUrl);
-    if (cues.length) return { cues, source: 'direct' };
-
-    // 2. reuse a pot we already sniffed earlier in the session
-    let signed = potParamsFrom(signedTemplate);
-    if (signed) {
-      cues = await tryFetch(withParams(track.baseUrl, signed));
-      if (cues.length) return { cues, source: 'pot-reuse' };
+    // Send all independent requests at once. On a cold load the plain baseUrl is
+    // usually empty and the player-fetch path takes one round trip; racing them
+    // means that path is no longer serialised behind the guaranteed-empty one.
+    const prior = potParamsFrom(signedTemplateFor(videoId));
+    const fetches = [tryFetch(track.baseUrl).then((cues) => ({ cues, source: 'direct' }))];
+    if (prior) {
+      fetches.push(
+        tryFetch(withParams(track.baseUrl, prior)).then((cues) => ({ cues, source: 'pot-reuse' }))
+      );
+    }
+    const valid = (p) => p.then((r) => (r && r.cues && r.cues.length ? r : Promise.reject(new Error('empty'))));
+    const sources = fetches.map(valid);
+    sources.push(
+      valid(wirePromise.then((sniffed) => ({ cues: sniffed && sniffed.cues, sniffed, source: 'sniffed' })))
+    );
+    const winner = await Promise.any(sources).catch(() => null);
+    if (winner && winner.cues && winner.cues.length) {
+      if (winner.source === 'sniffed') {
+        const got = langOf((winner.sniffed && winner.sniffed.url) || '');
+        return {
+          cues: winner.cues,
+          source: 'sniffed',
+          sniffedLang: got,
+          langMismatch: !!got && got !== track.languageCode,
+        };
+      }
+      return { cues: winner.cues, source: winner.source };
     }
 
-    // 3. whatever the player just fetched for us (it was nudged above)
     const sniffed = await wirePromise;
-    if (sniffed.url) signedTemplate = sniffed.url;
+    if (sniffed.url) rememberSignedTemplate(sniffed.url);
 
-    signed = potParamsFrom(sniffed.url);
+    const signed = potParamsFrom(sniffed.url);
     if (signed) {
-      cues = await tryFetch(withParams(track.baseUrl, signed));
+      const cues = await tryFetch(withParams(track.baseUrl, signed));
       if (cues.length) return { cues, source: 'pot-fresh' };
-    }
-
-    // 4. last resort: use whatever track the player fetched for itself
-    if (sniffed.cues.length) {
-      const got = langOf(sniffed.url || '');
-      return { cues: sniffed.cues, source: 'sniffed', sniffedLang: got, langMismatch: !!got && got !== track.languageCode };
     }
 
     return { cues: [], source: 'none' };
@@ -340,7 +373,20 @@
       const texts = chunk.map((i) => cues[i].text);
 
       const job = bridge
-        .translate(texts, { from: settings.sourceLang, to: settings.targetLang })
+        .translate(texts, {
+          from: settings.sourceLang,
+          to: settings.targetLang,
+          onPartial: ({ index, text }) => {
+            if (gen !== generation || !text) return;
+            const cueIndex = chunk[index];
+            if (cueIndex == null) return;
+            if (store.state.timing && store.state.timing.firstTranslationMs == null) {
+              store.state.timing.firstTranslationMs = Date.now() - (store.state.timing.startedAt || Date.now());
+            }
+            store.applyMany([[cueIndex, text]]);
+            updateBadge();
+          },
+        })
         .then(({ results }) => {
           if (gen !== generation) return;
           consecutiveFailures = 0;
@@ -375,6 +421,9 @@
           updateBadge();
           if (store.state.status === store.STATUS.ERROR) return;
           if (store.translatedCount() >= store.state.cues.length) {
+            if (store.state.timing && store.state.timing.completeMs == null) {
+              store.state.timing.completeMs = Date.now() - (store.state.timing.startedAt || Date.now());
+            }
             maybeFinish();
             return;
           }
@@ -455,6 +504,16 @@
   async function load() {
     cancelAll();
     consecutiveFailures = 0;
+    const loadStarted = Date.now();
+    let tracksAt = 0;
+    let timings = {
+      startedAt: loadStarted,
+      trackWaitMs: null,
+      cueExtractMs: null,
+      firstCueMs: null,
+      firstTranslationMs: null,
+      completeMs: null,
+    };
     const gen = ++generation;
 
     const vid = videoIdFromUrl();
@@ -496,6 +555,8 @@
     }
 
     store.state.tracks = tracks;
+    tracksAt = Date.now();
+    timings.trackWaitMs = tracksAt - loadStarted;
     if (!tracks.length) {
       store.setStatus(store.STATUS.EMPTY, { reason: 'no-captions' });
       bridge.setBadge('');
@@ -509,6 +570,8 @@
     store.emit('tracks', { tracks, track, defaultIndex: latestDefaultIndex });
 
     const { cues, ...meta } = await extractCues(track);
+    timings.cueExtractMs = Date.now() - tracksAt;
+    timings.firstCueMs = Date.now() - loadStarted;
     if (gen !== generation) return;
 
     if (!cues.length) {
@@ -525,6 +588,7 @@
 
     store.setCues(cues);
     firstChunkSent = false;
+    store.state.timing = timings;
     store.emit('loaded', { cues, source: meta.source, sniffedLang: meta.sniffedLang, langMismatch: meta.langMismatch });
     store.setStatus(settings.autoTranslate ? store.STATUS.TRANSLATING : store.STATUS.READY);
     if (settings.autoTranslate) {

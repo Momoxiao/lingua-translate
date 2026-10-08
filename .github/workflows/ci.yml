@@ -19,11 +19,11 @@ jobs:
       # dependency-free, so there is nothing to install and no lockfile to
       # drift. If this ever needs an install step, that is a design change.
 
-      # 113 assertions, pure Node — no browser required.
+      # 126 assertions, pure Node — no browser required.
       - name: Unit tests
         run: npm test
 
-      # 164 assertions against real headless Chrome (the runner image ships
+      # 168 assertions against real headless Chrome (the runner image ships
       # google-chrome at /usr/bin/google-chrome, which scripts/lib/chrome.mjs
       # finds on its own). Set CHROME_PATH to point at another binary.
       - name: DOM tests

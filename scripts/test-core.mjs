@@ -41,14 +41,19 @@ const store = {};
 globalThis.chrome = {
   storage: {
     local: {
-      async get(key) {
-        return { [key]: store[key] };
+      async get(keys) {
+        if (Array.isArray(keys)) {
+          const out = {};
+          for (const key of keys) out[key] = store[key];
+          return out;
+        }
+        return { [keys]: store[keys] };
       },
       async set(obj) {
         Object.assign(store, obj);
       },
-      async remove(key) {
-        delete store[key];
+      async remove(keys) {
+        for (const key of Array.isArray(keys) ? keys : [keys]) delete store[key];
       },
     },
     onChanged: { addListener() {}, removeListener() {} },
@@ -202,10 +207,61 @@ check(
 check('concurrency respected batch size', fetchCalls.some((c) => c.count === 8), JSON.stringify(fetchCalls.slice(0, 4)));
 
 // cache: second run must not hit the network
+const poisonedText = texts[0];
+const legacyKey = NS.utils.hash(`openai|test-model|en|zh-Hans|${poisonedText}`);
+store['lingua:cache:v1'] = { [legacyKey]: poisonedText };
+
+check('cache storage namespace is versioned', NS.constants.CACHE.STORAGE_KEY === 'lingua:cache:v3');
+check(
+  'legacy cache keys cannot collide with v2 keys',
+  NS.bg.cache.makeKey(poisonedText, 'en', 'zh-Hans', 'openai', 'test-model') !== legacyKey
+);
+
+const sigA = NS.bg.cache.signature(
+  Object.assign({}, settings, { providers: Object.assign({}, settings.providers, { openai: Object.assign({}, settings.providers.openai, { prompt: 'A' }) }) }),
+  'subtitle'
+);
+const sigB = NS.bg.cache.signature(
+  Object.assign({}, settings, { providers: Object.assign({}, settings.providers, { openai: Object.assign({}, settings.providers.openai, { prompt: 'B' }) }) }),
+  'subtitle'
+);
+check('cache config fingerprint changes with the prompt', sigA !== sigB);
+const withKeyA = Object.assign({}, settings, {
+  providers: Object.assign({}, settings.providers, {
+    openai: Object.assign({}, settings.providers.openai, { apiKey: 'key-a' }),
+  }),
+});
+const withKeyB = Object.assign({}, settings, {
+  providers: Object.assign({}, settings.providers, {
+    openai: Object.assign({}, settings.providers.openai, { apiKey: 'key-b' }),
+  }),
+});
+check(
+  'cache config fingerprint ignores the API key',
+  NS.bg.cache.signature(withKeyA, 'subtitle') === NS.bg.cache.signature(withKeyB, 'subtitle')
+);
+check(
+  'cache config fingerprint changes with the request kind',
+  NS.bg.cache.signature(settings, 'subtitle') !== NS.bg.cache.signature(settings, 'page')
+);
+check('cache is split into shards', NS.constants.CACHE.SHARD_COUNT > 1 && NS.bg.cache.stats().shards > 1);
+check('every cache key maps to a valid shard', NS.bg.cache.bucketOf('abc') < NS.constants.CACHE.SHARD_COUNT);
+
+const streamed = [];
+const streamParser = NS.bg.llm.createStreamParser(3, (index, text) => streamed.push(text));
+streamParser.push('1. 甲\n2. 乙\n3. ');
+check('stream parser emits a line as soon as the next number confirms it', streamed.join('|') === '甲');
+check('stream parser does not emit an unconfirmed trailing line', streamed.length === 1);
+streamParser.push('丙');
+const streamedOut = streamParser.finish();
+check('stream parser emits every numbered line', streamedOut.join('|') === '甲|乙|丙', JSON.stringify(streamedOut));
+
 settings.cacheEnabled = true;
 fetchCalls = [];
 const first = await NS.bg.translator.translate(texts, { settings, from: 'en', to: 'zh-Hans' });
 const callsAfterFirst = fetchCalls.length;
+check('a poisoned legacy cache entry is not reused', first.results[0].includes('译'), first.results[0]);
+check('the legacy cache namespace is removed after migration', store['lingua:cache:v1'] === undefined);
 fetchCalls = [];
 const second = await NS.bg.translator.translate(texts, { settings, from: 'en', to: 'zh-Hans' });
 check('first run populates cache via network', callsAfterFirst > 0, `${callsAfterFirst} calls`);
@@ -269,6 +325,7 @@ check('page prompt differs from subtitle prompt', subPrompt !== pagePrompt);
 check('page prompt keeps the numbering contract', /SAME index/.test(pagePrompt));
 check('prompt names the target language', /Simplified Chinese/.test(pagePrompt));
 check('page prompt documents the link placeholders', /⟦1⟧/.test(pagePrompt) && /⟦\/1⟧/.test(pagePrompt));
+check('page prompt documents inline-code placeholders', /⟦c2⟧/.test(pagePrompt) && /⟦\/c2⟧/.test(pagePrompt));
 check('page prompt tells the model to keep the markers intact', /never translate, rename, renumber/.test(pagePrompt));
 check('subtitle prompt does NOT mention link placeholders', !/⟦/.test(subPrompt));
 

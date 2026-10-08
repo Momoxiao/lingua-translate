@@ -35,5 +35,78 @@
     return parsed;
   }
 
-  BG.llm = { stripDecoration, parseOutput };
+  /**
+   * Incremental parser for streamed numbered output.
+   *
+   * The stream can split anywhere, including in the middle of "12." or inside a
+   * multi-byte character. This buffered parser only emits a line once a *later*
+   * numbered line has been seen, which guarantees the earlier line is complete.
+   * The final flush emits whatever remains.
+   */
+  function createStreamParser(count, onLine) {
+    const pattern = /^\s*[\[\(]?\s*(\d{1,4})\s*[\]\)]?\s*[.、:：)）\-—]?\s*(.*)$/;
+    const seen = new Map();
+    const emitted = new Set();
+    let buf = '';
+
+    function consume(chunk, flush) {
+      buf += String(chunk || '');
+      const lines = [];
+      let start = 0;
+      for (let i = 0; i < buf.length; i++) {
+        if (buf[i] !== '\n') continue;
+        lines.push(buf.slice(start, i).replace(/\r$/, ''));
+        start = i + 1;
+      }
+      // Keep an unterminated tail in the buffer: it may be only half a line.
+      // On the final flush the tail is the last real line.
+      const tail = buf.slice(start);
+      buf = flush ? '' : tail;
+      if (flush && tail) lines.push(tail);
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const m = pattern.exec(line);
+        if (!m) continue;
+        const index = Number(m[1]) - 1;
+        if (index < 0 || index >= count) continue;
+        const prev = seen.get(index);
+        seen.set(index, prev ? `${prev} ${m[2].trim()}` : m[2].trim());
+      }
+
+      const indexes = Array.from(seen.keys()).sort((a, b) => a - b);
+      for (const index of indexes) {
+        // A later numbered line proves every earlier one is complete. On flush
+        // there is no later line left to wait for, so everything is emitted.
+        const complete = flush || indexes.some((later) => later > index);
+        if (!complete || emitted.has(index)) continue;
+        const text = seen.get(index);
+        if (text) {
+          emitted.add(index);
+          if (onLine) onLine(index, text);
+        }
+      }
+    }
+
+    return {
+      push(chunk) {
+        consume(chunk, false);
+      },
+      /** Full raw text seen so far, for the non-numbered single-line fallback. */
+      raw() {
+        let s = '';
+        for (const text of seen.values()) s += (s ? '\n' : '') + text;
+        return s ? s + '\n' + buf : buf;
+      },
+      finish(chunk) {
+        if (chunk) buf += String(chunk);
+        consume('', true);
+        const out = new Array(count).fill(null);
+        for (const [index, text] of seen) out[index] = text || null;
+        return out;
+      },
+    };
+  }
+
+  BG.llm = { stripDecoration, parseOutput, createStreamParser };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

@@ -165,6 +165,9 @@
         // and reject a request that is still running.
         if (msg.progress !== undefined && msg.done !== true) {
           if (entry.onProgress) entry.onProgress(msg.progress);
+          if (msg.progress && msg.progress.partial && entry.onPartial) {
+            entry.onPartial(msg.progress.partial);
+          }
           return;
         }
         pendingCalls.delete(msg.requestId);
@@ -193,7 +196,7 @@
     if (!p) return Promise.reject(contextError());
     return new Promise((resolve, reject) => {
       const requestId = `r${++reqSeq}`;
-      pendingCalls.set(requestId, { resolve, reject, onProgress: opts.onProgress });
+      pendingCalls.set(requestId, { resolve, reject, onProgress: opts.onProgress, onPartial: opts.onPartial });
       try {
         p.postMessage({
           type: MSG.TRANSLATE_BATCH,

@@ -61,6 +61,12 @@ jobs:
       - name: Release assets
         run: npm run check:assets
 
+      # The English catalogue is a second product surface, not a translation
+      # side project. A missing key silently falls back to Chinese, so audit
+      # static calls, HTML references, dynamic prefixes and orphan entries.
+      - name: i18n catalogue
+        run: npm run check:i18n
+
       # NOT run here, on purpose:
       #   npm run test:e2e  — loads the unpacked extension into a real Chrome
       #                       profile over CDP: slow and environment-sensitive.

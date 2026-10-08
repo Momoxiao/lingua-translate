@@ -118,7 +118,7 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 601 assertions across four suites, plus the docs-drift and asset guards
+npm run check       # 601 assertions across four suites, plus the docs, asset and i18n guards
 npm test            # 190 — core logic: batching, parsing, all five providers
 npm run test:live   #  58 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
@@ -126,6 +126,7 @@ npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
 npm run check:assets #  48 — store and social images have the required sizes
+npm run check:i18n  #   8 — no missing references, no Chinese fallbacks in English
 
 npm run preview     # render every UI surface to PNG
 npm run demo:gif    # rebuild docs/lingua-demo.gif from real overlay frames

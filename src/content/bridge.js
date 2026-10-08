@@ -256,6 +256,18 @@
     sendMessage(MSG.BADGE, { text }).catch(() => {});
   }
 
+  /** Last-resort full-track fetch that does not depend on the page's PoToken. */
+  function fetchYouTubeCaptions(videoId, languageCode) {
+    return sendMessage(MSG.FETCH_YOUTUBE_CAPTIONS, { videoId, languageCode }).then((res) => ({
+      cues: res.cues || [],
+      bytes: res.bytes || 0,
+      source: res.source || 'mobile-client',
+      client: res.client || '',
+      languageCode: res.languageCode || '',
+      langMismatch: !!res.langMismatch,
+    }));
+  }
+
   NS.bridge = {
     initPageChannel,
     onTracks,
@@ -267,6 +279,7 @@
     cancel,
     sendMessage,
     setBadge,
+    fetchYouTubeCaptions,
     isAlive,
     contextError,
     CODE_CONTEXT_LOST,

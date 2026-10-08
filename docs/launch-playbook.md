@@ -68,7 +68,8 @@ Two things that turned out to be genuinely hard, in case they're useful:
    Proof-of-Origin token minted by BotGuard, and the URL in ytInitialPlayerResponse
    doesn't carry one. Fetch it and you get HTTP 200 with an empty body — a failure
    that looks exactly like success. So the extension reuses the token the player
-   already obtained, with four fallbacks.
+   already obtained, with four page-token attempts and a mobile-client
+   full-track fallback that does not need that token.
 
    While testing this I got the diagnosis wrong twice, which turned out to be the
    more useful story. First I blamed headless mode; it reproduces headed, with the
@@ -90,11 +91,11 @@ Two things that turned out to be genuinely hard, in case they're useful:
    The real property is timing: the extension nudges the player and sniffs the
    token out of the request the player then makes, so whether that token arrives
    inside the window decides the outcome. Same command, same video, consecutive
-   runs: sometimes 60/60 cues translated, sometimes a fall-through. So I added a
-   realtime fallback that reads the lines the player renders into the DOM and
-   translates them one at a time. You get subtitles either way; the fallback just
-   costs the pre-fetch ahead of the playhead, and it says so on screen instead of
-   going blank.
+   runs: sometimes 60/60 cues translated, sometimes a fall-through. I kept the
+   realtime DOM path as a rescue, but added a separate mobile-client player
+   request whose caption URL does not need that page-minted token. In a direct
+   check it returned 6 tracks and 61 cues for the test video, so a video with
+   captions now has a full-track source that does not depend on the timing race.
 
    The test now records each /api/timedtext request's pot, status and CDP
    initiator, and says "unknown" when there is no initiator instead of guessing
@@ -107,9 +108,9 @@ Two things that turned out to be genuinely hard, in case they're useful:
    navbars onto two lines. The rule now treats "inline tag + flex/grid parent" as
    still inline, but only for short text.
 
-There's no build step and no dependencies — manifest.json plus src/, 12,688 lines.
+There's no build step and no dependencies — manifest.json plus src/, 12,893 lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
-the published SHA-256 means something. 632 assertions, including a real Chrome e2e.
+the published SHA-256 means something. 646 assertions, including a real Chrome e2e.
 
 Known limitation, stated up front: the caption path depends on YouTube's private
 interface and is not covered by CI. It can break without warning.
@@ -174,7 +175,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）。GitHub REST API 没有这个字段，必须走仓库 Settings 的网页表单；当前浏览器桥接报 `Codex auth token is unavailable`，所以这一步保留给仓库所有者手动完成。
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.6` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`。发布后已用 `gh release download` 下载附件并本地重算 SHA-256，再与 GitHub 附件对照，确认上传字节与本地 `npm run dist` 产物一致。
+- [x] **Releases**：发布说明保存在 `docs/releases/`；推送 `v0.2.7` 标签后由 Release workflow 上传 zip + `.sha256`。发布后需用 `gh release download` 下载附件并本地重算 SHA-256，再与 GitHub 附件对照，确认上传字节与本地 `npm run dist` 产物一致。
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）

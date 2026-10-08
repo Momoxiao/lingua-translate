@@ -11,7 +11,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.6.zip"><b>Download Lingua 0.2.6</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.7.zip"><b>Download Lingua 0.2.7</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -56,7 +56,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **12,688 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,893 lines across 39 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -73,7 +73,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.6 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.6.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.6.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.7 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.7.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.7.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -89,7 +89,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 To verify the download, run this from the folder containing **both** downloaded files:
 
 ```bash
-shasum -a 256 -c lingua-0.2.6.zip.sha256
+shasum -a 256 -c lingua-0.2.7.zip.sha256
 ```
 
 ## Configure
@@ -101,7 +101,7 @@ Settings → **Translation service** → pick a provider → paste your API key.
 Three problems were hard enough to be worth writing down. The full set of ~30 engineering notes is in the [Chinese README](README.zh-CN.md#十设计取舍记录).
 
 **1. YouTube signs caption requests, so a plain `fetch` returns nothing.**
-Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by BotGuard, and the URL in `ytInitialPlayerResponse` carries no `pot`. Fetching it yields **HTTP 200 with an empty body** — a failure that looks like success. The extension reuses the token the player itself already obtained, falling back through four strategies, the last of which is "whatever track the player happened to fetch".
+Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by BotGuard, and the URL in `ytInitialPlayerResponse` carries no `pot`. Fetching it yields **HTTP 200 with an empty body** — a failure that looks like success. The extension reuses the token the player itself already obtained, then falls back to a mobile-player response whose caption URLs do not require the page-minted token. The last realtime path remains a rescue, not the normal way captions load.
 
 **2. Timing.** The scheduler is priority-ordered around the playhead, not sequential. Chunk sizes adapt, the first batch is deliberately small (four lines on screen in about a second beats sixteen lines in three), and retries skip units that already succeeded — otherwise a single render error inside a chunk re-translates the whole chunk and a double-count shows up as *"translated 391 / 381"*.
 
@@ -111,16 +111,16 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 
 `package.json` has no `dependencies` and no `devDependencies`. There is no bundler, no transpiler, and no `node_modules`. The extension is the source you read — `manifest.json` plus `src/`, loaded as-is. That is a deliberate constraint, not a gap:
 
-- **You can audit it.** 12,688 lines, plain ES2020, no generated code.
+- **You can audit it.** 12,893 lines, plain ES2020, no generated code.
 - **Nothing can rot.** No lockfile to drift, no transitive update to break the build in two years.
 - **Packaging is reproducible.** `npm run dist` produces a byte-identical zip for the same source (fixed timestamps, sorted entries), which is what makes a published SHA-256 meaningful.
 
 ## Tests
 
 ```bash
-npm run check       # 632 assertions across four suites, plus the docs, asset and i18n guards
-npm test            # 198 — core logic: batching, parsing, all five providers
-npm run test:live   #  81 — the realtime caption fallback, and when it must NOT engage
+npm run check       # 646 assertions across four suites, plus the docs, asset and i18n guards
+npm test            # 207 — core logic: batching, parsing, all five providers
+npm run test:live   #  86 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
@@ -151,7 +151,9 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   So the whole-track path is **timing-dependent, not permanently broken**: `extractCues()` nudges the player and sniffs the token from the request the player then makes itself, and whether that lands inside the ~10 s window decides the outcome. The same command on the same video produced both `60/60 cues translated` (token sniffed in time) and a fall-through (token arrived too late) across consecutive runs.
 
-  **0.2.6 closes two failure modes in that window.** YouTube can return a non-empty `pb3` document that contains only style tables and no caption events; that is now treated as an empty response, so the signed retry happens instead of reporting a parser failure. And an upgrade retry that lands during a pre-roll ad now waits for the ad to end instead of spending its retry budget on the ad's player response. A headed regression run after the fix observed the ad, waited it out, then fetched the real track with a `pot` (7.7 KB, 59/59 cues translated).
+  **0.2.7 adds a path that does not depend on that timing at all.** If the page-signed chain, the reused token, the sniffed player response and a fresh signed request all fail, the background worker asks YouTube's mobile player endpoint for the same video and fetches that response's caption track. In a direct check on `dQw4w9WgXcQ`, the iOS client returned 6 tracks and the `en` track returned 8,079 bytes with 61 cues, with no `pot` in the URL. Only a failure of that final full-track path falls through to line-by-line realtime mode.
+
+  **0.2.6 closed two failure modes in the same window.** YouTube can return a non-empty `pb3` document that contains only style tables and no caption events; that is now treated as an empty response, so the signed retry happens instead of reporting a parser failure. And an upgrade retry that lands during a pre-roll ad now waits for the ad to end instead of spending its retry budget on the ad's player response. A headed regression run after the fix observed the ad, waited it out, then fetched the real track with a `pot` (7.7 KB, 59/59 cues translated).
 
   **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time. Streaming-compatible providers can show the translation as it is written; a genuinely new sentence cancels the stale request, while a line that is still growing keeps its request alive.
 

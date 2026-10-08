@@ -24,6 +24,7 @@
     PING: 'lingua:ping',
     PORT: 'lingua:port',
     BADGE: 'lingua:badge',
+    FETCH_YOUTUBE_CAPTIONS: 'lingua:fetch-youtube-captions',
   };
 
   /** window.postMessage bridge between MAIN world and isolated world */

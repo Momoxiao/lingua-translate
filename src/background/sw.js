@@ -18,7 +18,8 @@ importScripts(
   'providers/google.js',
   'providers/microsoft.js',
   'providers/custom.js',
-  'translator.js'
+  'translator.js',
+  'youtube-captions.js'
 );
 
 (function () {
@@ -141,6 +142,11 @@ importScripts(
             await NS.bg.cache.ensureLoaded();
             sendResponse({ ok: true, stats: NS.bg.cache.stats() });
             break;
+          case MSG.FETCH_YOUTUBE_CAPTIONS: {
+            const result = await NS.bg.youtubeCaptions.fetchCaptions(msg.payload || {});
+            sendResponse({ ok: true, ...result });
+            break;
+          }
           case MSG.BADGE:
             try {
               const text = (msg.payload && msg.payload.text) || '';

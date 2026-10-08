@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 81;
+const EXPECTED_ASSERTIONS = 86;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -692,6 +692,7 @@ function makeYouTube(opts) {
     notices: [],
     reasons: [],
     timers: [],
+    mobileFetches: [],
   };
   const feed = { tracks: [], cues: [], body: 'body' in o ? o.body : '' };
   let pendingTracks = null;
@@ -778,6 +779,10 @@ function makeYouTube(opts) {
         if (pendingTracks) cb(pendingTracks);
       },
       onWireCaptions() {},
+      fetchYouTubeCaptions: async (videoId, languageCode) => {
+        calls.mobileFetches.push({ videoId, languageCode });
+        return o.mobile || { cues: [], bytes: 0, source: 'mobile-client' };
+      },
       fetchTrack: async () => {
         // The player's own caption response, delivered the way inject.js
         // delivers it. Done here so it lands after `waitForWireCaptions` has
@@ -855,6 +860,40 @@ function makeYouTube(opts) {
     },
     settle,
   };
+}
+
+{
+  // A mobile-client caption track is a separate source from the page's signed
+  // URL. It must be tried after the normal paths, and a success must publish the
+  // whole track instead of entering realtime mode.
+  const yt = makeYouTube({
+    canHandle: true,
+    body: '',
+    mobile: {
+      cues: [
+        { start: 0, end: 1, text: 'mobile one' },
+        { start: 1, end: 2, text: 'mobile two' },
+      ],
+      bytes: 1234,
+      source: 'mobile-client',
+      client: 'IOS',
+      languageCode: 'en',
+    },
+  });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check('页面链路全失败时会尝试后台移动端字幕', yt.calls.mobileFetches.length === 1, JSON.stringify(yt.calls.mobileFetches));
+  check('移动端字幕使用目标轨语言', yt.calls.mobileFetches[0].languageCode === 'en', JSON.stringify(yt.calls.mobileFetches));
+  check('移动端整轨命中后不进入实时兜底', yt.calls.liveStarted === 0, `started=${yt.calls.liveStarted}`);
+  check('移动端整轨命中后会发布完整 cue', yt.calls.cueSets.some((c) => c.length === 2), JSON.stringify(yt.calls.cueSets));
+}
+
+{
+  // Do not pay for the fallback when the page path already worked.
+  const yt = makeYouTube();
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], [
+    { start: 0, end: 1, text: 'direct line' },
+  ]);
+  check('页面链路成功时不调用移动端字幕', yt.calls.mobileFetches.length === 0, JSON.stringify(yt.calls.mobileFetches));
 }
 
 {

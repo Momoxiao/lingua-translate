@@ -28,7 +28,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 198;
+const EXPECTED_ASSERTIONS = 207;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -108,6 +108,7 @@ for (const f of [
   'src/shared/utils.js',
   'src/shared/settings.js',
   'src/shared/subtitles.js',
+  'src/background/youtube-captions.js',
   'src/background/cache.js',
   'src/background/providers/http.js',
   'src/background/providers/prompts.js',
@@ -388,6 +389,66 @@ check('a missing end time gets a sane default', noEnd[0].end > noEnd[0].start, J
 check('an unrelated action yields no cues', Y.parseTranscript({ actions: [{ updateEngagementPanelAction: {} }] }).length === 0);
 check('a missing actions array yields no cues', Y.parseTranscript({}).length === 0);
 check('null yields no cues rather than throwing', Y.parseTranscript(null).length === 0);
+
+// ---------------------------------------------------------------------------
+console.log('\nyoutube: mobile-client caption fallback');
+// ---------------------------------------------------------------------------
+const YT = NS.bg.youtubeCaptions;
+const mobileTracks = [
+  { languageCode: 'en', baseUrl: 'https://www.youtube.com/api/timedtext?v=abc&lang=en' },
+  { languageCode: 'ja', baseUrl: 'https://www.youtube.com/api/timedtext?v=abc&lang=ja' },
+];
+check('mobile clients prefer IOS first', YT.CLIENTS[0].name === 'IOS', YT.CLIENTS[0].name);
+check('mobile clients carry a second Android attempt', YT.CLIENTS[1].name === 'ANDROID', YT.CLIENTS[1].name);
+check('mobile track selection matches the requested language', YT.pickTrack(mobileTracks, 'ja').languageCode === 'ja');
+check('mobile track selection falls back instead of returning null', YT.pickTrack(mobileTracks, 'xx').languageCode === 'en');
+check('mobile track selection accepts auto', YT.pickTrack(mobileTracks, 'auto').languageCode === 'en');
+check(
+  'mobile caption URLs force json3 without adding a pot',
+  /fmt=json3/.test(YT.captionUrl(mobileTracks[0].baseUrl)) && !/pot=/.test(YT.captionUrl(mobileTracks[0].baseUrl)),
+  YT.captionUrl(mobileTracks[0].baseUrl)
+);
+
+{
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, opts) => {
+    calls.push({ url, opts });
+    if (url.includes('/youtubei/v1/player')) {
+      const body = JSON.parse(opts.body);
+      if (body.context.client.clientName === 'IOS') {
+        return new Response(JSON.stringify({ captions: { playerCaptionsTracklistRenderer: { captionTracks: [] } } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          captions: {
+            playerCaptionsTracklistRenderer: { captionTracks: mobileTracks },
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    return new Response(JSON.stringify({ events: [{ tStartMs: 0, dDurationMs: 1000, segs: [{ utf8: 'hello' }] }] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+  try {
+    const mobile = await YT.fetchCaptions({ videoId: 'dQw4w9WgXcQ', languageCode: 'en' });
+    check('mobile fallback returns parsed cues', mobile.cues.length === 1 && mobile.cues[0].text === 'hello', JSON.stringify(mobile));
+    check('mobile fallback reports its client', mobile.client === 'ANDROID', mobile.client);
+    check(
+      'mobile fallback tries IOS before Android',
+      calls.filter((c) => c.url.includes('/youtubei/v1/player')).length === 2,
+      JSON.stringify(calls.map((c) => c.url))
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
 
 // ---------------------------------------------------------------------------
 console.log('\nbatch build / parse');

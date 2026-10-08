@@ -111,6 +111,8 @@
   //   2. reuse a `pot` we already sniffed from the player
   //   3. force a fresh player request, sniff its `pot`, and reuse it
   //   4. fall back to whatever track the player happened to fetch
+  //   5. ask the background worker for a mobile-client player response, whose
+  //      caption URLs work without the page-minted token
   // ---------------------------------------------------------------------------
 
   /**
@@ -391,6 +393,24 @@
     if (sniffed.cues.length) {
       const got = langOf(sniffed.url || '');
       return { cues: sniffed.cues, source: 'sniffed', sniffedLang: got, langMismatch: !!got && got !== track.languageCode };
+    }
+
+    // 5. Last resort: a separate mobile-client request that does not depend on
+    // the page's PoToken timing. This is background-only so it can use the
+    // extension's YouTube host permission without CORS or page-script races.
+    try {
+      const mobile = await bridge.fetchYouTubeCaptions(videoId, track.languageCode);
+      maxBytes = Math.max(maxBytes, (mobile && mobile.bytes) || 0);
+      if (mobile && mobile.cues && mobile.cues.length) {
+        return {
+          cues: mobile.cues,
+          source: 'mobile-client',
+          sniffedLang: mobile.languageCode || '',
+          langMismatch: !!mobile.langMismatch,
+        };
+      }
+    } catch (e) {
+      /* keep the existing empty-track diagnostics */
     }
 
     return { cues: [], source: 'none', bytes: maxBytes };
@@ -845,5 +865,6 @@
     potParamsFrom,
     withParams,
     langOf,
+    extractCues,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

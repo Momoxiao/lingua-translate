@@ -84,6 +84,31 @@ if (sizeClaim) {
   );
 }
 
+// The source size appears more than once because the README and the launch copy
+// use it in different ways. The first check above only proves that one sentence
+// is true; a stale duplicate still reaches the audience. Audit every source-size
+// claim in the public-facing copy, while ignoring unrelated counts such as the
+// "120 lines of node:net" implementation note.
+const sizeClaimFiles = ['README.md', 'docs/launch-playbook.md'];
+const sizeClaims = [];
+for (const file of sizeClaimFiles) {
+  const text = read(file);
+  for (const pattern of [
+    /([\d,]+)\s+lines across/g,
+    /([\d,]+)\s+lines,\s+plain ES2020/g,
+    /src\/,\s*([\d,]+)\s+lines/g,
+  ]) {
+    for (const match of text.matchAll(pattern)) {
+      sizeClaims.push({ file, value: Number(match[1].replace(/,/g, '')) });
+    }
+  }
+}
+check(
+  sizeClaims.length >= 2 && sizeClaims.every((c) => c.value === source.lines),
+  'every source-size claim in the README and launch copy matches src/',
+  `src=${source.lines}; ${sizeClaims.map((c) => `${c.file}=${c.value}`).join(', ')}`
+);
+
 // ---------------------------------------------------------------------------
 // 2. Per-suite counts agree across README.md, README.zh-CN.md and ci.yml
 // ---------------------------------------------------------------------------
@@ -177,6 +202,22 @@ if (totalClaim) {
     `total says ${claimed}, suites add to ${sum}`
   );
 }
+
+// Same failure mode for the test total: the README and launch copy both quote
+// it, and updating only one leaves the older number in a place that still gets
+// copied into launch posts.
+const assertionClaims = [];
+for (const file of ['README.md', 'docs/launch-playbook.md']) {
+  const text = read(file);
+  for (const match of text.matchAll(/([\d,]+)\s+assertions\b/g)) {
+    assertionClaims.push({ file, value: Number(match[1].replace(/,/g, '')) });
+  }
+}
+check(
+  assertionClaims.length >= 2 && assertionClaims.every((c) => c.value === sum),
+  'every assertion-total claim in the README and launch copy matches the suites',
+  `sum=${sum}; ${assertionClaims.map((c) => `${c.file}=${c.value}`).join(', ')}`
+);
 
 const WORDS = { 1: 'one', 2: 'two', 3: 'three', 4: 'four', 5: 'five' };
 const wordClaim = checkLine && checkLine.match(/across\s+(\w+)\s+suites/);

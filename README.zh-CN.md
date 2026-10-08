@@ -425,7 +425,7 @@ npm run test:live   # 实时字幕兜底：流式译文、最新字幕优先与�
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）
-npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（51 项）
+npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（53 项）
 npm run check:assets # 商店素材、主页与发布版本元数据是否符合要求（60 项）
 npm run check:i18n  # 英文引用是否有缺失、英文目录是否混入中文（8 项，未引用条目单独告警）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态

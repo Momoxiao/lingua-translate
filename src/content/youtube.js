@@ -22,6 +22,20 @@
   let captionSniffers = new Set();
   let transcriptSniffers = new Set();
   let started = false;
+  /**
+   * Realtime fallback is a temporary transport, not a final verdict.
+   *
+   * The player often mints its PoToken a moment after the extension's first
+   * fetch window. When that happens the caption is visibly present but the
+   * whole-track request came back empty. Keeping the fallback alive while a
+   * background retry uses the newly sniffed token lets the page upgrade back to
+   * pre-translated cues without a blank gap.
+   */
+  let liveFallbackActive = false;
+  let liveFallbackReason = '';
+  let liveUpgradeTimer = 0;
+  let liveUpgradeAttempt = 0;
+  const LIVE_UPGRADE_DELAYS_MS = [1200, 2500, 5000, 10000, 20000];
 
   // ---------------------------------------------------------------------------
   // Track discovery
@@ -150,6 +164,26 @@
   function signedTemplateFor(videoId) {
     if (!signedTemplate || !videoId) return '';
     return signedTemplate.videoId === videoId ? signedTemplate.url : '';
+  }
+
+  function stopLiveFallback() {
+    clearTimeout(liveUpgradeTimer);
+    liveUpgradeTimer = 0;
+    liveUpgradeAttempt = 0;
+    if (liveFallbackActive && NS.live) NS.live.stop();
+    liveFallbackActive = false;
+    liveFallbackReason = '';
+  }
+
+  function scheduleLiveUpgrade() {
+    if (!liveFallbackActive || liveUpgradeTimer || !started || !settings || !settings.enabled) return;
+    if (liveUpgradeAttempt >= LIVE_UPGRADE_DELAYS_MS.length) return;
+    const delay = LIVE_UPGRADE_DELAYS_MS[liveUpgradeAttempt++];
+    liveUpgradeTimer = setTimeout(() => {
+      liveUpgradeTimer = 0;
+      if (!liveFallbackActive || !started || !settings || !settings.enabled) return;
+      load({ preserveLive: true });
+    }, delay);
   }
 
   function langOf(url) {
@@ -558,7 +592,9 @@
   // ---------------------------------------------------------------------------
   // Load pipeline
   // ---------------------------------------------------------------------------
-  async function load() {
+  async function load(opts) {
+    const preserveLive = !!(opts && opts.preserveLive) && liveFallbackActive;
+    const preservedReason = liveFallbackReason || 'empty-track';
     cancelAll();
     // Release the realtime fallback before re-attempting the whole-track path.
     //
@@ -573,7 +609,7 @@
     // Keeping the previous line up would mean not stopping here, and then loading
     // a different video would leave the old video's poller running against the
     // new one. A bounded blank that self-corrects is the better failure mode.
-    if (NS.live) NS.live.stop();
+    if (!preserveLive) stopLiveFallback();
     consecutiveFailures = 0;
     const loadStarted = Date.now();
     let tracksAt = 0;
@@ -601,11 +637,16 @@
     overlay.mount();
     overlay.applyStyles(settings);
     overlay.start();
-    store.setStatus(store.STATUS.LOADING);
+    if (!preserveLive) store.setStatus(store.STATUS.LOADING);
+    else store.setStatus(store.STATUS.LIVE, { reason: preservedReason });
 
     // During a pre-roll ad the player reports the AD's player response, so both
     // the caption tracks and the reported duration belong to the ad. Wait it out.
     if (adShowing()) {
+      if (preserveLive) {
+        scheduleLiveUpgrade();
+        return;
+      }
       store.setStatus(store.STATUS.LOADING, { reason: 'ad' });
       overlay.setNotice(tr('正在播放广告，广告结束后自动加载字幕', 'runtime.adPlaying'), 6000);
       await waitForAdEnd();
@@ -629,6 +670,11 @@
     tracksAt = Date.now();
     timings.trackWaitMs = tracksAt - loadStarted;
     if (!tracks.length) {
+      if (preserveLive) {
+        store.setStatus(store.STATUS.LIVE, { reason: preservedReason });
+        scheduleLiveUpgrade();
+        return;
+      }
       store.setStatus(store.STATUS.EMPTY, { reason: 'no-captions' });
       bridge.setBadge('');
       overlay.setNotice(tr('该视频没有可用字幕，无法翻译', 'runtime.videoNoCaptions'), 8000);
@@ -659,7 +705,18 @@
         // `setStatus` clears `reason` unless it is passed, so it must travel
         // with the status that it explains.
         store.setStatus(store.STATUS.LIVE, { reason: cause });
-        NS.live.start(settings);
+        if (!liveFallbackActive) {
+          NS.live.start(settings);
+          liveFallbackActive = true;
+          liveFallbackReason = cause;
+          liveUpgradeAttempt = 0;
+        }
+        scheduleLiveUpgrade();
+        return;
+      }
+      if (preserveLive) {
+        store.setStatus(store.STATUS.LIVE, { reason: preservedReason });
+        scheduleLiveUpgrade();
         return;
       }
       store.setStatus(store.STATUS.EMPTY, { reason: cause });
@@ -681,6 +738,7 @@
       return;
     }
 
+    if (liveFallbackActive) stopLiveFallback();
     store.setCues(cues);
     firstChunkSent = false;
     store.state.timing = timings;
@@ -717,7 +775,7 @@
       bridge.onCaption((payload) => {
         // Remember the player's own caption URL: it carries the PoToken we need
         // to fetch any other track.
-        if (payload && payload.url) signedTemplate = payload.url;
+        if (payload && payload.url) rememberSignedTemplate(payload.url);
         for (const h of captionSniffers) h(payload);
       });
       bridge.onTranscript((payload) => {
@@ -741,7 +799,7 @@
     cancelAll();
     overlay.stop();
     overlay.setVisible(false);
-    if (NS.live) NS.live.stop();
+    stopLiveFallback();
     bridge.setBadge('');
     store.setStatus(store.STATUS.IDLE);
   }

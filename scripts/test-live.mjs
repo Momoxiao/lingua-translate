@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 74;
+const EXPECTED_ASSERTIONS = 79;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -424,7 +424,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   const fired = calls.notices.filter((n) => n.msg).pop() || {};
   check(
     '没有字幕容器时，提示说明「本页字幕拿不到」而不是「已切换为实时」',
-    /无法获取|拿不到/.test(fired.msg || '') && !/已切换为逐句实时/.test(fired.msg || ''),
+    /无法获取|拿不到/.test(fired.msg || '') && !/后台继续重试/.test(fired.msg || ''),
     fired.msg || '(无)'
   );
   check('这条提示不自动消失（ms=0），因为情况不会自己好转', fired.ms === 0, String(fired.ms));
@@ -444,7 +444,7 @@ console.log('\n实时字幕兜底 · 永久失败不能说成「正在工作」'
   const fired = calls.notices.filter((n) => n.msg).pop() || {};
   check(
     '容器在、只是当前静音时，仍按「已降级为实时」说明',
-    /已切换为逐句实时/.test(fired.msg || ''),
+    /后台继续重试/.test(fired.msg || ''),
     fired.msg || '(无)'
   );
   check('这条提示会自动消失（ms>0），因为静音段会过去', fired.ms > 0, String(fired.ms));
@@ -683,8 +683,19 @@ console.log('\n实时字幕兜底 · 重新加载时必须先释放兜底');
 /** Drive the real youtube.js `load()` against a scripted bridge. */
 function makeYouTube(opts) {
   const o = opts || {};
-  const calls = { liveStopped: 0, liveStarted: 0, cueSets: [], statuses: [], events: [], notices: [], reasons: [] };
+  const calls = {
+    liveStopped: 0,
+    liveStarted: 0,
+    cueSets: [],
+    statuses: [],
+    events: [],
+    notices: [],
+    reasons: [],
+    timers: [],
+  };
   const feed = { tracks: [], cues: [], body: 'body' in o ? o.body : '' };
+  let pendingTracks = null;
+  let timerSeq = 0;
 
   const store = {
     state: { cues: [], tracks: [], translations: [], enabled: true, videoId: '', liveMode: false },
@@ -704,11 +715,19 @@ function makeYouTube(opts) {
   const sandbox = {
     console, Date, Map, Set, Promise, JSON, URL, Math, String, Number,
     Array, Object, Error, RegExp, Boolean, isNaN, parseInt, parseFloat,
-    // Real timers, with zero delay: `load()` parks on `waitForTracks` and is
-    // released by the scripted track callback, but the remaining awaits need
-    // macrotask turns to unwind.
-    setTimeout: (fn, ms) => setTimeout(fn, Math.min(ms || 0, 0)),
-    clearTimeout: (t) => clearTimeout(t),
+    // Deterministic timers: `load()` parks on `waitForTracks` and is released by
+    // the scripted track callback. The wire-caption timeout is run explicitly by
+    // the test helper, so delayed upgrade retries cannot fire before the test has
+    // changed the fixture they are meant to observe.
+    setTimeout: (fn, ms) => {
+      const record = { id: ++timerSeq, fn, ms: ms || 0, cancelled: false, ran: false };
+      calls.timers.push(record);
+      return record.id;
+    },
+    clearTimeout: (id) => {
+      const record = calls.timers.find((t) => t.id === id);
+      if (record) record.cancelled = true;
+    },
     setInterval: () => 0,
     clearInterval: () => {},
     requestAnimationFrame: () => 0,
@@ -741,7 +760,10 @@ function makeYouTube(opts) {
     bridge: {
       probe() {}, setBadge() {}, initPageChannel() {},
       onCaption(cb) { sandbox.onCaptionCb = cb; }, onTranscript() {},
-      onTracks(cb) { sandbox.onTracksCb = cb; },
+      onTracks(cb) {
+        sandbox.onTracksCb = cb;
+        if (pendingTracks) cb(pendingTracks);
+      },
       onWireCaptions() {},
       fetchTrack: async () => {
         // The player's own caption response, delivered the way inject.js
@@ -773,19 +795,50 @@ function makeYouTube(opts) {
   });
 
   const Y = ctx.Lingua.youtube;
+  const settle = async (turns = 16) => {
+    for (let i = 0; i < turns; i++) await new Promise((r) => setTimeout(r, 0));
+  };
+  const pendingTimers = () => calls.timers.filter((t) => !t.cancelled && !t.ran);
+  const runTimer = async (record) => {
+    if (!record || record.cancelled || record.ran) return false;
+    record.ran = true;
+    record.fn();
+    await settle();
+    return true;
+  };
+  const runTimers = async (predicate) => {
+    for (const record of [...pendingTimers()]) {
+      if (predicate(record)) await runTimer(record);
+    }
+  };
 
   /** Run one load with the given tracks/cues and let its microtasks settle. */
   async function load(tracks, cues) {
     feed.cues = cues;
+    pendingTracks = { tracks, defaultIndex: 0, videoId: 'abc' };
     Y.start({ enabled: true, autoTranslate: false, sourceLang: 'en', targetLang: 'zh-Hans' });
     // `start()` has registered the track handler and entered `load()`, which is
     // now parked on `waitForTracks`. Hand it the track list the player reported.
-    sandbox.onTracksCb({ tracks, defaultIndex: 0, videoId: 'abc' });
-    // Let it finish: extractCues -> (fallback | setCues).
-    for (let i = 0; i < 16; i++) await new Promise((r) => setTimeout(r, 0));
+    sandbox.onTracksCb(pendingTracks);
+    await settle();
+    // If every fetch was empty, `extractCues` waits for the player's own
+    // response before concluding there is none. Run that timeout explicitly.
+    await runTimers((t) => t.ms >= 5000);
+    await settle();
   }
 
-  return { Y, calls, load, store };
+  return {
+    Y,
+    calls,
+    load,
+    store,
+    feed,
+    pendingTimers,
+    runTimer,
+    runTimers,
+    pushTracks: () => sandbox.onTracksCb(pendingTracks),
+    settle,
+  };
 }
 
 {
@@ -909,6 +962,47 @@ function makeYouTube(opts) {
     '播放器也没取回数据时仍是 empty-track',
     yt.calls.reasons.includes('empty-track'),
     JSON.stringify(yt.calls.reasons)
+  );
+}
+
+{
+  // The player often mints a PoToken just after the first 10s window. The first
+  // load therefore lands in realtime mode even though the video has a complete
+  // track; the scheduled retry must use the signed URL, publish the cues, and
+  // stop the DOM fallback instead of leaving the page permanently degraded.
+  const yt = makeYouTube({ canHandle: true, body: '' });
+  await yt.load([{ languageCode: 'en', baseUrl: 'https://example/t' }], []);
+  check('首次取字幕失败时会进入实时兜底（前置条件）', yt.calls.liveStarted === 1);
+
+  // A later player request carries the token. The retry's direct fetch now
+  // returns the whole track and must replace realtime mode.
+  yt.feed.body = JSON.stringify({ events: [] });
+  yt.feed.cues = [
+    { start: 0, end: 1, text: 'first cue' },
+    { start: 1, end: 2, text: 'second cue' },
+  ];
+  const retry = yt.pendingTimers().find((t) => t.ms === 1200);
+  check('进入兜底后安排了整轨升级重试', !!retry);
+  if (retry) {
+    await yt.runTimer(retry);
+    yt.pushTracks();
+    await yt.settle();
+  }
+
+  check(
+    '后台重试成功后会发布完整字幕轨',
+    yt.calls.cueSets.some((c) => c.length === 2),
+    JSON.stringify(yt.calls.cueSets)
+  );
+  check(
+    '升级成功后停止实时兜底（否则两套渲染会互相覆盖）',
+    yt.calls.liveStopped >= 1,
+    `stopped=${yt.calls.liveStopped}`
+  );
+  check(
+    '升级成功后 store 不再处于 liveMode',
+    yt.store.state.liveMode === false,
+    `liveMode=${yt.store.state.liveMode}`
   );
 }
 

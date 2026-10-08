@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lingua — YouTube Subtitles & Web Page Translator",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Bilingual YouTube subtitles and whole-page translation using your own OpenAI-compatible, DeepL, Google, or custom translation API.",
   "minimum_chrome_version": "111",
   "permissions": [

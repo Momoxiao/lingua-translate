@@ -107,9 +107,9 @@ Two things that turned out to be genuinely hard, in case they're useful:
    navbars onto two lines. The rule now treats "inline tag + flex/grid parent" as
    still inline, but only for short text.
 
-There's no build step and no dependencies — manifest.json plus src/, 12,596 lines.
+There's no build step and no dependencies — manifest.json plus src/, 12,655 lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
-the published SHA-256 means something. 623 assertions, including a real Chrome e2e.
+the published SHA-256 means something. 628 assertions, including a real Chrome e2e.
 
 Known limitation, stated up front: the caption path depends on YouTube's private
 interface and is not covered by CI. It can break without warning.
@@ -174,7 +174,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.4` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
+- [x] **Releases**：`v0.2.5` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）

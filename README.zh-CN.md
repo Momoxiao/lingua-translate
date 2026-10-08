@@ -6,7 +6,7 @@
 
 **官网：** [Lingua 项目主页](https://momoxiao.github.io/lingua-translate/) · **源码：** [GitHub](https://github.com/Momoxiao/lingua-translate)
 
-> **早期版本（0.2.4）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.5）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -80,10 +80,10 @@
 
 安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
-下载后，把 `lingua-0.2.4.zip` 和 `lingua-0.2.4.zip.sha256` 放在同一目录，从该目录执行：
+下载后，把 `lingua-0.2.5.zip` 和 `lingua-0.2.5.zip.sha256` 放在同一目录，从该目录执行：
 
 ```bash
-shasum -a 256 -c lingua-0.2.4.zip.sha256
+shasum -a 256 -c lingua-0.2.5.zip.sha256
 ```
 
 **方式二：直接用源码**
@@ -419,9 +419,9 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
-npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 623 项，末尾再核对文档数字、商店素材与 i18n 目录（CI 跑的就是这个）
+npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 628 项，末尾再核对文档数字、商店素材与 i18n 目录（CI 跑的就是这个）
 npm test            # 核心逻辑测试（196 项，无需浏览器、无依赖）
-npm run test:live   # 实时字幕兜底：流式译文、最新字幕优先与接管边界（74 项）
+npm run test:live   # 实时字幕兜底：流式译文、最新字幕优先、整轨自动恢复与接管边界（79 项）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）

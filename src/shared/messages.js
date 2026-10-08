@@ -523,7 +523,8 @@
     'runtime.liveDoomed':
       'Neither the full caption track nor the player-rendered captions came through — captions cannot be fetched for this video, so page translation is unavailable. Open Diagnostics to report it.',
     'runtime.liveMode': 'Live mode: translating captions as they appear, with streaming text when supported',
-    'runtime.liveFallback': 'The full caption fetch failed (YouTube signature restriction); switched to line-by-line realtime translation',
+    'runtime.liveFallback':
+      'The full caption fetch missed YouTube’s signature window; translating lines in realtime while Lingua retries the complete track in the background',
     'runtime.translateFailedDetail': 'Translation failed: {error}',
     'runtime.pageNotReady': 'The page is not ready yet',
     'runtime.noContent': 'No translatable content found',

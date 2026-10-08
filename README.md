@@ -11,7 +11,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip"><b>Download Lingua 0.2.4</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.5.zip"><b>Download Lingua 0.2.5</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -56,7 +56,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **12,596 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,655 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -73,7 +73,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.4 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.4.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.5 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.5.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.5.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -89,7 +89,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 To verify the download, run this from the folder containing **both** downloaded files:
 
 ```bash
-shasum -a 256 -c lingua-0.2.4.zip.sha256
+shasum -a 256 -c lingua-0.2.5.zip.sha256
 ```
 
 ## Configure
@@ -111,16 +111,16 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 
 `package.json` has no `dependencies` and no `devDependencies`. There is no bundler, no transpiler, and no `node_modules`. The extension is the source you read — `manifest.json` plus `src/`, loaded as-is. That is a deliberate constraint, not a gap:
 
-- **You can audit it.** 12,596 lines, plain ES2020, no generated code.
+- **You can audit it.** 12,655 lines, plain ES2020, no generated code.
 - **Nothing can rot.** No lockfile to drift, no transitive update to break the build in two years.
 - **Packaging is reproducible.** `npm run dist` produces a byte-identical zip for the same source (fixed timestamps, sorted entries), which is what makes a published SHA-256 meaningful.
 
 ## Tests
 
 ```bash
-npm run check       # 623 assertions across four suites, plus the docs, asset and i18n guards
+npm run check       # 628 assertions across four suites, plus the docs, asset and i18n guards
 npm test            # 196 — core logic: batching, parsing, all five providers
-npm run test:live   #  74 — the realtime caption fallback, and when it must NOT engage
+npm run test:live   #  79 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page

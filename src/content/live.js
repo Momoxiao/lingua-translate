@@ -447,7 +447,7 @@
         isLive
           ? tr('直播模式：字幕出现即翻译，支持时逐字显示译文', 'runtime.liveMode')
           : tr(
-              '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
+              '整轨字幕暂时没赶在 YouTube 签名窗口内返回，先用逐句实时翻译顶上，并在后台继续重试完整字幕轨',
               'runtime.liveFallback'
             ),
         8000

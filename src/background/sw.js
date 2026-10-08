@@ -177,6 +177,18 @@ importScripts(
     }
   });
 
+  // The toolbar tooltip is static manifest text and therefore cannot follow the
+  // browser language on its own. Set it from the same catalogue the rest of the
+  // UI uses, so an English browser does not get a Chinese tooltip (or vice
+  // versa). `action.setTitle` is safe to call on every worker start; it is
+  // idempotent and keeps the value correct after a language change or update.
+  try {
+    const title = tr('Lingua 翻译', 'app.action.title');
+    chrome.action.setTitle({ title }).catch(() => {});
+  } catch (e) {
+    /* action API unavailable in a test harness */
+  }
+
   // Warm the cache on cold start so the first batch is not penalised.
   NS.bg.cache.ensureLoaded().catch(() => {});
 })();

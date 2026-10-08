@@ -9,8 +9,19 @@ explicit approval from the repository owner.
 - Default branch: `master`
 - Section: **Language & Translation**
 - Contributing rule: `[APPLICATION](LINK) - DESCRIPTION.`
-- Evidence that the list is active: merged PRs from 2026-08-02 and a README
-  commit on 2026-10-04.
+- Evidence that the list is still maintained, verified 2026-10-08:
+  not archived or disabled, 122 stars, and its most recent README.md commit and
+  merged PRs both landed on 2026-08-02. It has been quiet since then, so this is
+  a low-frequency list, not a dormant one.
+
+  Re-check before submitting:
+
+  ```bash
+  gh api repos/xyNNN/awesome-chrome \
+    --jq '{archived,disabled,pushed_at,stargazers_count}'
+  gh api 'repos/xyNNN/awesome-chrome/commits?path=README.md&per_page=1' \
+    --jq '.[0].commit.committer.date'
+  ```
 
 ## Proposed line
 

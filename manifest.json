@@ -16,7 +16,7 @@
     "service_worker": "src/background/sw.js"
   },
   "action": {
-    "default_title": "Lingua 翻译",
+    "default_title": "Lingua — Translate this page",
     "default_popup": "src/popup/popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

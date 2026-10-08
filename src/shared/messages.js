@@ -22,6 +22,7 @@
     // -- brand / shared nouns ------------------------------------------------
     'app.name': 'Lingua',
     'app.subtitle': 'Subtitles & web-page translation',
+    'app.action.title': 'Lingua — Translate this page',
     'verb.translate': 'Translate',
     'verb.save': 'Save',
     'verb.cancel': 'Cancel',

@@ -157,6 +157,35 @@ const OPTIONS_PROBE = `
 })();
 </script>`;
 
+/** Small locale probe: static labels and one dynamically rendered section. */
+const OPTIONS_EN_PROBE = `
+<script>
+(async function () {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function report(o) {
+    const el = document.createElement('pre');
+    el.id = '__probe';
+    el.textContent = JSON.stringify(o);
+    document.body.appendChild(el);
+  }
+  try {
+    await new Promise((r) => window.addEventListener('load', r, { once: true }));
+    await sleep(300);
+    report({
+      lang: document.documentElement.lang,
+      title: document.title,
+      heading: document.querySelector('h1').textContent,
+      service: document.querySelector('#service h2').textContent,
+      cache: document.querySelector('#perf h2').textContent,
+      provider: document.querySelector('#paneTitle').textContent,
+      chineseSnippets: (document.body.textContent || '').match(/[\\u4e00-\\u9fff]{2,}/g) || [],
+    });
+  } catch (e) {
+    report({ error: String((e && e.message) || e) });
+  }
+})();
+</script>`;
+
 /**
  * Popup probe: which half of the product did this page get, and can the user
  * reach the other one when both apply?
@@ -166,7 +195,7 @@ const OPTIONS_PROBE = `
  * around them — so it is the only place the switcher appears. Everywhere else
  * an extra tab would be a dead end.
  */
-const popupProbe = (expectMode) => `
+const popupProbe = (expectMode, expectLabel) => `
 <script>
 (async function () {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -215,6 +244,7 @@ const popupProbe = (expectMode) => `
     await sleep(400);
     const initial = snap();
     initial.expect = ${JSON.stringify(expectMode)};
+    initial.expectLabel = ${JSON.stringify(expectLabel || expectMode)};
 
     let afterSwitch = null;
     if (initial.tabsVisible) {
@@ -261,6 +291,37 @@ const DIAGNOSTICS_PROBE = `
       tone: document.getElementById('verdict').dataset.tone,
       verdict: document.getElementById('verdictText').textContent,
       report: document.getElementById('report').textContent,
+    });
+  } catch (e) {
+    report({ error: String((e && e.message) || e) });
+  }
+})();
+</script>`;
+
+/** Locale probe for the report that a user pastes into an issue. */
+const DIAGNOSTICS_EN_PROBE = `
+<script>
+(async function () {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  function report(o) {
+    const el = document.createElement('pre');
+    el.id = '__probe';
+    el.textContent = JSON.stringify(o);
+    document.body.appendChild(el);
+  }
+  try {
+    await new Promise((r) => window.addEventListener('load', r, { once: true }));
+    await sleep(500);
+    const reportText = document.getElementById('report').textContent;
+    const shellText = (document.body.textContent || '').replace(reportText, '');
+    const reportHeadings = (reportText.match(/—[^\\n]+—/g) || []).join(' ');
+    report({
+      lang: document.documentElement.lang,
+      title: document.title,
+      verdictLabel: document.querySelector('.verdict__label').textContent,
+      verdict: document.getElementById('verdictText').textContent,
+      report: reportText,
+      hasChinese: /[\\u4e00-\\u9fff]/.test(shellText + ' ' + reportHeadings),
     });
   } catch (e) {
     report({ error: String((e && e.message) || e) });
@@ -432,12 +493,35 @@ const REALTIME_UNPARSED_STATE = {
 };
 
 const PAGES = [
-  { file: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, kind: 'popup', probe: popupProbe('网页翻译') },
-  { file: 'src/popup/popup.html', tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', width: 356, kind: 'popup', probe: popupProbe('视频字幕') },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://news.ycombinator.com/item?id=1',
+    width: 356,
+    kind: 'popup',
+    patch: { __lang: 'zh-CN' },
+    probe: popupProbe('网页翻译'),
+  },
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: NO_CUES_STATE },
+    width: 356,
+    kind: 'popup',
+    patch: { __lang: 'zh-CN' },
+    probe: popupProbe('视频字幕'),
+  },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://news.ycombinator.com/item?id=1',
+    width: 356,
+    kind: 'popup-en',
+    label: 'popup · English locale',
+    patch: { __lang: 'en-US' },
+    probe: popupProbe('网页翻译', 'Web page'),
+  },
+  {
+    file: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __lang: 'zh-CN', __state: NO_CUES_STATE },
     width: 356,
     kind: 'popup-no-cues',
     label: '弹窗 · 字幕轨在但没取到数据',
@@ -446,7 +530,7 @@ const PAGES = [
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: UNPARSED_STATE },
+    patch: { __lang: 'zh-CN', __state: UNPARSED_STATE },
     width: 356,
     kind: 'popup-unparsed',
     label: '弹窗 · 取回非空数据但解析不出',
@@ -455,7 +539,7 @@ const PAGES = [
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: REALTIME_STATE },
+    patch: { __lang: 'zh-CN', __state: REALTIME_STATE },
     width: 356,
     kind: 'popup-realtime',
     label: '弹窗 · 实时兜底模式',
@@ -464,7 +548,7 @@ const PAGES = [
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: REALTIME_DOOMED_STATE },
+    patch: { __lang: 'zh-CN', __state: REALTIME_DOOMED_STATE },
     width: 356,
     kind: 'popup-realtime-doomed',
     label: '弹窗 · 兜底注定无效',
@@ -473,25 +557,51 @@ const PAGES = [
   {
     file: 'src/popup/popup.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: LIVE_STREAM_STATE },
+    patch: { __lang: 'zh-CN', __state: LIVE_STREAM_STATE },
     width: 356,
     kind: 'popup-live-stream',
     label: '弹窗 · 真实直播',
     probe: popupProbe('视频字幕'),
   },
-  { file: 'src/options/options.html', tabUrl: 'https://example.com/', width: 1180, kind: 'options', probe: OPTIONS_PROBE },
+  {
+    file: 'src/options/options.html',
+    tabUrl: 'https://example.com/',
+    width: 1180,
+    kind: 'options',
+    patch: { __lang: 'zh-CN' },
+    probe: OPTIONS_PROBE,
+  },
+  {
+    file: 'src/options/options.html',
+    tabUrl: 'https://example.com/',
+    width: 1180,
+    kind: 'options-en',
+    label: 'settings page · English locale',
+    patch: { __lang: 'en-US' },
+    probe: OPTIONS_EN_PROBE,
+  },
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     width: 900,
     kind: 'diagnostics',
     label: '诊断页 · 一切正常',
+    patch: { __lang: 'zh-CN' },
     probe: DIAGNOSTICS_PROBE,
   },
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: NO_CUES_STATE },
+    width: 900,
+    kind: 'diagnostics-en',
+    label: 'diagnostics page · English locale',
+    patch: { __lang: 'en-US' },
+    probe: DIAGNOSTICS_EN_PROBE,
+  },
+  {
+    file: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    patch: { __lang: 'zh-CN', __state: NO_CUES_STATE },
     width: 900,
     kind: 'diagnostics-no-cues',
     label: '诊断页 · 字幕轨在但没取到数据',
@@ -500,7 +610,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: UNPARSED_STATE },
+    patch: { __lang: 'zh-CN', __state: UNPARSED_STATE },
     width: 900,
     kind: 'diagnostics-unparsed',
     label: '诊断页 · 取回非空数据但解析不出',
@@ -509,7 +619,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: REALTIME_UNPARSED_STATE },
+    patch: { __lang: 'zh-CN', __state: REALTIME_UNPARSED_STATE },
     width: 900,
     kind: 'diagnostics-realtime-unparsed',
     label: '诊断页 · 点播降级且响应非空',
@@ -518,7 +628,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: REALTIME_DOOMED_STATE },
+    patch: { __lang: 'zh-CN', __state: REALTIME_DOOMED_STATE },
     width: 900,
     kind: 'diagnostics-realtime-doomed',
     label: '诊断页 · 兜底不可能成功',
@@ -527,7 +637,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: REALTIME_STATE },
+    patch: { __lang: 'zh-CN', __state: REALTIME_STATE },
     width: 900,
     kind: 'diagnostics-realtime',
     label: '诊断页 · 点播降级为实时',
@@ -536,7 +646,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __state: LIVE_STREAM_STATE },
+    patch: { __lang: 'zh-CN', __state: LIVE_STREAM_STATE },
     width: 900,
     kind: 'diagnostics-live-stream',
     label: '诊断页 · 真实直播',
@@ -545,7 +655,7 @@ const PAGES = [
   {
     file: 'src/diagnostics/diagnostics.html',
     tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    patch: { __dead: true },
+    patch: { __lang: 'zh-CN', __dead: true },
     width: 900,
     kind: 'diagnostics-dead',
     label: '诊断页 · 内容脚本没响应',
@@ -621,7 +731,7 @@ let passed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 162;
+const EXPECTED_ASSERTIONS = 185;
 
 function check(ok, name, detail) {
   if (ok) {
@@ -683,8 +793,8 @@ for (const page of PAGES) {
   if (/^popup/.test(page.kind)) {
     const p = probe.initial;
     check(
-      p.modeLabel === p.expect,
-      `the popup opens on the ${p.expect} panel`,
+      p.modeLabel === p.expectLabel,
+      `the popup opens on the ${p.expectLabel} panel`,
       `modeLabel=${p.modeLabel}`
     );
     check(
@@ -782,6 +892,15 @@ for (const page of PAGES) {
       check(!!s && s.selectedTab === 'page', 'the switcher highlights the panel it shows', s ? s.selectedTab : 'missing');
       check(!!s && s.height <= 600, 'the page panel still fits the 600px budget', s ? `${s.height}px` : 'missing');
       if (s) console.log(`     info 网页翻译 on YouTube is ${s.height}px tall`);
+    } else if (page.kind === 'popup-en') {
+      check(p.tabsVisible === false, 'English popup keeps the single-panel layout');
+      check(p.hostText.length > 0 && p.hostText !== '—', 'English popup still names the page', p.hostText);
+      check(
+        /Technical documentation|Academic paper|News|Community discussion|E-commerce|General/.test(p.profileText),
+        'English popup localises the translation style',
+        p.profileText
+      );
+      check(p.noteTone !== 'err', 'English popup boots without an error note', p.noteTone);
     } else {
       check(p.tabsVisible === false, 'no dead-end switcher where only one half applies');
       check(p.hostText.length > 0 && p.hostText !== '—', 'the card names the page', p.hostText);
@@ -800,6 +919,15 @@ for (const page of PAGES) {
 
   // --- diagnostics -----------------------------------------------------------
   if (/^diagnostics/.test(page.kind)) {
+    if (page.kind === 'diagnostics-en') {
+      check(probe.lang === 'en', 'English diagnostics marks the document language', probe.lang);
+      check(probe.title === 'Lingua Diagnostics', 'English diagnostics localises the title', probe.title);
+      check(probe.verdictLabel === 'Verdict', 'English diagnostics localises the verdict label', probe.verdictLabel);
+      check(/Looks healthy/.test(probe.verdict || ''), 'English diagnostics localises the verdict', probe.verdict);
+      check(/— Content script —/.test(probe.report || ''), 'English diagnostics localises the report', probe.report);
+      check(probe.hasChinese === false, 'English diagnostics contains no Chinese UI text');
+      continue;
+    }
     const dead = page.kind === 'diagnostics-dead';
     const noCues = page.kind === 'diagnostics-no-cues';
     const unparsed = page.kind === 'diagnostics-unparsed';
@@ -941,6 +1069,20 @@ for (const page of PAGES) {
   }
 
   // --- options ---------------------------------------------------------------
+  if (page.kind === 'options-en') {
+    check(probe.lang === 'en', 'English settings marks the document language', probe.lang);
+    check(probe.title === 'Lingua Settings', 'English settings localises the title', probe.title);
+    check(probe.heading === 'Settings', 'English settings localises the heading', probe.heading);
+    check(probe.service === 'Translation service', 'English settings localises service section', probe.service);
+    check(probe.cache === 'Performance & cache', 'English settings localises cache section', probe.cache);
+    check(/OpenAI-compatible/.test(probe.provider || ''), 'English settings localises provider names', probe.provider);
+    check(
+      !probe.chineseSnippets.includes('OpenAI 兼容') && !probe.chineseSnippets.includes('翻译服务'),
+      'English settings no longer shows the core Chinese labels',
+      JSON.stringify(probe.chineseSnippets.slice(0, 8))
+    );
+    continue;
+  }
   check(
     probe.before.pane === probe.before.pressed,
     'the picker and the pane agree before switching',

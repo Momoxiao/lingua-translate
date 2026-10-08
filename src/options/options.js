@@ -9,6 +9,7 @@
   const { LANGUAGES, PROVIDERS, MSG, CUSTOM_PRESETS, CUSTOM_PLACEHOLDERS } = NS.constants;
   const { getSettings, setSettings, providerReady } = NS.settings;
   const { debounce } = NS.utils;
+  const tr = (zh, key, vars) => NS.i18n.t(zh, key, vars);
 
   const $ = (id) => document.getElementById(id);
   let settings = null;
@@ -21,61 +22,61 @@
   const SCHEMA = {
     openai: [
       { key: 'baseUrl', label: 'Base URL', type: 'text', placeholder: 'https://api.openai.com/v1', full: true,
-        hint: '以 /v1 结尾即可，扩展会自动补 /chat/completions。' },
+        hint: tr('以 /v1 结尾即可，扩展会自动补 /chat/completions。', 'field.baseUrlHint') },
       { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'sk-...',
-        hint: '本地模型可留空。' },
-      { key: 'model', label: '模型', type: 'text', placeholder: 'deepseek-chat',
-        hint: '推荐用非推理模型。' },
-      { key: 'temperature', label: '温度', type: 'number', min: 0, max: 2, step: 0.1, placeholder: '0' },
+        hint: tr('本地模型可留空。', 'field.apiKeyHint') },
+      { key: 'model', label: tr('模型', 'field.model'), type: 'text', placeholder: 'deepseek-chat',
+        hint: tr('推荐用非推理模型。', 'field.modelHint') },
+      { key: 'temperature', label: tr('温度', 'field.temperature'), type: 'number', min: 0, max: 2, step: 0.1, placeholder: '0' },
       {
         key: 'stream',
-        label: '流式返回',
+        label: tr('流式返回', 'field.stream'),
         type: 'select',
         options: [
-          { value: 'true', label: '开启（推荐，首句更快出现）' },
-          { value: 'false', label: '关闭（整批返回）' },
+          { value: 'true', label: tr('开启（推荐，首句更快出现）', 'field.streamOn') },
+          { value: 'false', label: tr('关闭（整批返回）', 'field.streamOff') },
         ],
-        hint: '开启后模型每译完一行就立即显示，不必等整批结束；不支持流式的接口会自动回退。',
+        hint: tr('开启后模型每译完一行就立即显示，不必等整批结束；不支持流式的接口会自动回退。', 'field.streamHint'),
       },
       {
         key: 'reasoning',
-        label: '模型推理',
+        label: tr('模型推理', 'field.reasoning'),
         type: 'select',
         options: [
-          { value: 'off', label: '关闭（推荐，快约 2.7 倍）' },
-          { value: 'auto', label: '跟随模型默认' },
+          { value: 'off', label: tr('关闭（推荐，快约 2.7 倍）', 'field.reasoningOff') },
+          { value: 'auto', label: tr('跟随模型默认', 'field.reasoningAuto') },
         ],
-        hint: '翻译没有歧义，推理只会浪费时间。关闭后会向接口发送「不要思考」的参数；若接口不认识会自动回退。',
+        hint: tr('翻译没有歧义，推理只会浪费时间。关闭后会向接口发送「不要思考」的参数；若接口不认识会自动回退。', 'field.reasoningHint'),
       },
-      { key: 'prompt', label: '系统提示词（留空使用内置提示词）', type: 'textarea', rows: 4, full: true },
+      { key: 'prompt', label: tr('系统提示词（留空使用内置提示词）', 'field.prompt'), type: 'textarea', rows: 4, full: true },
     ],
     deepl: [
       { key: 'apiKey', label: 'API Key', type: 'password', placeholder: 'xxxxxxxx-xxxx-...:fx', full: true,
-        hint: 'Free 版 Key 以 :fx 结尾。' },
-      { key: 'baseUrl', label: '接口地址', type: 'text', placeholder: 'https://api-free.deepl.com/v2/translate', full: true },
+        hint: tr('Free 版 Key 以 :fx 结尾。', 'field.deeplKeyHint') },
+      { key: 'baseUrl', label: tr('接口地址', 'field.endpoint'), type: 'text', placeholder: 'https://api-free.deepl.com/v2/translate', full: true },
     ],
     google: [
-      { key: 'apiKey', label: 'API Key（可选）', type: 'password', full: true,
-        hint: '留空则使用免费网页接口；填入 Google Cloud Translation v2 的 Key 会走官方接口。' },
+      { key: 'apiKey', label: tr('API Key（可选）', 'field.googleKey'), type: 'password', full: true,
+        hint: tr('留空则使用免费网页接口；填入 Google Cloud Translation v2 的 Key 会走官方接口。', 'field.googleKeyHint') },
     ],
     microsoft: [
       { key: 'apiKey', label: 'Subscription Key', type: 'password' },
-      { key: 'region', label: '区域', type: 'text', placeholder: 'eastasia',
-        hint: '区域资源必填；全球资源可留空。填错会返回 401。' },
-      { key: 'baseUrl', label: '接口地址', type: 'text', full: true, placeholder: 'https://api.cognitive.microsofttranslator.com/translate' },
+      { key: 'region', label: tr('区域', 'field.region'), type: 'text', placeholder: 'eastasia',
+        hint: tr('区域资源必填；全球资源可留空。填错会返回 401。', 'field.regionHint') },
+      { key: 'baseUrl', label: tr('接口地址', 'field.endpoint'), type: 'text', full: true, placeholder: 'https://api.cognitive.microsofttranslator.com/translate' },
     ],
     custom: [
-      { key: 'url', label: '请求地址', type: 'text', placeholder: 'https://api.example.com/translate', full: true,
-        hint: '支持占位符，例如 .../translate?to={{to}}' },
-      { key: 'method', label: '请求方法', type: 'select', options: ['POST', 'GET', 'PUT'],
-        hint: 'GET 不会发送请求体。' },
-      { key: 'apiKey', label: 'API Key', type: 'password', placeholder: '在模板里用 {{key}} 引用' },
-      { key: 'headers', label: '请求头（JSON）', type: 'textarea', rows: 4, full: true },
-      { key: 'body', label: '请求体模板', type: 'textarea', rows: 5, full: true,
-        hint: '用 {{text}} 或 {{texts}} 把要翻译的内容放进去。' },
-      { key: 'responsePath', label: '响应取值路径', type: 'text', full: true,
+      { key: 'url', label: tr('请求地址', 'field.requestUrl'), type: 'text', placeholder: 'https://api.example.com/translate', full: true,
+        hint: tr('支持占位符，例如 .../translate?to={{to}}', 'field.requestUrlHint') },
+      { key: 'method', label: tr('请求方法', 'field.method'), type: 'select', options: ['POST', 'GET', 'PUT'],
+        hint: tr('GET 不会发送请求体。', 'field.methodHint') },
+      { key: 'apiKey', label: 'API Key', type: 'password', placeholder: tr('在模板里用 {{key}} 引用', 'field.customKeyHint') },
+      { key: 'headers', label: tr('请求头（JSON）', 'field.headers'), type: 'textarea', rows: 4, full: true },
+      { key: 'body', label: tr('请求体模板', 'field.body'), type: 'textarea', rows: 5, full: true,
+        hint: tr('用 {{text}} 或 {{texts}} 把要翻译的内容放进去。', 'field.bodyHint') },
+      { key: 'responsePath', label: tr('响应取值路径', 'field.responsePath'), type: 'text', full: true,
         placeholder: 'data.translations 或 result[0].text',
-        hint: '留空表示从整个响应里取文本。' },
+        hint: tr('留空表示从整个响应里取文本。', 'field.responsePathHint') },
     ],
   };
 
@@ -101,19 +102,19 @@
   function markSaving() {
     const el = $('saveState');
     el.dataset.state = 'saving';
-    el.textContent = '保存中';
+    el.textContent = tr('保存中', 'options.save.saving');
   }
   function markSaved() {
     const el = $('saveState');
     el.dataset.state = 'ok';
     // "已同步" would promise a cloud sync. Settings live in chrome.storage.local
     // — one machine, one profile — so the honest word is 已保存.
-    el.textContent = '已保存';
+    el.textContent = tr('已保存', 'options.save.saved');
   }
   function markError(msg) {
     const el = $('saveState');
     el.dataset.state = 'error';
-    el.textContent = msg || '保存失败';
+    el.textContent = msg || tr('保存失败', 'options.save.failed');
   }
 
   let pendingPatch = null;
@@ -180,7 +181,9 @@
         '<span class="providerCard__dot"></span>';
       btn.querySelector('.providerCard__name').textContent = p.label;
       btn.querySelector('.providerCard__short').textContent = p.short || '';
-      btn.querySelector('.providerCard__state').textContent = ready ? '已配置' : '未配置';
+      btn.querySelector('.providerCard__state').textContent = ready
+        ? tr('已配置', 'common.configured')
+        : tr('未配置', 'common.notConfigured');
       btn.addEventListener('click', async () => {
         // save() is async — settings.provider is only updated once it resolves.
         // Rendering the pane before that reads the OLD provider and leaves the
@@ -197,18 +200,18 @@
   function activeSummary(providerId) {
     const cfg = settings.providers[providerId] || {};
     if (providerId === 'openai') {
-      const model = cfg.model || '未填模型';
+      const model = cfg.model || tr('未填模型', 'options.service.missingModel');
       const host = String(cfg.baseUrl || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
       return host ? `${model} · ${host}` : model;
     }
     if (providerId === 'custom') {
-      return String(cfg.url || '').replace(/^https?:\/\//, '').split('/')[0] || '未填请求地址';
+      return String(cfg.url || '').replace(/^https?:\/\//, '').split('/')[0] || tr('未填请求地址', 'options.service.missingUrl');
     }
     if (providerId === 'deepl') return cfg.pro ? 'DeepL Pro' : 'DeepL Free';
     // An empty region is a legitimate global-resource setup, so there is nothing
     // to report — saying "未填区域" next to a green "使用中" contradicts itself.
-    if (providerId === 'microsoft') return cfg.region ? `区域 ${cfg.region}` : '';
-    if (providerId === 'google') return cfg.apiKey ? '官方接口' : '免费网页接口';
+    if (providerId === 'microsoft') return cfg.region ? tr('区域 {region}', 'options.service.region', { region: cfg.region }) : '';
+    if (providerId === 'google') return cfg.apiKey ? tr('官方接口', 'options.service.official') : tr('免费网页接口', 'options.service.free');
     return '';
   }
 
@@ -232,11 +235,11 @@
     $('paneHint').textContent = meta.hint;
     $('paneStatus').textContent = ready
       ? summary
-        ? `使用中 · ${summary}`
-        : '使用中'
+        ? `${tr('使用中', 'options.service.inUse')} · ${summary}`
+        : tr('使用中', 'options.service.inUse')
       : summary
-        ? `未配置 · ${summary}`
-        : '未配置';
+        ? `${tr('未配置', 'options.service.notConfigured')} · ${summary}`
+        : tr('未配置', 'options.service.notConfigured');
     $('paneStatus').dataset.state = ready ? 'ready' : 'missing';
   }
 
@@ -366,30 +369,45 @@
       try {
         const parsed = JSON.parse(headers);
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          out.push({ tone: 'err', text: '请求头必须是 JSON 对象，例如 {"Content-Type":"application/json"}。' });
+          out.push({
+            tone: 'err',
+            text: tr('请求头必须是 JSON 对象，例如 {"Content-Type":"application/json"}。', 'custom.err.headersJson'),
+          });
         }
       } catch (e) {
-        out.push({ tone: 'err', text: `请求头不是合法 JSON（${e.message}），修正前无法发起请求。` });
+        out.push({
+          tone: 'err',
+          text: tr('请求头不是合法 JSON（{message}），修正前无法发起请求。', 'custom.err.headersParse', { message: e.message }),
+        });
       }
     }
     if (body.trim() && (method === 'GET' || method === 'HEAD')) {
-      out.push({ tone: 'err', text: `${method} 请求不会发送请求体，请把占位符写进请求地址。` });
+      out.push({
+        tone: 'err',
+        text: tr('{method} 请求不会发送请求体，请把占位符写进请求地址。', 'custom.err.getBody', { method }),
+      });
     }
     if (body.trim() && !/\{\{\s*texts?\s*\}\}/.test(body)) {
-      out.push({ tone: 'warn', text: '请求体里没有 {{text}} 或 {{texts}}，接口收不到要翻译的内容。' });
+      out.push({ tone: 'warn', text: tr('请求体里没有 {{text}} 或 {{texts}}，接口收不到要翻译的内容。', 'custom.warn.noText') });
     }
     if (!/\{\{\s*(to|target)\s*\}\}/.test(url + body)) {
-      out.push({ tone: 'warn', text: '没有把目标语言传给接口（缺 {{to}} 或 {{target}}），译文语种可能不对。' });
+      out.push({ tone: 'warn', text: tr('没有把目标语言传给接口（缺 {{to}} 或 {{target}}），译文语种可能不对。', 'custom.warn.noTarget') });
     }
     if (!String(cfg.responsePath || '').trim()) {
-      out.push({ tone: 'info', text: '未填响应取值路径：将从整个响应里提取文本。嵌套结构建议填写，例如 data.translations。' });
+      out.push({
+        tone: 'info',
+        text: tr(
+          '未填响应取值路径：将从整个响应里提取文本。嵌套结构建议填写，例如 data.translations。',
+          'custom.info.noResponsePath'
+        ),
+      });
     }
     return out;
   }
 
   function previewRequest(cfg) {
     const method = String(cfg.method || 'POST').toUpperCase();
-    const url = substitute(cfg.url, SAMPLE_VARS) || '（未填请求地址）';
+    const url = substitute(cfg.url, SAMPLE_VARS) || tr('（未填请求地址）', 'custom.noUrl');
     const headers = substitute(cfg.headers, SAMPLE_VARS);
     const body = method === 'GET' || method === 'HEAD' ? '' : substitute(cfg.body, SAMPLE_VARS);
     let out = `${method} ${url}\n`;
@@ -434,7 +452,7 @@
       issues.id = 'customIssues';
       wrap.appendChild(issues);
       wrap.appendChild(
-        disclosure('可用占位符', (body) => {
+        disclosure(tr('可用占位符', 'custom.placeholders'), (body) => {
           const dl = document.createElement('dl');
           dl.className = 'phTable';
           for (const p of CUSTOM_PLACEHOLDERS) {
@@ -448,7 +466,7 @@
         })
       );
       wrap.appendChild(
-        disclosure('请求预览（示例值）', (body) => {
+        disclosure(tr('请求预览（示例值）', 'custom.preview'), (body) => {
           const pre = document.createElement('pre');
           pre.className = 'preview';
           pre.id = 'customPreview';
@@ -495,7 +513,7 @@
     src.innerHTML = '';
     const auto = document.createElement('option');
     auto.value = 'auto';
-    auto.textContent = '自动（推荐）';
+    auto.textContent = tr('自动（推荐）', 'options.language.autoOption');
     src.appendChild(auto);
     for (const l of LANGUAGES) {
       const o = document.createElement('option');
@@ -594,7 +612,7 @@
     bindRange('fontSize', 'fontSize', (v) => `${v}px`);
     bindRange('bottomOffset', 'bottomOffset', (v) => `${v}%`);
     bindRange('backgroundOpacity', 'backgroundOpacity', (v) => v.toFixed(2));
-    bindRange('batchSize', 'batchSize', (v) => `${v} 句`);
+    bindRange('batchSize', 'batchSize', (v) => `${v} ${tr('句', 'unit.sentences')}`);
     // No unit suffix on the concurrency sliders: the label already ends in 数,
     // and "并发数 4 并发" reads like a stutter.
     bindRange('concurrency', 'concurrency', (v) => String(v));
@@ -620,8 +638,8 @@
       saveDebounced({ page: { skipSites: hostListFrom('pageSkipSites') } })
     );
 
-    bindRange('pageBatchSize', 'batchSize', (v) => `${v} 段`, 'page');
-    bindRange('pageMaxChars', 'maxChars', (v) => `${v} 字`, 'page');
+    bindRange('pageBatchSize', 'batchSize', (v) => `${v} ${tr('段', 'unit.paragraphs')}`, 'page');
+    bindRange('pageMaxChars', 'maxChars', (v) => `${v} ${tr('字', 'unit.characters')}`, 'page');
     bindRange('pageConcurrency', 'concurrency', (v) => String(v), 'page');
 
     $('displayMode').addEventListener('click', (ev) => {
@@ -646,7 +664,7 @@
   async function testConnection() {
     const btn = $('testBtn');
     btn.disabled = true;
-    setTestResult('正在请求接口…', 'busy');
+    setTestResult(tr('正在请求接口…', 'options.service.test.busy'), 'busy');
     try {
       const res = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({ type: MSG.TEST_PROVIDER }, (r) => {
@@ -655,9 +673,9 @@
           else reject(new Error((r && r.error) || '测试失败'));
         });
       });
-      setTestResult(`连接成功，示例译文：${res.sample || '（空）'}`, 'ok');
+      setTestResult(tr('连接成功，示例译文：{sample}', 'options.service.test.ok', { sample: res.sample || '—' }), 'ok');
     } catch (e) {
-      setTestResult(`连接失败：${e && e.message}`, 'err');
+      setTestResult(tr('连接失败：{error}', 'options.service.test.fail', { error: e && e.message }), 'err');
     } finally {
       btn.disabled = false;
     }
@@ -684,10 +702,10 @@
     try {
       await new Promise((resolve) => chrome.runtime.sendMessage({ type: MSG.CLEAR_CACHE }, resolve));
       await refreshCache();
-      btn.textContent = '已清空';
+      btn.textContent = tr('已清空', 'options.perf.cleared');
       // Back to the label the markup ships with — it used to restore a longer
       // one ("清空缓存"), so the button silently grew after the first click.
-      setTimeout(() => (btn.textContent = '清空'), 1600);
+      setTimeout(() => (btn.textContent = tr('清空', 'options.perf.clear')), 1600);
     } finally {
       btn.disabled = false;
     }
@@ -718,6 +736,8 @@
   // Boot
   // ---------------------------------------------------------------------------
   (async function boot() {
+    NS.i18n.apply();
+    if (NS.i18n.isEnglish()) document.documentElement.lang = 'en';
     settings = await getSettings();
     fillLanguageSelects();
     renderAll();

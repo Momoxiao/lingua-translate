@@ -13,12 +13,12 @@
           <div class="brand__mark" aria-hidden="true"></div>
           <div>
             <div class="brand__name">Lingua</div>
-            <div class="brand__sub" id="modeLabel">翻译</div>
+            <div class="brand__sub" id="modeLabel" data-i18n="verb.translate">翻译</div>
           </div>
         </div>
         <span class="pill" id="statusPill" data-tone="idle">
           <span class="pill__dot"></span>
-          <span id="statusText">读取中</span>
+          <span id="statusText" data-i18n="popup.status.reading">读取中</span>
         </span>
       </header>
 
@@ -30,15 +30,15 @@
         stays hidden rather than offering a dead end.
       -->
       <div class="tabs" id="tabs" role="tablist" hidden>
-        <button type="button" role="tab" data-tab="video" aria-selected="false">视频字幕</button>
-        <button type="button" role="tab" data-tab="page" aria-selected="false">网页翻译</button>
+        <button type="button" role="tab" data-tab="video" aria-selected="false" data-i18n="popup.tab.video">视频字幕</button>
+        <button type="button" role="tab" data-tab="page" aria-selected="false" data-i18n="popup.tab.page">网页翻译</button>
       </div>
 
       <!-- ================= 视频字幕（仅 YouTube 视频页） ================= -->
       <section class="panel" id="panel-video" data-panel="video" hidden>
         <label class="pop__switchRow">
           <span class="pop__switchText">
-            <span class="pop__switchTitle">翻译视频字幕</span>
+            <span class="pop__switchTitle" data-i18n="popup.video.enable">翻译视频字幕</span>
             <span class="hint" id="providerName">—</span>
           </span>
           <span class="switch">
@@ -48,27 +48,27 @@
         </label>
 
         <div class="field">
-          <label class="label" for="target">翻译为</label>
+          <label class="label" for="target" data-i18n="popup.video.target">翻译为</label>
           <select id="target"></select>
         </div>
 
         <div class="field">
-          <span class="label">字幕显示方式</span>
-          <div class="segmented segmented--block" id="displayMode" role="group" aria-label="字幕显示方式">
-            <button type="button" data-mode="bilingual" aria-pressed="false">双语</button>
-            <button type="button" data-mode="translated" aria-pressed="false">仅译文</button>
-            <button type="button" data-mode="original" aria-pressed="false">仅原文</button>
+          <span class="label" data-i18n="popup.video.displayMode">字幕显示方式</span>
+          <div class="segmented segmented--block" id="displayMode" role="group" aria-label="字幕显示方式" data-i18n-attr="aria-label:popup.video.displayMode">
+            <button type="button" data-mode="bilingual" aria-pressed="false" data-i18n="options.language.bilingual">双语</button>
+            <button type="button" data-mode="translated" aria-pressed="false" data-i18n="options.language.translated">仅译文</button>
+            <button type="button" data-mode="original" aria-pressed="false" data-i18n="options.language.original">仅原文</button>
           </div>
         </div>
 
         <div class="field" id="trackField" hidden>
-          <label class="label" for="track">字幕来源</label>
+          <label class="label" for="track" data-i18n="popup.video.track">字幕来源</label>
           <select id="track"></select>
         </div>
 
         <div class="progressBox" id="progressBox" hidden>
           <div class="progressBox__top">
-            <span class="progressBox__label" id="progressLabel">翻译中</span>
+            <span class="progressBox__label" id="progressLabel" data-i18n="popup.state.videoTranslating">翻译中</span>
             <span class="progressBox__num" id="progressNum">0 / 0</span>
           </div>
           <div class="progress"><div class="progress__bar" id="progressBar"></div></div>
@@ -76,7 +76,7 @@
 
         <div class="note" id="note" hidden></div>
 
-        <button class="btn btn--block" id="retranslate" type="button">重新翻译</button>
+        <button class="btn btn--block" id="retranslate" type="button" data-i18n="popup.video.retranslate">重新翻译</button>
       </section>
 
       <!-- ================= 网页翻译（其他所有页面） ================= -->
@@ -84,7 +84,7 @@
         <!-- state card: mirrors the floating ball exactly -->
         <div class="stateCard" id="pageStateCard" data-tone="idle">
           <div class="stateCard__body">
-            <div class="stateCard__title" id="pageStateTitle">未翻译</div>
+            <div class="stateCard__title" id="pageStateTitle" data-i18n="popup.state.untranslated">未翻译</div>
             <div class="stateCard__sub">
               <span id="pageHost">—</span>
               <!-- which "expert" got this page — part of "what is happening
@@ -92,7 +92,7 @@
               <span class="stateCard__style" id="pageProfileValue"></span>
             </div>
           </div>
-          <button class="btn btn--primary" id="pageToggle" type="button">开始翻译</button>
+          <button class="btn btn--primary" id="pageToggle" type="button" data-i18n="popup.video.start">开始翻译</button>
           <div class="stateCard__strip" id="pageProgressBox" hidden>
             <div class="progress"><div class="progress__bar" id="pageProgressBar"></div></div>
           </div>
@@ -101,21 +101,21 @@
         <div class="note" id="pageNote" hidden></div>
 
         <div class="pop__group">
-          <div class="pop__groupTitle">显示</div>
+          <div class="pop__groupTitle" data-i18n="popup.page.display">显示</div>
           <div class="grid2">
             <div class="field">
-              <label class="label" for="pageMode">显示方式</label>
+              <label class="label" for="pageMode" data-i18n="popup.page.mode">显示方式</label>
               <select id="pageMode">
-                <option value="bilingual">双语</option>
-                <option value="replace">仅译文</option>
+                <option value="bilingual" data-i18n="options.language.bilingual">双语</option>
+                <option value="replace" data-i18n="options.language.translated">仅译文</option>
               </select>
             </div>
             <div class="field">
-              <label class="label" for="pageStyle">译文样式</label>
+              <label class="label" for="pageStyle" data-i18n="popup.page.style">译文样式</label>
               <select id="pageStyle">
-                <option value="underline">左侧标记</option>
-                <option value="plain">纯文本</option>
-                <option value="highlight">底色高亮</option>
+                <option value="underline" data-i18n="options.page.styleUnderline">左侧标记</option>
+                <option value="plain" data-i18n="options.page.stylePlain">纯文本</option>
+                <option value="highlight" data-i18n="options.page.styleHighlight">底色高亮</option>
               </select>
             </div>
           </div>
@@ -126,8 +126,8 @@
                    temporary toggle, that one is a persistent mode. Naming this
                    by what it does removes the collision — and on a YouTube
                    video page both panels are one click apart. -->
-              <span class="pop__switchTitle">暂时收起译文</span>
-              <span class="hint">译文不会丢，随时可以恢复</span>
+              <span class="pop__switchTitle" data-i18n="popup.page.showOriginal">暂时收起译文</span>
+              <span class="hint" data-i18n="popup.page.showOriginalHint">译文不会丢，随时可以恢复</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="pageShowOriginal" />
@@ -137,19 +137,19 @@
         </div>
 
         <div class="pop__group">
-          <div class="pop__groupTitle">本站</div>
+          <div class="pop__groupTitle" data-i18n="popup.page.site">本站</div>
           <div class="field">
-            <label class="label" for="siteRule">打开本页时</label>
+            <label class="label" for="siteRule" data-i18n="popup.page.siteRule">打开本页时</label>
             <select id="siteRule">
-              <option value="manual">手动翻译</option>
-              <option value="auto">自动翻译</option>
-              <option value="skip">不翻译</option>
+              <option value="manual" data-i18n="popup.page.ruleManual">手动翻译</option>
+              <option value="auto" data-i18n="popup.page.ruleAuto">自动翻译</option>
+              <option value="skip" data-i18n="popup.page.ruleSkip">不翻译</option>
             </select>
           </div>
           <label class="pop__switchRow pop__switchRow--tight">
             <span class="pop__switchText">
-              <span class="pop__switchTitle">页面悬浮球</span>
-              <span class="hint">贴边隐藏，点一下即翻译</span>
+              <span class="pop__switchTitle" data-i18n="popup.page.ball">页面悬浮球</span>
+              <span class="hint" data-i18n="popup.page.ballHint">贴边隐藏，点一下即翻译</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="pageBall" />
@@ -158,7 +158,7 @@
           </label>
         </div>
 
-        <button class="btn btn--block" id="pageRetranslate" type="button">重新翻译</button>
+        <button class="btn btn--block" id="pageRetranslate" type="button" data-i18n="popup.page.retranslate">重新翻译</button>
       </section>
 
       <footer class="pop__foot">
@@ -166,12 +166,13 @@
         <!-- Grouped: with three children, the footer's space-between would push
              the two buttons apart instead of keeping them together. -->
         <div class="pop__footActions">
-          <button class="btn btn--ghost btn--sm" id="openDiagnostics" type="button">诊断</button>
-          <button class="btn btn--ghost btn--sm" id="openOptions" type="button">设置</button>
+          <button class="btn btn--ghost btn--sm" id="openDiagnostics" type="button" data-i18n="popup.foot.diagnostics">诊断</button>
+          <button class="btn btn--ghost btn--sm" id="openOptions" type="button" data-i18n="popup.foot.options">设置</button>
         </div>
       </footer>
     </div>
 
+    <script src="../shared/messages.js"></script>
     <script src="../shared/constants.js"></script>
     <script src="../shared/utils.js"></script>
     <script src="../shared/settings.js"></script>

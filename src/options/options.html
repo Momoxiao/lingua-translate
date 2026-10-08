@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lingua 设置</title>
+    <title data-i18n="options.title">Lingua 设置</title>
     <link rel="stylesheet" href="../ui/theme.css" />
     <link rel="stylesheet" href="options.css" />
   </head>
@@ -14,29 +14,29 @@
           <div class="brand__mark" aria-hidden="true"></div>
           <div>
             <div class="brand__name">Lingua</div>
-            <div class="brand__sub">视频字幕与网页翻译</div>
+            <div class="brand__sub" data-i18n="app.subtitle">视频字幕与网页翻译</div>
           </div>
         </div>
 
         <nav class="rail__nav">
-          <div class="rail__group">基础</div>
-          <a href="#service">翻译服务</a>
-          <a href="#language">语言与字幕</a>
-          <a href="#page">网页翻译</a>
-          <div class="rail__group">高级</div>
-          <a href="#perf">性能与缓存</a>
-          <a href="#help">使用说明</a>
+          <div class="rail__group" data-i18n="options.nav.basic">基础</div>
+          <a href="#service" data-i18n="options.nav.service">翻译服务</a>
+          <a href="#language" data-i18n="options.nav.language">语言与字幕</a>
+          <a href="#page" data-i18n="options.nav.page">网页翻译</a>
+          <div class="rail__group" data-i18n="options.nav.advanced">高级</div>
+          <a href="#perf" data-i18n="options.nav.perf">性能与缓存</a>
+          <a href="#help" data-i18n="options.nav.help">使用说明</a>
         </nav>
 
         <div class="rail__foot">
-          <span class="saveState" id="saveState">已保存</span>
+          <span class="saveState" id="saveState" data-i18n="options.save.saved">已保存</span>
         </div>
       </aside>
 
       <main class="main">
         <header class="main__head">
-          <h1>设置</h1>
-          <p class="main__lead">
+          <h1 data-i18n="options.heading">设置</h1>
+          <p class="main__lead" data-i18n="options.lead">
             接入你自己的翻译服务。所有请求由扩展直接发往你配置的接口，不经过任何中间服务器。
           </p>
         </header>
@@ -44,8 +44,8 @@
         <!-- ================= 翻译服务 ================= -->
         <section id="service" class="section">
           <div class="section__head">
-            <h2>翻译服务</h2>
-            <p class="section__desc">
+            <h2 data-i18n="options.service.title">翻译服务</h2>
+            <p class="section__desc" data-i18n-html="options.service.desc">
               选择供应商并填写凭据。<strong>OpenAI 兼容</strong>可覆盖绝大多数云端与本地模型。
             </p>
           </div>
@@ -58,7 +58,7 @@
                 <h3 id="paneTitle">—</h3>
                 <p class="providerPane__sub" id="paneStatus"></p>
               </div>
-              <button class="btn btn--sm" type="button" id="testBtn">测试连接</button>
+              <button class="btn btn--sm" type="button" id="testBtn" data-i18n="options.service.test">测试连接</button>
             </div>
             <p class="hint providerPane__hint" id="paneHint"></p>
             <div id="presets" class="presets"></div>
@@ -71,65 +71,65 @@
         <!-- ================= 语言与字幕 ================= -->
         <section id="language" class="section">
           <div class="section__head">
-            <h2>语言与字幕</h2>
-            <p class="section__desc">源语言保持「自动」通常最好，扩展会挑选质量最高的字幕轨。</p>
+            <h2 data-i18n="options.language.title">语言与字幕</h2>
+            <p class="section__desc" data-i18n="options.language.desc">源语言保持「自动」通常最好，扩展会挑选质量最高的字幕轨。</p>
           </div>
 
           <div class="grid2">
             <div class="field">
-              <label class="label" for="sourceLang">源语言</label>
+              <label class="label" for="sourceLang" data-i18n="options.language.source">源语言</label>
               <select id="sourceLang"></select>
             </div>
             <div class="field">
-              <label class="label" for="targetLang">目标语言</label>
+              <label class="label" for="targetLang" data-i18n="options.language.target">目标语言</label>
               <select id="targetLang"></select>
             </div>
           </div>
 
           <div class="field">
-            <span class="label">字幕显示方式</span>
-            <div class="segmented" id="displayMode" role="group" aria-label="字幕显示方式">
-              <button type="button" data-mode="bilingual" aria-pressed="false">双语</button>
-              <button type="button" data-mode="translated" aria-pressed="false">仅译文</button>
-              <button type="button" data-mode="original" aria-pressed="false">仅原文</button>
+            <span class="label" data-i18n="options.language.displayMode">字幕显示方式</span>
+            <div class="segmented" id="displayMode" role="group" aria-label="字幕显示方式" data-i18n-attr="aria-label:options.language.displayMode">
+              <button type="button" data-mode="bilingual" aria-pressed="false" data-i18n="options.language.bilingual">双语</button>
+              <button type="button" data-mode="translated" aria-pressed="false" data-i18n="options.language.translated">仅译文</button>
+              <button type="button" data-mode="original" aria-pressed="false" data-i18n="options.language.original">仅原文</button>
             </div>
           </div>
 
           <div class="grid2">
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="fontSize">字号</label>
+                <label class="label" for="fontSize" data-i18n="options.language.fontSize">字号</label>
                 <span class="num" id="fontSizeVal"></span>
               </div>
               <input type="range" id="fontSize" min="14" max="48" step="1" />
             </div>
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="bottomOffset">距画面底部</label>
+                <label class="label" for="bottomOffset" data-i18n="options.language.bottomOffset">距画面底部</label>
                 <span class="num" id="bottomOffsetVal"></span>
               </div>
               <input type="range" id="bottomOffset" min="2" max="40" step="1" />
             </div>
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="backgroundOpacity">底色不透明度</label>
+                <label class="label" for="backgroundOpacity" data-i18n="options.language.backgroundOpacity">底色不透明度</label>
                 <span class="num" id="backgroundOpacityVal"></span>
               </div>
               <input type="range" id="backgroundOpacity" min="0" max="1" step="0.02" />
             </div>
             <div class="field">
-              <label class="label" for="textAlign">对齐</label>
+              <label class="label" for="textAlign" data-i18n="options.language.align">对齐</label>
               <select id="textAlign">
-                <option value="center">居中</option>
-                <option value="left">左对齐</option>
-                <option value="right">右对齐</option>
+                <option value="center" data-i18n="options.language.alignCenter">居中</option>
+                <option value="left" data-i18n="options.language.alignLeft">左对齐</option>
+                <option value="right" data-i18n="options.language.alignRight">右对齐</option>
               </select>
             </div>
           </div>
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">进入视频后自动开始翻译</span>
+              <span class="switchRow__title" data-i18n="options.language.auto">进入视频后自动开始翻译</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="autoTranslate" />
@@ -139,8 +139,8 @@
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">隐藏 YouTube 原生字幕</span>
-              <span class="hint">避免与译文重叠</span>
+              <span class="switchRow__title" data-i18n="options.language.hideNative">隐藏 YouTube 原生字幕</span>
+              <span class="hint" data-i18n="options.language.hideNativeHint">避免与译文重叠</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="hideNativeCaptions" />
@@ -152,57 +152,57 @@
         <!-- ================= 网页翻译 ================= -->
         <section id="page" class="section">
           <div class="section__head">
-            <h2>网页翻译</h2>
-            <p class="section__desc">
+            <h2 data-i18n="options.page.title">网页翻译</h2>
+            <p class="section__desc" data-i18n="options.page.desc">
               自动识别正文段落，按视口位置优先翻译，并持续跟进动态加载的内容。原文不会被破坏，随时可以还原。
             </p>
           </div>
 
           <div class="grid2">
             <div class="field">
-              <label class="label" for="pageProfile">翻译风格</label>
+              <label class="label" for="pageProfile" data-i18n="options.page.profile">翻译风格</label>
               <select id="pageProfile">
-                <option value="auto">自动识别页面（推荐）</option>
+                <option value="auto" data-i18n="options.page.profileAuto">自动识别页面（推荐）</option>
               </select>
-              <div class="hint">
+              <div class="hint" data-i18n="options.page.profileHint">
                 按页面内容自动切换「翻译专家」：技术文档保留 API 与代码标识符，论文用学术语体，论坛保留口语。
                 仅对 OpenAI 兼容生效，其他供应商没有提示词。
               </div>
             </div>
             <div class="field">
-              <label class="label" for="pageNotes">附加要求</label>
-              <input type="text" id="pageNotes" placeholder="例如：术语保留英文，不要意译" />
-              <div class="hint">附加到提示词末尾，用来补充你的偏好。</div>
+              <label class="label" for="pageNotes" data-i18n="options.page.notes">附加要求</label>
+              <input type="text" id="pageNotes" placeholder="例如：术语保留英文，不要意译" data-i18n-attr="placeholder:options.page.notesPlaceholder" />
+              <div class="hint" data-i18n="options.page.notesHint">附加到提示词末尾，用来补充你的偏好。</div>
             </div>
           </div>
 
           <div class="grid2">
             <div class="field">
-              <label class="label" for="pageMode">显示方式</label>
+              <label class="label" for="pageMode" data-i18n="options.page.mode">显示方式</label>
               <select id="pageMode">
-                <option value="bilingual">双语</option>
-                <option value="replace">仅译文</option>
+                <option value="bilingual" data-i18n="options.language.bilingual">双语</option>
+                <option value="replace" data-i18n="options.language.translated">仅译文</option>
               </select>
-              <div class="hint">双语 = 原文下方追加译文</div>
+              <div class="hint" data-i18n="options.page.modeHint">双语 = 原文下方追加译文</div>
             </div>
             <div class="field">
-              <label class="label" for="pageStyle">译文样式</label>
+              <label class="label" for="pageStyle" data-i18n="options.page.style">译文样式</label>
               <select id="pageStyle">
-                <option value="underline">左侧标记</option>
-                <option value="plain">纯文本</option>
-                <option value="highlight">底色高亮</option>
+                <option value="underline" data-i18n="options.page.styleUnderline">左侧标记</option>
+                <option value="plain" data-i18n="options.page.stylePlain">纯文本</option>
+                <option value="highlight" data-i18n="options.page.styleHighlight">底色高亮</option>
               </select>
             </div>
           </div>
 
           <div class="field">
-            <label class="label" for="pageLinkMode">「仅译文」如何处理含链接的段落</label>
+            <label class="label" for="pageLinkMode" data-i18n="options.page.linkMode">「仅译文」如何处理含链接的段落</label>
             <select id="pageLinkMode">
-              <option value="translate">译文里保留链接（推荐）</option>
-              <option value="keep">退回双语（链接保持可点）</option>
-              <option value="strict">严格替换（链接会丢失）</option>
+              <option value="translate" data-i18n="options.page.linkTranslate">译文里保留链接（推荐）</option>
+              <option value="keep" data-i18n="options.page.linkKeep">退回双语（链接保持可点）</option>
+              <option value="strict" data-i18n="options.page.linkStrict">严格替换（链接会丢失）</option>
             </select>
-            <div class="hint">
+            <div class="hint" data-i18n="options.page.linkHint">
               选「译文里保留链接」时，链接会被包成占位符一起送去翻译，回来再重建，所以译文里的链接照样能点。
               若模型弄坏了占位符，该段落会自动退回双语显示。
             </div>
@@ -210,8 +210,8 @@
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">页面悬浮球</span>
-              <span class="hint">可拖动，点一下即翻译，位置按站点记住</span>
+              <span class="switchRow__title" data-i18n="options.page.ball">页面悬浮球</span>
+              <span class="hint" data-i18n="options.page.ballHint">可拖动，点一下即翻译，位置按站点记住</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="pageBall" />
@@ -221,8 +221,8 @@
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">打开网页时自动翻译</span>
-              <span class="hint">可在扩展面板里按站点单独设置</span>
+              <span class="switchRow__title" data-i18n="options.page.auto">打开网页时自动翻译</span>
+              <span class="hint" data-i18n="options.page.autoHint">可在扩展面板里按站点单独设置</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="pageAuto" />
@@ -231,53 +231,53 @@
           </label>
 
           <details class="disclosure disclosure--plain" id="pageAdvanced">
-            <summary>高级</summary>
+            <summary data-i18n="options.page.advanced">高级</summary>
             <div class="disclosure__body">
               <div class="grid2">
                 <div class="field">
                   <div class="labelRow">
-                    <label class="label" for="pageBatchSize">每批段落数</label>
+                    <label class="label" for="pageBatchSize" data-i18n="options.page.batchSize">每批段落数</label>
                     <span class="num" id="pageBatchSizeVal"></span>
                   </div>
                   <input type="range" id="pageBatchSize" min="4" max="30" step="1" />
                 </div>
                 <div class="field">
                   <div class="labelRow">
-                    <label class="label" for="pageMaxChars">每批字符上限</label>
+                    <label class="label" for="pageMaxChars" data-i18n="options.page.maxChars">每批字符上限</label>
                     <span class="num" id="pageMaxCharsVal"></span>
                   </div>
                   <input type="range" id="pageMaxChars" min="400" max="3000" step="100" />
                 </div>
                 <div class="field">
                   <div class="labelRow">
-                    <label class="label" for="pageConcurrency">网页并发数</label>
+                    <label class="label" for="pageConcurrency" data-i18n="options.page.concurrency">网页并发数</label>
                     <span class="num" id="pageConcurrencyVal"></span>
                   </div>
                   <input type="range" id="pageConcurrency" min="1" max="6" step="1" />
                 </div>
                 <div class="field">
-                  <label class="label" for="pageSkipSelectors">忽略选择器</label>
+                  <label class="label" for="pageSkipSelectors" data-i18n="options.page.skipSelectors">忽略选择器</label>
                   <input type="text" id="pageSkipSelectors" placeholder=".ad-banner, #comments" />
                 </div>
               </div>
 
               <div class="grid2">
                 <div class="field">
-                  <label class="label" for="pageAutoSites">自动翻译的站点</label>
+                  <label class="label" for="pageAutoSites" data-i18n="options.page.autoSites">自动翻译的站点</label>
                   <textarea id="pageAutoSites" rows="3" placeholder="news.ycombinator.com&#10;developer.mozilla.org"></textarea>
-                  <div class="hint">每行一个域名</div>
+                  <div class="hint" data-i18n="options.page.hostHint">每行一个域名</div>
                 </div>
                 <div class="field">
-                  <label class="label" for="pageSkipSites">永不翻译的站点</label>
+                  <label class="label" for="pageSkipSites" data-i18n="options.page.skipSites">永不翻译的站点</label>
                   <textarea id="pageSkipSites" rows="3" placeholder="mail.google.com"></textarea>
-                  <div class="hint">每行一个域名</div>
+                  <div class="hint" data-i18n="options.page.hostHint">每行一个域名</div>
                 </div>
               </div>
 
               <label class="switchRow">
                 <span class="switchRow__text">
-                  <span class="switchRow__title">翻译提示文字</span>
-                  <span class="hint">表单占位符、title、alt 等</span>
+                  <span class="switchRow__title" data-i18n="options.page.inputs">翻译提示文字</span>
+                  <span class="hint" data-i18n="options.page.inputsHint">表单占位符、title、alt 等</span>
                 </span>
                 <span class="switch">
                   <input type="checkbox" id="pageInputs" />
@@ -291,8 +291,8 @@
         <!-- ================= 性能与缓存 ================= -->
         <section id="perf" class="section">
           <div class="section__head">
-            <h2>性能与缓存</h2>
-            <p class="section__desc">
+            <h2 data-i18n="options.perf.title">性能与缓存</h2>
+            <p class="section__desc" data-i18n="options.perf.desc">
               字幕整片预取并批量翻译，优先翻译播放位置附近的句子。批越大请求越少越快，但单次出错影响面也更大。
             </p>
           </div>
@@ -300,14 +300,14 @@
           <div class="grid2">
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="batchSize">每批句子数</label>
+                <label class="label" for="batchSize" data-i18n="options.perf.batchSize">每批句子数</label>
                 <span class="num" id="batchSizeVal"></span>
               </div>
               <input type="range" id="batchSize" min="4" max="40" step="1" />
             </div>
             <div class="field">
               <div class="labelRow">
-                <label class="label" for="concurrency">字幕并发数</label>
+                <label class="label" for="concurrency" data-i18n="options.perf.concurrency">字幕并发数</label>
                 <span class="num" id="concurrencyVal"></span>
               </div>
               <input type="range" id="concurrency" min="1" max="8" step="1" />
@@ -316,8 +316,8 @@
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">启用翻译缓存</span>
-              <span class="hint">相同句子不重复请求，跨视频、跨网站生效</span>
+              <span class="switchRow__title" data-i18n="options.perf.cache">启用翻译缓存</span>
+              <span class="hint" data-i18n="options.perf.cacheHint">相同句子不重复请求，跨视频、跨网站生效</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="cacheEnabled" />
@@ -331,14 +331,14 @@
                switch's <label> would toggle the checkbox as well. -->
           <div class="cacheStat">
             <span class="cacheStat__num" id="cacheCount">—</span>
-            <span class="hint">条已缓存</span>
-            <button class="btn btn--sm btn--ghost" type="button" id="clearCache">清空</button>
+            <span class="hint" data-i18n="options.perf.cached">条已缓存</span>
+            <button class="btn btn--sm btn--ghost" type="button" id="clearCache" data-i18n="options.perf.clear">清空</button>
           </div>
 
           <label class="switchRow">
             <span class="switchRow__text">
-              <span class="switchRow__title">调试日志</span>
-              <span class="hint">在控制台输出详细过程</span>
+              <span class="switchRow__title" data-i18n="options.perf.debug">调试日志</span>
+              <span class="hint" data-i18n="options.perf.debugHint">在控制台输出详细过程</span>
             </span>
             <span class="switch">
               <input type="checkbox" id="debug" />
@@ -350,20 +350,20 @@
         <!-- ================= 使用说明 ================= -->
         <section id="help" class="section">
           <div class="section__head">
-            <h2>使用说明</h2>
+            <h2 data-i18n="options.help.title">使用说明</h2>
           </div>
 
           <ul class="quickstart">
-            <li><strong>网页翻译</strong>：页面上有个悬浮球，点一下就开始翻译；也可以点工具栏图标。</li>
-            <li><strong>视频字幕</strong>：打开 YouTube 视频会自动翻译字幕，双语叠加在画面上。</li>
-            <li><strong>按站点设置</strong>：点工具栏图标，可切换显示方式与本站规则。</li>
-            <li><strong>出问题要反馈</strong>：点工具栏图标 → 右下角「诊断」，复制出来的信息贴进 Issue。</li>
+            <li data-i18n-html="options.help.page"><strong>网页翻译</strong>：页面上有个悬浮球，点一下就开始翻译；也可以点工具栏图标。</li>
+            <li data-i18n-html="options.help.video"><strong>视频字幕</strong>：打开 YouTube 视频会自动翻译字幕，双语叠加在画面上。</li>
+            <li data-i18n-html="options.help.site"><strong>按站点设置</strong>：点工具栏图标，可切换显示方式与本站规则。</li>
+            <li data-i18n-html="options.help.report"><strong>出问题要反馈</strong>：点工具栏图标 → 右下角「诊断」，复制出来的信息贴进 Issue。</li>
           </ul>
 
           <details class="disclosure">
-            <summary>为什么字幕要在页面内获取</summary>
+            <summary data-i18n="options.help.whyTitle">为什么字幕要在页面内获取</summary>
             <div class="disclosure__body">
-              <p class="prose">
+              <p class="prose" data-i18n="options.help.why">
                 2025 年起 YouTube 给字幕接口加上了 PoToken 校验，任何脱离页面的直接请求都会返回空。本扩展运行在
                 YouTube 页面内，复用播放器自己铸造的凭据去取整条字幕轨，因此始终能拿到字幕。
               </p>
@@ -371,12 +371,12 @@
           </details>
 
           <details class="disclosure">
-            <summary>速度建议</summary>
+            <summary data-i18n="options.help.speedTitle">速度建议</summary>
             <div class="disclosure__body">
               <ul class="prose-list">
-                <li>翻译建议用<strong>非推理模型</strong>：推理模型的「思考」对翻译是纯浪费，实测慢一倍。</li>
-                <li>批越大请求越少，但失败时影响面也更大；并发太高可能触发接口限流。</li>
-                <li>缓存跨视频、跨网站生效，同一句话只翻一次。</li>
+                <li data-i18n-html="options.help.speed1">翻译建议用<strong>非推理模型</strong>：推理模型的「思考」对翻译是纯浪费，实测慢一倍。</li>
+                <li data-i18n="options.help.speed2">批越大请求越少，但失败时影响面也更大；并发太高可能触发接口限流。</li>
+                <li data-i18n="options.help.speed3">缓存跨视频、跨网站生效，同一句话只翻一次。</li>
               </ul>
             </div>
           </details>
@@ -384,6 +384,7 @@
       </main>
     </div>
 
+    <script src="../shared/messages.js"></script>
     <script src="../shared/constants.js"></script>
     <script src="../shared/utils.js"></script>
     <script src="../shared/settings.js"></script>

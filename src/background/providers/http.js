@@ -6,6 +6,7 @@
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   class ProviderError extends Error {
     constructor(message, { status = 0, code = 'PROVIDER_ERROR', retriable = false, body = '' } = {}) {
@@ -28,10 +29,20 @@
       /* ignore */
     }
     const retriable = res.status === 429 || res.status >= 500;
-    let message = `${label} 请求失败（HTTP ${res.status}）`;
-    if (res.status === 401 || res.status === 403) message = `${label} 鉴权失败（HTTP ${res.status}），请检查 API Key`;
-    else if (res.status === 429) message = `${label} 触发限流（HTTP 429），已自动退避重试`;
-    else if (res.status === 404) message = `${label} 接口地址不存在（HTTP 404），请检查 Base URL`;
+    let message = tr(`${label} 请求失败（HTTP ${res.status}）`, 'error.http', {
+      label,
+      status: res.status,
+    });
+    if (res.status === 401 || res.status === 403) {
+      message = tr(`${label} 鉴权失败（HTTP ${res.status}），请检查 API Key`, 'error.httpAuth', {
+        label,
+        status: res.status,
+      });
+    } else if (res.status === 429) {
+      message = tr(`${label} 触发限流（HTTP 429），已自动退避重试`, 'error.httpRate', { label });
+    } else if (res.status === 404) {
+      message = tr(`${label} 接口地址不存在（HTTP 404），请检查 Base URL`, 'error.httpNotFound', { label });
+    }
     if (body) message += ` — ${body.replace(/\s+/g, ' ').slice(0, 240)}`;
     throw new ProviderError(message, { status: res.status, code: `HTTP_${res.status}`, retriable, body });
   }
@@ -48,14 +59,27 @@
       try {
         return JSON.parse(text);
       } catch (e) {
-        throw new ProviderError(`${label} 返回了非 JSON 响应`, { code: 'BAD_JSON', retriable: false, body: text.slice(0, 300) });
+        throw new ProviderError(tr(`${label} 返回了非 JSON 响应`, 'error.badJson', { label }), {
+          code: 'BAD_JSON',
+          retriable: false,
+          body: text.slice(0, 300),
+        });
       }
     } catch (err) {
       if (err instanceof ProviderError) throw err;
       if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-        throw new ProviderError(`${label} 请求超时或被取消`, { code: 'TIMEOUT', retriable: err.name === 'TimeoutError' });
+        throw new ProviderError(tr(`${label} 请求超时或被取消`, 'error.timeout', { label }), {
+          code: 'TIMEOUT',
+          retriable: err.name === 'TimeoutError',
+        });
       }
-      throw new ProviderError(`${label} 网络错误：${err && err.message}`, { code: 'NETWORK', retriable: true });
+      throw new ProviderError(
+        tr(`${label} 网络错误：${err && err.message}`, 'error.network', {
+          label,
+          message: err && err.message,
+        }),
+        { code: 'NETWORK', retriable: true }
+      );
     } finally {
       clearTimeout(timer);
       if (options.signal) options.signal.removeEventListener('abort', onAbort);
@@ -90,7 +114,7 @@
         try {
           json = JSON.parse(text);
         } catch (e) {
-          throw new ProviderError(`${label} 返回了非 JSON 响应`, {
+          throw new ProviderError(tr(`${label} 返回了非 JSON 响应`, 'error.badJson', { label }), {
             code: 'BAD_JSON',
             retriable: false,
             body: text.slice(0, 300),
@@ -156,12 +180,18 @@
     } catch (err) {
       if (err instanceof ProviderError) throw err;
       if (err && (err.name === 'AbortError' || err.name === 'TimeoutError')) {
-        throw new ProviderError(`${label} 请求超时或被取消`, {
+        throw new ProviderError(tr(`${label} 请求超时或被取消`, 'error.timeout', { label }), {
           code: err.name === 'TimeoutError' ? 'TIMEOUT' : 'ABORTED',
           retriable: err.name === 'TimeoutError',
         });
       }
-      throw new ProviderError(`${label} 网络错误：${err && err.message}`, { code: 'NETWORK', retriable: true });
+      throw new ProviderError(
+        tr(`${label} 网络错误：${err && err.message}`, 'error.network', {
+          label,
+          message: err && err.message,
+        }),
+        { code: 'NETWORK', retriable: true }
+      );
     } finally {
       clearTimeout(timer);
       if (options.signal) options.signal.removeEventListener('abort', onAbort);

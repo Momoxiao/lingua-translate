@@ -27,6 +27,7 @@
   const { stripDecoration } = BG.llm;
   const { langName } = BG.prompts;
   const { getPath } = NS.utils;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   function esc(v) {
     return JSON.stringify(v == null ? '' : String(v)).slice(1, -1); // JSON-escape without quotes
@@ -45,7 +46,7 @@
       const obj = JSON.parse(text);
       return obj && typeof obj === 'object' ? obj : {};
     } catch (e) {
-      throw new Error('请求头不是合法 JSON，请检查 Headers 配置');
+      throw new Error(tr('请求头不是合法 JSON，请检查 Headers 配置', 'error.customHeaders'));
     }
   }
 
@@ -67,7 +68,7 @@
   async function translateBatch(texts, ctx) {
     const { settings, from, to, signal } = ctx;
     const cfg = settings.providers.custom;
-    if (!cfg.url) throw new Error('未填写自定义接口 URL');
+    if (!cfg.url) throw new Error(tr('未填写自定义接口 URL', 'error.customUrl'));
 
     const arrayMode = /\{\{\s*texts\s*\}\}/.test(String(cfg.body || '') + String(cfg.url || ''));
     const vars = {
@@ -92,7 +93,7 @@
       }
     }
 
-    const json = await requestJson(url, options, '自定义接口');
+    const json = await requestJson(url, options, tr('自定义接口', 'providerLabel.custom'));
     const extracted = cfg.responsePath ? getPath(json, cfg.responsePath) : json;
 
     // Array response -> index aligned

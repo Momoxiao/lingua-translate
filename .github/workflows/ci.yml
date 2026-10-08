@@ -36,7 +36,7 @@ jobs:
       - name: DOM tests
         run: npm run test:dom
 
-      # 162 assertions: popup panel switching, the 600px popup height budget,
+      # 185 assertions: popup panel switching, the 600px popup height budget,
       # settings-page interactions, custom-provider validation, and the
       # diagnostics verdicts (including the two `status: 'empty'` causes, which
       # must not be described with the same sentence).

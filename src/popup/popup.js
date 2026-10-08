@@ -10,6 +10,7 @@
   const { LANGUAGES, PROVIDERS } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
   const { emptySubtitleNote } = NS.utils;
+  const tr = (zh, key, vars) => NS.i18n.t(zh, key, vars);
 
   const el = (id) => document.getElementById(id);
   const ui = {
@@ -63,24 +64,24 @@
   let syncing = false; // guard so programmatic checkbox writes don't fire handlers
 
   const VIDEO_STATUS = {
-    idle: { tone: 'idle', text: '未启用' },
-    loading: { tone: 'busy', text: '读取字幕' },
-    translating: { tone: 'busy', text: '翻译中' },
-    ready: { tone: 'ok', text: '已就绪' },
+    idle: { tone: 'idle', text: '未启用', key: 'popup.state.videoIdle' },
+    loading: { tone: 'busy', text: '读取字幕', key: 'popup.state.videoLoading' },
+    translating: { tone: 'busy', text: '翻译中', key: 'popup.state.videoTranslating' },
+    ready: { tone: 'ok', text: '已就绪', key: 'popup.state.videoReady' },
     // Both 'empty' cases get the pill from emptySubtitleNote() below: the tracks
     // ARE there in the more common of the two, and calling that "无字幕" is the
     // same lie the note used to tell.
-    empty: { tone: 'warn', text: '无字幕' },
-    error: { tone: 'err', text: '出错' },
-    live: { tone: 'busy', text: '直播模式' },
+    empty: { tone: 'warn', text: '无字幕', key: 'popup.state.videoEmpty' },
+    error: { tone: 'err', text: '出错', key: 'popup.state.videoError' },
+    live: { tone: 'busy', text: '直播模式', key: 'popup.state.videoLive' },
   };
 
   const PAGE_STATUS = {
-    idle: { tone: 'idle', text: '未翻译' },
-    scanning: { tone: 'busy', text: '扫描中' },
-    translating: { tone: 'busy', text: '翻译中' },
-    done: { tone: 'ok', text: '已翻译' },
-    error: { tone: 'err', text: '出错' },
+    idle: { tone: 'idle', text: '未翻译', key: 'popup.state.untranslated' },
+    scanning: { tone: 'busy', text: '扫描中', key: 'popup.state.scanning' },
+    translating: { tone: 'busy', text: '翻译中', key: 'popup.state.translating' },
+    done: { tone: 'ok', text: '已翻译', key: 'popup.state.done' },
+    error: { tone: 'err', text: '出错', key: 'popup.state.error' },
   };
 
   // ---------------------------------------------------------------------------
@@ -106,12 +107,12 @@
     ui.track.innerHTML = '';
     const auto = document.createElement('option');
     auto.value = 'auto';
-    auto.textContent = '自动选择';
+    auto.textContent = tr('自动选择', 'popup.track.auto');
     ui.track.appendChild(auto);
     for (const t of tracks) {
       const o = document.createElement('option');
       o.value = t.languageCode;
-      o.textContent = `${t.name || t.languageCode}${t.kind === 'asr' ? '（自动生成）' : ''}`;
+      o.textContent = `${t.name || t.languageCode}${t.kind === 'asr' ? tr('（自动生成）', 'popup.track.asr') : ''}`;
       ui.track.appendChild(o);
     }
     ui.track.value = settings.sourceLang || 'auto';
@@ -138,8 +139,8 @@
     const ready = NS.settings.providerReady(settings);
     const model = modelOf(settings.provider);
     ui.providerName.textContent = provider
-      ? `${provider.label}${model ? ' · ' + model : ''}${ready ? '' : ' · 未配置'}`
-      : '未选择供应商';
+      ? `${provider.label}${model ? ' · ' + model : ''}${ready ? '' : ' · ' + tr('未配置', 'popup.provider.unconfigured')}`
+      : tr('未选择供应商', 'popup.provider.none');
     ui.providerName.dataset.state = ready ? 'ready' : 'missing';
     ui.enabled.checked = !!settings.enabled;
     ui.target.value = settings.targetLang;
@@ -150,7 +151,9 @@
     ui.pageMode.value = (settings.page && settings.page.displayMode) || 'bilingual';
     ui.pageStyle.value = (settings.page && settings.page.style) || 'underline';
     ui.pageBall.checked = !settings.page || settings.page.showBall !== false;
-    ui.footHint.textContent = provider ? `${provider.label} → ${labelOf(settings.targetLang)}` : '未配置翻译服务';
+    ui.footHint.textContent = provider
+      ? `${provider.label} → ${labelOf(settings.targetLang)}`
+      : tr('未配置翻译服务', 'popup.foot.none');
   }
 
   /** Short "which model am I actually using" label for the popup header. */
@@ -162,7 +165,9 @@
     }
     if (providerId === 'deepl') return cfg.pro ? 'Pro' : 'Free';
     if (providerId === 'microsoft') return cfg.region || '';
-    if (providerId === 'google') return cfg.apiKey ? '官方接口' : '免费接口';
+    if (providerId === 'google') {
+      return cfg.apiKey ? tr('官方接口', 'options.service.official') : tr('免费接口', 'options.service.free');
+    }
     return '';
   }
 
@@ -185,16 +190,16 @@
       // exact false claim this split exists to remove.
       const pill =
         empty && empty.reason === 'unparsed-track'
-          ? '解析失败'
+          ? tr('解析失败', 'popup.state.parseFailed')
           : empty && empty.reason === 'empty-track'
-            ? '取字幕失败'
+            ? tr('取字幕失败', 'popup.state.fetchFailed')
             : // `live` covers a real stream AND a VOD whose whole-track fetch
               // failed. Telling a VOD user "直播模式" says their ordinary video
               // is a stream, which is both wrong and useless — the actionable
               // fact is that the fast path degraded and a re-run may recover it.
               s.status === 'live' && !s.isLiveStream
-              ? '实时兜底'
-              : meta.text;
+              ? tr('实时兜底', 'popup.state.liveFallback')
+              : tr(meta.text, meta.key);
       setStatus(empty ? empty.tone : meta.tone, pill);
     }
 
@@ -213,7 +218,11 @@
       // that lines are landing rather than a percentage that would be a lie.
       ui.progressBox.hidden = false;
       ui.progressBar.style.width = '100%';
-      ui.progressNum.textContent = `${liveStats ? liveStats.translated || 0 : 0} 句`;
+      ui.progressNum.textContent = tr(
+        `${liveStats ? liveStats.translated || 0 : 0} 句`,
+        'popup.progress.lines',
+        { count: liveStats ? liveStats.translated || 0 : 0 }
+      );
       // "等待第一句" is right when the player renders captions and the playhead
       // is merely on silence. It is false comfort when the player never created
       // a caption container: nothing will ever arrive, so waiting is not the
@@ -221,10 +230,10 @@
       // fact rather than each guessing.
       const doomed = liveStats && liveStats.hasContainer === false && !s.isLiveStream;
       ui.progressLabel.textContent = doomed
-        ? '取不到字幕（本页不可用）'
+        ? tr('取不到字幕（本页不可用）', 'popup.progress.doomed')
         : liveStats && liveStats.lines
-          ? '实时翻译中'
-          : '实时翻译（等待第一句）';
+          ? tr('实时翻译中', 'popup.progress.realtime')
+          : tr('实时翻译（等待第一句）', 'popup.progress.waitingFirst');
     } else {
       ui.progressBox.hidden = false;
       const pct = Math.round(((s.translated || 0) / s.cueCount) * 100);
@@ -232,31 +241,46 @@
       // No spaces around the slash: the page panel, the ball and this row all
       // show the same "done/total" shape, and they used to disagree.
       ui.progressNum.textContent = `${s.translated || 0}/${s.cueCount}`;
-      ui.progressLabel.textContent = (s.translated || 0) >= s.cueCount ? '翻译完成' : s.liveMode ? '实时翻译' : '翻译中';
+      ui.progressLabel.textContent =
+        (s.translated || 0) >= s.cueCount
+          ? tr('翻译完成', 'popup.progress.complete')
+          : s.liveMode
+            ? tr('实时翻译', 'popup.progress.live')
+            : tr('翻译中', 'popup.state.translating');
     }
 
     // The label follows the state. Before anything is translated this button is
     // the manual start — which is the only way in when 进入视频后自动开始翻译 is
     // off — and afterwards it re-runs the pipeline. Hiding it instead would
     // strand that user with no trigger at all.
-    ui.retranslate.textContent = (s.translated || 0) > 0 || (liveStats && liveStats.translated > 0) ? '重新翻译' : '开始翻译';
+    ui.retranslate.textContent =
+      (s.translated || 0) > 0 || (liveStats && liveStats.translated > 0)
+        ? tr('重新翻译', 'popup.video.retranslateAgain')
+        : tr('开始翻译', 'popup.video.startNow');
     // Realtime mode is exactly the state a user wants to escape by re-running:
     // it means the whole-track fetch lost its race, and a retry often wins.
     ui.retranslate.disabled = !s.cueCount && !inRealtime;
 
     if (!state.isWatchPage) {
-      setNote(ui.note, '当前不是 YouTube 视频播放页。', 'info');
+      setNote(ui.note, tr('当前不是 YouTube 视频播放页。', 'popup.note.notWatch'), 'info');
     } else if (s.error) {
       setNote(ui.note, s.error, 'err');
     } else if (s.status === 'empty') {
       setNote(ui.note, empty.text, empty.tone);
     } else if (!settings.enabled) {
-      setNote(ui.note, '已暂停，字幕不会翻译。', 'info');
+      setNote(ui.note, tr('已暂停，字幕不会翻译。', 'popup.note.paused'), 'info');
     } else if (!NS.settings.providerReady(settings)) {
-      setNote(ui.note, '尚未配置翻译服务，请前往设置填写凭据。', 'warn');
+      setNote(ui.note, tr('尚未配置翻译服务，请前往设置填写凭据。', 'popup.note.noProvider'), 'warn');
     } else {
       setNote(ui.note, '');
     }
+  }
+
+  /** Page-profile labels arrive from the content script, so localise by id. */
+  function profileLabel(profile) {
+    if (!profile) return '';
+    const known = NS.constants.PAGE_PROFILES.find((p) => p.id === profile.id);
+    return known ? known.label : profile.label || '';
   }
 
   /**
@@ -265,11 +289,27 @@
    * page is exactly the desync users notice.
    */
   function pageStatusText(p) {
-    if (p.status === 'error') return p.error ? `出错：${p.error}` : '翻译出错';
-    if (p.status === 'scanning') return '正在扫描页面…';
-    if (p.status === 'translating') return `翻译中 ${p.done || 0}/${p.total || 0}`;
-    if (p.active) return p.total ? `已翻译 ${p.done || 0}/${p.total || 0}` : '已开启';
-    return '未翻译';
+    if (p.status === 'error') {
+      return p.error
+        ? tr(`出错：${p.error}`, 'popup.pageErrorDetail', { error: p.error })
+        : tr('翻译出错', 'popup.pageError');
+    }
+    if (p.status === 'scanning') return tr('正在扫描页面…', 'popup.pageScanning');
+    if (p.status === 'translating') {
+      return tr(`翻译中 ${p.done || 0}/${p.total || 0}`, 'popup.pageTranslating', {
+        done: p.done || 0,
+        total: p.total || 0,
+      });
+    }
+    if (p.active) {
+      return p.total
+        ? tr(`已翻译 ${p.done || 0}/${p.total || 0}`, 'popup.pageTranslated', {
+            done: p.done || 0,
+            total: p.total || 0,
+          })
+        : tr('已开启', 'popup.pageEnabled');
+    }
+    return tr('未翻译', 'popup.state.untranslated');
   }
 
   function renderPagePanel(state) {
@@ -286,7 +326,11 @@
     // Once the run is finished there is nothing left to stop, and 停止 next to
     // "已翻译 86/86" reads as if something were still going. Clicking it puts
     // the page back, so say that instead.
-    ui.pageToggle.textContent = !p.active ? '开始翻译' : p.status === 'done' ? '还原原文' : '停止';
+    ui.pageToggle.textContent = !p.active
+      ? tr('开始翻译', 'popup.pageStart')
+      : p.status === 'done'
+        ? tr('还原原文', 'popup.pageRestore')
+        : tr('停止', 'popup.pageStop');
     // Drives the click handler. It used to read the button's own label to decide
     // which way the toggle was going, so relabelling the button silently changed
     // the logic — a state flag cannot drift from the state.
@@ -315,20 +359,21 @@
     // behaviour is something the user can see and disagree with. Only the
     // override is annotated: "自动识别" on every page would be noise.
     const prof = p.profile;
+    const profLabel = profileLabel(prof);
     ui.pageProfileValue.textContent = prof
       ? prof.confidence === 'manual'
-        ? `${prof.label} · 手动`
-        : prof.label
+        ? tr(`${profLabel} · 手动`, 'popup.pageProfileManual', { label: profLabel })
+        : profLabel
       : '';
 
     if (p.error) {
       setNote(ui.pageNote, p.error, 'err');
     } else if (p.rule === 'skip') {
-      setNote(ui.pageNote, '已把本站设为「不翻译」。改回「手动翻译」即可恢复。', 'info');
+      setNote(ui.pageNote, tr('已把本站设为「不翻译」。改回「手动翻译」即可恢复。', 'popup.note.siteSkip'), 'info');
     } else if (!NS.settings.providerReady(settings)) {
-      setNote(ui.pageNote, '尚未配置翻译服务，请前往设置填写凭据。', 'warn');
+      setNote(ui.pageNote, tr('尚未配置翻译服务，请前往设置填写凭据。', 'popup.note.noProvider'), 'warn');
     } else if (!p.active && p.showBall !== false) {
-      setNote(ui.pageNote, '提示：页面上的悬浮球也能直接开始翻译。', 'info');
+      setNote(ui.pageNote, tr('提示：页面上的悬浮球也能直接开始翻译。', 'popup.note.ballHint'), 'info');
     } else {
       setNote(ui.pageNote, '');
     }
@@ -342,9 +387,9 @@
     try {
       chrome.tabs.sendMessage(tabId, { type: 'lingua:get-state' }, (res) => {
         if (chrome.runtime.lastError || !res || !res.ok) {
-          setStatus('warn', '未注入');
-          setNote(ui.note, '页面脚本尚未就绪，刷新页面后重试。', 'info');
-          setNote(ui.pageNote, '页面脚本尚未就绪，刷新页面后重试。', 'info');
+          setStatus('warn', tr('未注入', 'popup.status.notInjected'));
+          setNote(ui.note, tr('页面脚本尚未就绪，刷新页面后重试。', 'popup.note.scriptMissing'), 'info');
+          setNote(ui.pageNote, tr('页面脚本尚未就绪，刷新页面后重试。', 'popup.note.scriptMissing'), 'info');
           ui.progressBox.hidden = true;
           ui.pageProgressBox.hidden = true;
           return;
@@ -400,7 +445,8 @@
     for (const btn of ui.tabs.querySelectorAll('button')) {
       btn.setAttribute('aria-selected', String(btn.dataset.tab === name));
     }
-    ui.modeLabel.textContent = name === 'video' ? '视频字幕' : '网页翻译';
+    ui.modeLabel.textContent =
+      name === 'video' ? tr('视频字幕', 'popup.mode.video') : tr('网页翻译', 'popup.mode.page');
     if (lastState) {
       renderVideoPanel(lastState);
       renderPagePanel(lastState);
@@ -476,7 +522,7 @@
       ui.pageToggle.disabled = true;
       const res = await send('lingua:page-toggle');
       if (!res.ok) {
-        setNote(ui.pageNote, res.error || '无法启动网页翻译', 'err');
+        setNote(ui.pageNote, res.error || tr('无法启动网页翻译', 'popup.note.startFailedShort'), 'err');
       }
       ui.pageToggle.disabled = false;
       setTimeout(queryState, wantStop ? 120 : 250);
@@ -533,6 +579,8 @@
   // Boot
   // ---------------------------------------------------------------------------
   (async function boot() {
+    NS.i18n.apply();
+    if (NS.i18n.isEnglish()) document.documentElement.lang = 'en';
     settings = await getSettings();
     fillLanguages();
     renderStatic();
@@ -557,8 +605,8 @@
       startPolling();
     } else {
       showPanel('page');
-      setStatus('warn', '不支持');
-      setNote(ui.pageNote, '当前页面不支持翻译（仅支持 http/https 网页）。', 'info');
+      setStatus('warn', tr('不支持', 'popup.unsupported'));
+      setNote(ui.pageNote, tr('当前页面不支持翻译（仅支持 http/https 网页）。', 'popup.note.notSupported'), 'info');
       ui.pageToggle.disabled = true;
       ui.pageRetranslate.disabled = true;
       ui.retranslate.disabled = true;

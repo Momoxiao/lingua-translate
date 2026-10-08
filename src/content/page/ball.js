@@ -21,6 +21,7 @@
   const NS = (root.Lingua = root.Lingua || {});
   const page = (NS.page = NS.page || {});
   const { FONTS } = NS.constants;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const HOST_ID = 'lingua-ball';
   const POS_KEY = 'lingua:ball:positions';
@@ -275,11 +276,27 @@
 
     let text;
     if (transient) text = transient;
-    else if (state.status === 'error') text = state.error ? `出错：${state.error}` : '翻译出错';
-    else if (state.status === 'translating') text = `翻译中 ${state.done}/${state.total}`;
-    else if (state.status === 'scanning') text = '正在扫描页面…';
-    else if (state.active) text = state.total ? `已翻译 ${state.done}/${state.total}` : '已开启';
-    else text = '翻译此页面';
+    else if (state.status === 'error') {
+      text = state.error
+        ? tr(`出错：${state.error}`, 'ball.status.errorDetail', { error: state.error })
+        : tr('翻译出错', 'ball.status.translationError');
+    } else if (state.status === 'translating') {
+      text = tr(`翻译中 ${state.done}/${state.total}`, 'ball.status.translatingProgress', {
+        done: state.done,
+        total: state.total,
+      });
+    } else if (state.status === 'scanning') {
+      text = tr('正在扫描页面…', 'ball.status.scanning');
+    } else if (state.active) {
+      text = state.total
+        ? tr(`已翻译 ${state.done}/${state.total}`, 'ball.status.translatedProgress', {
+            done: state.done,
+            total: state.total,
+          })
+        : tr('已开启', 'ball.status.active');
+    } else {
+      text = tr('翻译此页面', 'ball.action.start');
+    }
     status.textContent = text;
     status.title = text;
 
@@ -290,7 +307,9 @@
     // extension panel's "暂时收起译文" switch for the same state. Deliberately
     // not "只显示原文" — that reads as a synonym of the video panel's 仅原文
     // display mode, which is a different thing (persistent, not a toggle).
-    btnOriginal.textContent = state.showSource ? '恢复译文' : '暂时收起译文';
+    btnOriginal.textContent = state.showSource
+      ? tr('恢复译文', 'ball.action.restore')
+      : tr('暂时收起译文', 'ball.action.temporaryHide');
 
     // progress arc
     const R = 23.5;
@@ -327,11 +346,11 @@
     wrap.innerHTML = `
       <div class="pill">
         <span class="status" role="status" aria-live="polite"></span>
-        <button class="act" type="button" data-act="original">暂时收起译文</button>
-        <button class="act" type="button" data-act="retranslate">重新翻译</button>
-        <button class="act" type="button" data-act="stop">停止</button>
+        <button class="act" type="button" data-act="original">${tr('暂时收起译文', 'ball.action.temporaryHide')}</button>
+        <button class="act" type="button" data-act="retranslate">${tr('重新翻译', 'ball.action.retranslate')}</button>
+        <button class="act" type="button" data-act="stop">${tr('停止', 'ball.action.stop')}</button>
       </div>
-      <div class="ball" role="button" tabindex="0" title="点击翻译 / 右键设置" aria-label="Lingua 网页翻译">
+      <div class="ball" role="button" tabindex="0" title="${tr('点击翻译 / 右键设置', 'ball.tooltipDetailed')}" aria-label="${tr('Lingua 网页翻译', 'ball.ariaLabel')}">
         <!-- no width/height here on purpose — the CSS box defines the size -->
         <svg class="ring" viewBox="0 0 50 50" aria-hidden="true">
           <circle class="track" cx="25" cy="25" r="23.5"></circle>

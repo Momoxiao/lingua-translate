@@ -12,6 +12,7 @@
   const NS = (root.Lingua = root.Lingua || {});
   const page = (NS.page = NS.page || {});
   const { bridge } = NS;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const MAX_UNITS = 6000;
   const MAX_FAILURES = 3;
@@ -104,7 +105,11 @@
   function resolveProfile() {
     const mode = (settings && settings.page && settings.page.profileMode) || 'auto';
     const notes = ((settings && settings.page && settings.page.profileNotes) || '').trim().slice(0, 300);
-    let picked = { id: 'general', label: '通用', confidence: 'low' };
+    let picked = {
+      id: 'general',
+      label: tr('通用', 'profile.general.label'),
+      confidence: 'low',
+    };
     try {
       if (page.profile) picked = page.profile.detect(mode);
     } catch (e) {
@@ -256,7 +261,8 @@
           return;
         }
         failures++;
-        state.error = (err && (err.message || err.name || String(err))) || '翻译失败';
+        state.error =
+          (err && (err.message || err.name || String(err))) || tr('翻译失败', 'runtime.translateFailed');
         if (err && err.code) state.error += ` [${err.code}]`;
         for (const i of chunk) {
           const u = units[i];
@@ -308,7 +314,7 @@
     syncBall();
     // The ball's own status line already carries "已翻译 n/n", so the transient
     // message only has to confirm that the job ended.
-    page.ball.notify('翻译完成', 'ok', 2600);
+    page.ball.notify(tr('翻译完成', 'ball.notify.done'), 'ok', 2600);
   }
 
   /** Push the current pipeline state into the floating ball. */
@@ -496,7 +502,7 @@
     const body = document.body;
     if (!body) {
       state.status = 'error';
-      state.error = '页面尚未就绪';
+      state.error = tr('页面尚未就绪', 'runtime.pageNotReady');
       syncBall();
       page.ball.notify(state.error, 'err', 6000);
       teardown({ keepIndicator: true });
@@ -509,7 +515,7 @@
     if (!units.length) {
       state.status = 'done';
       syncBall();
-      page.ball.notify('没有可翻译的内容', 'ok', 3000);
+      page.ball.notify(tr('没有可翻译的内容', 'runtime.noContent'), 'ok', 3000);
       teardown({ keepIndicator: true });
       return;
     }

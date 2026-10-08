@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Lingua — YouTube Subtitles & Web Page Translator",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bilingual YouTube subtitles and whole-page translation using your own OpenAI-compatible, DeepL, Google, or custom translation API.",
   "minimum_chrome_version": "111",
   "permissions": [
@@ -54,6 +54,7 @@
         "*://*.youtube-nocookie.com/*"
       ],
       "js": [
+        "src/shared/messages.js",
         "src/shared/constants.js",
         "src/shared/utils.js",
         "src/shared/settings.js",
@@ -82,6 +83,7 @@
         "*://*.youtube-nocookie.com/*"
       ],
       "js": [
+        "src/shared/messages.js",
         "src/shared/constants.js",
         "src/shared/utils.js",
         "src/shared/settings.js",

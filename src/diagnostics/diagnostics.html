@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Lingua 诊断</title>
+    <title data-i18n="diag.title">Lingua 诊断</title>
     <link rel="stylesheet" href="../ui/theme.css" />
     <link rel="stylesheet" href="diagnostics.css" />
   </head>
@@ -14,45 +14,45 @@
           <div class="brand__mark" aria-hidden="true"></div>
           <div>
             <div class="brand__name">Lingua</div>
-            <div class="brand__sub">诊断</div>
+            <div class="brand__sub" data-i18n="diag.subtitle">诊断</div>
           </div>
         </div>
       </header>
 
-      <p class="diag__lead">
+      <p class="diag__lead" data-i18n-html="diag.lead">
         报 Issue 时把下面这段贴上去。它说明扩展在这个页面上走到了哪一步——
         <strong>「拿不到字幕」和「拿到了但翻不动」是两种完全不同的故障</strong>，修法也完全不同。
       </p>
 
       <div class="diag__controls">
         <label class="field diag__pick">
-          <span class="label">检查哪个页面</span>
+          <span class="label" data-i18n="diag.target">检查哪个页面</span>
           <select id="target"></select>
         </label>
         <div class="diag__buttons">
-          <button class="btn btn--primary" id="copy" type="button">复制诊断信息</button>
-          <button class="btn" id="refresh" type="button">重新检查</button>
-          <a class="btn btn--ghost" id="issue" target="_blank" rel="noreferrer">去开 Issue</a>
+          <button class="btn btn--primary" id="copy" type="button" data-i18n="diag.copy">复制诊断信息</button>
+          <button class="btn" id="refresh" type="button" data-i18n="diag.refresh">重新检查</button>
+          <a class="btn btn--ghost" id="issue" target="_blank" rel="noreferrer" data-i18n="diag.issue">去开 Issue</a>
         </div>
       </div>
 
       <p class="diag__copyState" id="copyState" role="status" aria-live="polite"></p>
 
       <section class="verdict" id="verdict" data-tone="idle">
-        <div class="verdict__label">判断</div>
-        <p class="verdict__text" id="verdictText">检查中…</p>
+        <div class="verdict__label" data-i18n="diag.verdict">判断</div>
+        <p class="verdict__text" id="verdictText" data-i18n="diag.checking">检查中…</p>
       </section>
 
-      <pre class="report" id="report">检查中…</pre>
+      <pre class="report" id="report" data-i18n="diag.checking">检查中…</pre>
 
       <details class="disclosure">
-        <summary>这段信息包含什么</summary>
+        <summary data-i18n="diag.reportWhat">这段信息包含什么</summary>
         <div class="disclosure__body">
-          <p class="prose">
+          <p class="prose" data-i18n="diag.reportContains">
             页面地址与站点、扩展与浏览器版本、内容脚本是否注入、页面模块是否加载、后台连接是否存活、
             字幕轨数量与语言、字幕条数、已翻译条数、网页翻译状态、当前供应商与是否填了凭据。
           </p>
-          <p class="prose">
+          <p class="prose" data-i18n-html="diag.reportExcludes">
             <strong>不包含</strong>你的 API Key、任何译文原文、浏览历史或 Cookie。唯一可能带隐私的是当前页面的地址，
             贴之前可以自己删掉不需要的部分。
           </p>
@@ -60,6 +60,7 @@
       </details>
     </main>
 
+    <script src="../shared/messages.js"></script>
     <script src="../shared/constants.js"></script>
     <script src="../shared/utils.js"></script>
     <script src="diagnostics.js"></script>

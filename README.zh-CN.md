@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
 
-> **早期版本（0.2.0）。** 功能完整，有 540 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.1）。** 功能完整，有 590 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -76,10 +76,10 @@
 3. 点击 **加载已解压的扩展程序**，选择解压出来的目录
 4. 首次安装会自动打开设置页；填入翻译服务后即可使用
 
-安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，43 个文件、约 124 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
+安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
 ```bash
-shasum -a 256 -c lingua-0.2.0.zip.sha256
+shasum -a 256 -c lingua-0.2.1.zip.sha256
 ```
 
 **方式二：直接用源码**
@@ -415,11 +415,11 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
-npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 569 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
+npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 592 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
 npm test            # 核心逻辑测试（190 项，无需浏览器、无依赖）
 npm run test:live   # 实时字幕兜底：什么时候该接管、什么时候必须拒绝接管（49 项）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
-npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（162 项）
+npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（51 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
@@ -568,7 +568,7 @@ npm run inspect:refresh -- youtube.com
 
 - **视频字幕的获取链路没有自动化测试**。`youtube.js` / `inject.js` / `bridge.js` 依赖 YouTube 的私有播放器接口，无法在 CI 里覆盖；YouTube 一旦更新就可能失效，而且不会有任何自动化的东西提前告诉你。有 `npm run smoke` 可以手动跑一次真机冒烟（见第七节），但它要联网、不进 CI，而且**两种自动化环境都测不到真正的播放**——无头窗口和后台标签下播放器都不会去取字幕轨，所以它只能证明「字幕没开始渲染」，不能证明扩展坏了。要真测，需要一个可见、在前台的标签页。遇到失效请开 Issue。
 - 只在 macOS 的 Chrome 上做过实测。Linux 上 CI 会跑三套测试（不含真机扩展的 e2e），但 **Edge / Firefox 未经验证**——Firefox 需要额外的 MV3 适配。
-- 只有中文界面，没有 `_locales`，非中文用户看到的是中文设置页。
+- 界面内置中文与英文两套文案。中文是源文案与回退；非中文浏览器进入英文界面。
 - YouTube 字幕只在 `youtube.com` / `youtube-nocookie.com` 的播放页工作。
 - 网页翻译暂不处理 iframe 内部（只在顶层文档运行），也不翻译图片内的文字。
 - 直播场景的字幕走实时逐句翻译，质量与延迟不如点播的整片预取模式。

@@ -8,6 +8,7 @@
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   async function translateBatch(texts, ctx) {
     const { settings, from, to, signal } = ctx;
@@ -28,7 +29,7 @@
     const json = await requestJson(
       url.toString(),
       { method: 'POST', headers, body: JSON.stringify(body), signal },
-      '微软翻译'
+      tr('微软翻译', 'providerLabel.microsoft')
     );
     if (!Array.isArray(json)) return new Array(texts.length).fill(null);
     return texts.map((_, i) => {

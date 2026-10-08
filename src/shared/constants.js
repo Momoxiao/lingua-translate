@@ -6,6 +6,8 @@
 (function (root) {
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
+  /** Localised UI text with the Chinese literal as the source fallback. */
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   /** Extension-wide identifiers */
   const ID = 'lingua';
@@ -53,33 +55,39 @@
   const PROVIDERS = {
     openai: {
       id: 'openai',
-      label: 'OpenAI 兼容',
-      short: 'DeepSeek / Kimi 等',
-      hint: '适用于所有 /chat/completions 接口：OpenAI、DeepSeek、Kimi、智谱、通义、硅基流动、OpenRouter、Groq，以及 Ollama、LM Studio、one-api 等本地部署',
+      label: tr('OpenAI 兼容', 'provider.openai.label'),
+      short: tr('DeepSeek / Kimi 等', 'provider.openai.short'),
+      hint: tr(
+        '适用于所有 /chat/completions 接口：OpenAI、DeepSeek、Kimi、智谱、通义、硅基流动、OpenRouter、Groq，以及 Ollama、LM Studio、one-api 等本地部署',
+        'provider.openai.hint'
+      ),
     },
     deepl: {
       id: 'deepl',
       label: 'DeepL',
-      short: '官方 API',
-      hint: 'DeepL 官方 API（Free / Pro）。纯翻译场景质量高、速度快',
+      short: tr('官方 API', 'provider.deepl.short'),
+      hint: tr('DeepL 官方 API（Free / Pro）。纯翻译场景质量高、速度快', 'provider.deepl.hint'),
     },
     google: {
       id: 'google',
-      label: 'Google 翻译',
-      short: '免凭据，最快',
-      hint: '免费网页接口，无需凭据。速度最快，适合快速预览',
+      label: tr('Google 翻译', 'provider.google.label'),
+      short: tr('免凭据，最快', 'provider.google.short'),
+      hint: tr('免费网页接口，无需凭据。速度最快，适合快速预览', 'provider.google.hint'),
     },
     microsoft: {
       id: 'microsoft',
-      label: '微软 Azure',
-      short: 'Azure API',
-      hint: 'Azure Translator 文本翻译 API，需要 Key；区域资源还需填写区域',
+      label: tr('微软 Azure', 'provider.microsoft.label'),
+      short: tr('Azure API', 'provider.microsoft.short'),
+      hint: tr('Azure Translator 文本翻译 API，需要 Key；区域资源还需填写区域', 'provider.microsoft.hint'),
     },
     custom: {
       id: 'custom',
-      label: '自定义供应商',
-      short: '任意 HTTP 接口',
-      hint: '任何 HTTP 翻译接口都能接：自己写 URL、方法、请求头、请求体模板，并指定从响应的哪一层取值',
+      label: tr('自定义供应商', 'provider.custom.label'),
+      short: tr('任意 HTTP 接口', 'provider.custom.short'),
+      hint: tr(
+        '任何 HTTP 翻译接口都能接：自己写 URL、方法、请求头、请求体模板，并指定从响应的哪一层取值',
+        'provider.custom.hint'
+      ),
     },
   };
 
@@ -94,9 +102,9 @@
   const PAGE_PROFILES = [
     {
       id: 'tech',
-      label: '技术文档',
+      label: tr('技术文档', 'profile.tech.label'),
       promptLabel: 'technical documentation',
-      hint: '保留 API、代码标识符与命令行参数；业界通用的英文术语不硬译',
+      hint: tr('保留 API、代码标识符与命令行参数；业界通用的英文术语不硬译', 'profile.tech.hint'),
       directives: [
         'Keep API names, function and variable names, CLI flags, file paths, package names, CSS selectors and code identifiers exactly as they are.',
         'Use the established translation for well-known concepts, but keep the English word when Chinese developers normally use it as-is (props, hook, commit, token). Never invent a translation for a term that has no settled one.',
@@ -105,9 +113,9 @@
     },
     {
       id: 'academic',
-      label: '学术论文',
+      label: tr('学术论文', 'profile.academic.label'),
       promptLabel: 'an academic or scientific text',
-      hint: '正式学术语体；保留引用标注、公式与变量名；关键术语首次出现时附原文',
+      hint: tr('正式学术语体；保留引用标注、公式与变量名；关键术语首次出现时附原文', 'profile.academic.hint'),
       directives: [
         'Use a formal academic register and precise terminology.',
         'Keep citation markers, reference numbers, equation symbols and variable names exactly as they are.',
@@ -116,9 +124,9 @@
     },
     {
       id: 'news',
-      label: '新闻资讯',
+      label: tr('新闻资讯', 'profile.news.label'),
       promptLabel: 'news or journalism',
-      hint: '客观新闻语体；人名、机构名与引语忠实，不随意本地化',
+      hint: tr('客观新闻语体；人名、机构名与引语忠实，不随意本地化', 'profile.news.hint'),
       directives: [
         'Use a clear, neutral journalistic register.',
         'Keep proper nouns, organisation names, job titles and quoted speech faithful. Do not localise a name unless a well-established translation exists.',
@@ -127,9 +135,9 @@
     },
     {
       id: 'forum',
-      label: '社区讨论',
+      label: tr('社区讨论', 'profile.forum.label'),
       promptLabel: 'user-generated discussion (forum, issue tracker or comment thread)',
-      hint: '保留口语、语气与梗；不把随意表达改成书面语',
+      hint: tr('保留口语、语气与梗；不把随意表达改成书面语', 'profile.forum.hint'),
       directives: [
         'Keep the conversational tone: slang, sarcasm, hedging and casual grammar are part of the meaning. Do not formalise them.',
         'Keep usernames, @mentions, hashtags, emoji and inline quotes exactly as they are.',
@@ -138,9 +146,9 @@
     },
     {
       id: 'commerce',
-      label: '电商购物',
+      label: tr('电商购物', 'profile.commerce.label'),
       promptLabel: 'an e-commerce listing',
-      hint: '品牌与型号不译；保留尺寸、单位与价格符号；商品文案保持说服力',
+      hint: tr('品牌与型号不译；保留尺寸、单位与价格符号；商品文案保持说服力', 'profile.commerce.hint'),
       directives: [
         'Keep brand names, product names, model numbers, sizes, units and currency symbols exactly as they are.',
         'Use the persuasive register of product copy; keep the selling points punchy.',
@@ -149,15 +157,15 @@
     },
     {
       id: 'general',
-      label: '通用',
+      label: tr('通用', 'profile.general.label'),
       promptLabel: 'a general web page',
-      hint: '不做特殊处理，保持原文语体',
+      hint: tr('不做特殊处理，保持原文语体', 'profile.general.hint'),
       directives: ['Keep the register of the original and translate naturally.'],
     },
   ];
   const CUSTOM_PRESETS = [
     {
-      name: 'DeepLX（自建）',
+      name: tr('DeepLX（自建）', 'preset.deeplx'),
       url: 'http://localhost:1188/translate',
       method: 'POST',
       headers: '{\n  "Content-Type": "application/json"\n}',
@@ -165,7 +173,7 @@
       responsePath: 'data',
     },
     {
-      name: 'LibreTranslate（自建）',
+      name: tr('LibreTranslate（自建）', 'preset.libretranslate'),
       url: 'http://localhost:5000/translate',
       method: 'POST',
       headers: '{\n  "Content-Type": "application/json"\n}',
@@ -173,7 +181,7 @@
       responsePath: 'translatedText',
     },
     {
-      name: '数组式接口',
+      name: tr('数组式接口', 'preset.array'),
       url: 'https://api.example.com/translate',
       method: 'POST',
       headers: '{\n  "Content-Type": "application/json",\n  "Authorization": "Bearer {{key}}"\n}',
@@ -184,13 +192,13 @@
 
   /** Placeholders understood by the custom provider, for the settings UI. */
   const CUSTOM_PLACEHOLDERS = [
-    { token: '{{text}}', desc: '整批文本（带编号的多行字符串）' },
-    { token: '{{texts}}', desc: '原始句子数组（JSON 字面量，用了它即切换为数组模式）' },
-    { token: '{{from}}', desc: '源语言代码' },
-    { token: '{{to}}', desc: '目标语言代码' },
-    { token: '{{source}}', desc: '源语言名称' },
-    { token: '{{target}}', desc: '目标语言名称' },
-    { token: '{{key}}', desc: 'API Key' },
+    { token: '{{text}}', desc: tr('整批文本（带编号的多行字符串）', 'placeholder.text') },
+    { token: '{{texts}}', desc: tr('原始句子数组（JSON 字面量，用了它即切换为数组模式）', 'placeholder.texts') },
+    { token: '{{from}}', desc: tr('源语言代码', 'placeholder.from') },
+    { token: '{{to}}', desc: tr('目标语言代码', 'placeholder.to') },
+    { token: '{{source}}', desc: tr('源语言名称', 'placeholder.source') },
+    { token: '{{target}}', desc: tr('目标语言名称', 'placeholder.target') },
+    { token: '{{key}}', desc: tr('API Key', 'placeholder.key') },
   ];
 
   /** Language catalogue. code = YouTube caption code, label = display name */

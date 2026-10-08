@@ -88,6 +88,11 @@ const STUB = (tabUrl, patch) => `
   // patch reaches the settings store, like __dead.
   const STATE_PATCH = PATCH.__state || {};
   delete PATCH.__state;
+  // Locale used by the i18n catalogue. Headless Chrome inherits the host
+  // machine's language, so tests that assert Chinese copy must pin it instead
+  // of depending on the developer's machine.
+  const LANG = PATCH.__lang || 'zh-CN';
+  delete PATCH.__lang;
   const store = {
     'lingua:settings:v1': mergeDeep({
       enabled: true, provider: 'openai', sourceLang: 'auto', targetLang: 'zh-Hans',
@@ -165,6 +170,7 @@ const STUB = (tabUrl, patch) => `
         if (cb) cb(reply);
       }
     },
+    i18n: { getUILanguage: () => LANG },
     tabs: {
       query: () => Promise.resolve([{ id: 1, url: TAB_URL }]),
       get: (id) => Promise.resolve({ id, url: TAB_URL, title: 'Preview tab' }),

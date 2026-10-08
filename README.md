@@ -9,7 +9,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip"><b>Download Lingua 0.2.0</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip"><b>Download Lingua 0.2.1</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -54,7 +54,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **11,374 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,328 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -71,7 +71,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.0 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.1 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.1.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -85,7 +85,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 ```
 
 ```bash
-shasum -a 256 -c lingua-0.2.0.zip.sha256
+shasum -a 256 -c lingua-0.2.1.zip.sha256
 ```
 
 ## Configure
@@ -114,11 +114,11 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 569 assertions across four suites, plus the docs-drift guard
+npm run check       # 592 assertions across four suites, plus the docs-drift guard
 npm test            # 190 — core logic: batching, parsing, all five providers
 npm run test:live   #  49 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
-npm run test:pages  # 162 — popup, settings page, diagnostics verdicts
+npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  74 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
 
@@ -148,7 +148,7 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   **"Often", not "always" — and that distinction is measured, not hedged.** Across one evening of headed runs on the same video: three runs took the fast path (`pot=有`, ~1.2 KB responses, 60/60 cues); one run fell back and *did* read real lines (`实时兜底 读到 2 行 · 译出 1 行`) even though none of the requests in that run carried a `pot`; and one run failed completely — 8 caption requests, none with a `pot`, all 8 response bodies read as **0 bytes** (captured bodies, not a byte-count inference), the player created no caption container, and the fallback read 0 lines. So the fallback rescues the common case, not every case, and the earlier wording promised captions on both paths, and that was one measurement too confident. `npm run smoke` prints the DOM reading beside the line counters — container present or not, how many `.ytp-caption-segment` nodes, and their text — so a zero-line fallback now says which of the two it was instead of telling you to run it again.
 - On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path is slower and translates line by line rather than ahead of the playhead.
-- The extension UI is Chinese today. The README, store listing and diagnostics report are available in English; `_locales` is on the roadmap.
+- The extension UI ships in Chinese and English. Chinese is the source language and the fallback; every non-Chinese browser gets the English catalogue.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.
 - Live streams use the same realtime path by necessity — there is no whole track to pre-fetch.
@@ -163,7 +163,7 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
 **The most useful thing you could contribute right now:** a screenshot or a 10-second GIF of the subtitle overlay captured from a **real** YouTube page on **Windows or Linux** — this has only ever been verified on macOS. The harness renders the overlay from the real `overlay.js`, so the README image cannot drift from the code, but every screenshot here was produced on one machine, and a real capture from another platform is worth more than another mock.
 
-Issues and PRs welcome. Before reporting a caption problem, please run the **diagnostics page** (extension icon → 诊断 → **copy**) and paste the output: "no captions found" and "captions found but the fetch came back empty" are entirely different failures with entirely different fixes, and that report is the only thing that tells them apart. It contains no API key and no translated text.
+Issues and PRs welcome. Before reporting a caption problem, please run the **diagnostics page** (extension icon → **Diagnostics** → **Copy report**) and paste the output: "no captions found" and "captions found but the fetch came back empty" are entirely different failures with entirely different fixes, and that report is the only thing that tells them apart. It contains no API key and no translated text.
 
 ## License
 

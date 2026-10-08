@@ -5,6 +5,7 @@
 (function (root) {
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   /** Stable 53-bit string hash (FNV-1a variant, fast enough for cache keys). */
   function hash(str) {
@@ -153,7 +154,11 @@
     const reason = s.reason || (tracks.length ? 'empty-track' : 'no-captions');
 
     if (reason === 'not-a-video') {
-      return { tone: 'info', reason, text: '当前不是 YouTube 视频播放页，不会加载字幕。' };
+      return {
+        tone: 'info',
+        reason,
+        text: tr('当前不是 YouTube 视频播放页，不会加载字幕。', 'runtime.emptyNotVideo'),
+      };
     }
     if (reason === 'unparsed-track') {
       // The body came back non-empty and yielded no cues. That is a parser gap on
@@ -162,21 +167,30 @@
       return {
         tone: 'warn',
         reason,
-        text:
+        text: tr(
           `字幕数据取回来了（响应非空），但一条都没解析出来——这是本扩展的解析问题，` +
-          '不是视频没字幕、也不是网络问题，重试无用。到诊断页复制信息上报，报告里带着响应大小。',
+            '不是视频没字幕、也不是网络问题，重试无用。到诊断页复制信息上报，报告里带着响应大小。',
+          'runtime.emptyUnparsed'
+        ),
       };
     }
     if (reason === 'empty-track' || tracks.length) {
       return {
         tone: 'warn',
         reason: 'empty-track',
-        text:
+        text: tr(
           `这个视频有 ${tracks.length} 条字幕轨，但一条字幕数据都没取回来——` +
-          '失败的是「取字幕」这一步，不是视频没有字幕。到诊断页复制信息上报即可。',
+            '失败的是「取字幕」这一步，不是视频没有字幕。到诊断页复制信息上报即可。',
+          'runtime.emptyTrack',
+          { count: tracks.length }
+        ),
       };
     }
-    return { tone: 'warn', reason: 'no-captions', text: '这个视频没有可用字幕，无法翻译。' };
+    return {
+      tone: 'warn',
+      reason: 'no-captions',
+      text: tr('这个视频没有可用字幕，无法翻译。', 'runtime.emptyNoCaptions'),
+    };
   }
 
   /** Short label for the diagnostic report, so `reason` is readable in an issue. */
@@ -185,11 +199,12 @@
     'no-captions': '播放器没有报告任何字幕轨',
     'empty-track': '字幕轨在，但取回的字幕数据是空的',
     'unparsed-track': '取回了非空字幕数据，但没有任何一条能解析',
-    'ad': '正在播放广告，字幕加载已推迟',
+    ad: '正在播放广告，字幕加载已推迟',
   };
 
   function emptyReasonLabel(reason) {
-    return EMPTY_REASON_LABEL[reason] || reason || '';
+    const zh = EMPTY_REASON_LABEL[reason] || reason || '';
+    return tr(zh, 'reason.' + reason);
   }
 
   NS.utils = {

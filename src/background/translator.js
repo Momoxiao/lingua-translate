@@ -9,6 +9,7 @@
   const NS = (root.Lingua = root.Lingua || {});
   const BG = (NS.bg = NS.bg || {});
   const { retry, pool, clamp } = NS.utils;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const FATAL_CODES = new Set(['HTTP_401', 'HTTP_403', 'HTTP_404', 'BAD_JSON']);
   const TRANSIENT_CODES = new Set(['HTTP_429', 'HTTP_500', 'HTTP_502', 'HTTP_503', 'HTTP_504', 'TIMEOUT', 'NETWORK']);
@@ -77,7 +78,7 @@
   }
 
   function abortError() {
-    const e = new Error('已取消');
+    const e = new Error(tr('已取消', 'error.cancelled'));
     e.name = 'AbortError';
     e.retriable = false;
     return e;
@@ -183,7 +184,9 @@
 
     const providerId = settings.provider;
     const provider = BG.providers[providerId];
-    if (!provider) throw new Error(`未知的翻译服务：${providerId}`);
+    if (!provider) {
+      throw new Error(tr(`未知的翻译服务：${providerId}`, 'error.unknownProvider', { provider: providerId }));
+    }
 
     const model = providerId === 'openai' ? settings.providers.openai.model : '';
     const cacheSignature = BG.cache.signature(settings, kind, profile);
@@ -265,8 +268,12 @@
   /** Connectivity / credential check used by the options page. */
   async function testProvider(settings) {
     const provider = BG.providers[settings.provider];
-    if (!provider) throw new Error(`未知的翻译服务：${settings.provider}`);
-    if (!provider.test) throw new Error('该服务不支持连接测试');
+    if (!provider) {
+      throw new Error(
+        tr(`未知的翻译服务：${settings.provider}`, 'error.unknownProvider', { provider: settings.provider })
+      );
+    }
+    if (!provider.test) throw new Error(tr('该服务不支持连接测试', 'error.testUnsupported'));
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 25000);
     try {

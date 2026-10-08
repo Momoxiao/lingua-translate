@@ -15,6 +15,7 @@
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
   const { BRIDGE, MSG } = NS.constants;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const CODE_CONTEXT_LOST = 'CONTEXT_INVALIDATED';
 
@@ -28,7 +29,7 @@
   }
 
   function contextError() {
-    const e = new Error('扩展已更新或重新加载，请刷新本页面后继续使用');
+    const e = new Error(tr('扩展已更新或重新加载，请刷新本页面后继续使用', 'runtime.contextGone'));
     e.code = CODE_CONTEXT_LOST;
     e.retriable = false;
     return e;
@@ -40,7 +41,7 @@
     if (/context invalidated|Extension context|message port closed|receiving end does not exist/i.test(msg)) {
       return contextError();
     }
-    return err instanceof Error ? err : new Error(msg || '请求失败');
+    return err instanceof Error ? err : new Error(msg || tr('请求失败', 'runtime.requestFailed'));
   }
 
   // ---------------------------------------------------------------------------
@@ -172,11 +173,11 @@
         }
         pendingCalls.delete(msg.requestId);
         if (msg.ok) entry.resolve({ results: msg.results, stats: msg.stats, jobId: msg.jobId });
-        else entry.reject(normalizeError(new Error(msg.error || '翻译失败')));
+        else entry.reject(normalizeError(new Error(msg.error || tr('翻译失败', 'runtime.translateFailed'))));
       });
       port.onDisconnect.addListener(() => {
         port = null;
-        const err = isAlive() ? new Error('后台连接已断开') : contextError();
+        const err = isAlive() ? new Error(tr('后台连接已断开', 'runtime.backgroundGone')) : contextError();
         for (const [, entry] of pendingCalls) entry.reject(err);
         pendingCalls.clear();
       });
@@ -242,7 +243,7 @@
             return;
           }
           if (res && res.ok) resolve(res);
-          else reject(new Error((res && res.error) || '请求失败'));
+          else reject(new Error((res && res.error) || tr('请求失败', 'runtime.requestFailed')));
         });
       } catch (e) {
         reject(normalizeError(e));

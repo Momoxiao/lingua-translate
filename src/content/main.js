@@ -8,6 +8,7 @@
   'use strict';
   const NS = globalThis.Lingua;
   if (!NS || !NS.youtube) return;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   let settings = null;
   let noticeShown = false;
@@ -79,7 +80,10 @@
     if (!NS.youtube.videoIdFromUrl()) return;
     noticeShown = true;
     NS.overlay.mount();
-    NS.overlay.setNotice('Lingua：尚未配置翻译服务，点工具栏图标即可设置', 9000);
+    NS.overlay.setNotice(
+      tr('Lingua：尚未配置翻译服务，点工具栏图标即可设置', 'runtime.notConfigured'),
+      9000
+    );
   }
 
   function changedMeaningfully(prev, next) {
@@ -214,7 +218,7 @@
           // --- full-page translation ---
           case 'lingua:page-toggle':
             if (!ready(settings)) {
-              sendResponse({ ok: false, error: '请先配置翻译服务' });
+              sendResponse({ ok: false, error: tr('请先配置翻译服务', 'runtime.needProvider') });
               break;
             }
             if (NS.page.state.active) {

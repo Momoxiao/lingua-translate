@@ -23,6 +23,7 @@
   'use strict';
   const NS = (root.Lingua = root.Lingua || {});
   const { store, bridge, overlay } = NS;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const POLL_MS = 220;
   const SETTLE_MS = 120; // wait for the caption to stop changing before translating
@@ -250,16 +251,22 @@
       // says the honest thing: this cannot work here.
       if (!hasCaptionContainer() && !isLive) {
         overlay.setNotice(
-          '整轨字幕和播放器自绘字幕都没拿到——这个视频的字幕无法获取，本页翻译不可用。' +
-            '可到诊断页复制信息上报',
+          tr(
+            '整轨字幕和播放器自绘字幕都没拿到——这个视频的字幕无法获取，本页翻译不可用。' +
+              '可到诊断页复制信息上报',
+            'runtime.liveDoomed'
+          ),
           0
         );
         return;
       }
       overlay.setNotice(
         isLive
-          ? '直播模式：逐句实时翻译，比点播稍慢'
-          : '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
+          ? tr('直播模式：逐句实时翻译，比点播稍慢', 'runtime.liveMode')
+          : tr(
+              '整轨字幕获取失败（YouTube 签名限制），已切换为逐句实时翻译',
+              'runtime.liveFallback'
+            ),
         8000
       );
     }, FIRST_LINE_GRACE_MS);

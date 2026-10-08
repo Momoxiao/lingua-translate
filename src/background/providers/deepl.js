@@ -8,6 +8,7 @@
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   const MAX_TEXTS = 45; // DeepL hard limit is 50; stay under it
 
@@ -38,7 +39,7 @@
         body: JSON.stringify(body),
         signal,
       },
-      'DeepL'
+      tr('DeepL', 'provider.deepl.label')
     );
 
     const list = (json && json.translations) || [];

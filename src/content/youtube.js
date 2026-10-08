@@ -9,6 +9,7 @@
   const NS = (root.Lingua = root.Lingua || {});
   const { store, bridge, overlay, subtitles } = NS;
   const { clamp } = NS.utils;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   let settings = null;
   let generation = 0;
@@ -463,7 +464,12 @@
           if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
             store.setStatus(store.STATUS.ERROR, { reason: store.state.error });
             bridge.setBadge('ERR');
-            overlay.setNotice(`翻译失败：${store.state.error}`, 0);
+            overlay.setNotice(
+              tr(`翻译失败：${store.state.error}`, 'runtime.translateFailedDetail', {
+                error: store.state.error,
+              }),
+              0
+            );
           }
         })
         .finally(() => {
@@ -488,9 +494,9 @@
 
   /** Human-readable error, never an empty string. */
   function describeError(err) {
-    if (!err) return '翻译失败';
+    if (!err) return tr('翻译失败', 'runtime.translateFailed');
     const msg = err.message || err.name || String(err);
-    return err.code ? `${msg} [${err.code}]` : msg || '翻译失败';
+    return err.code ? `${msg} [${err.code}]` : msg || tr('翻译失败', 'runtime.translateFailed');
   }
 
   /** Is a YouTube ad playing right now? */
@@ -601,7 +607,7 @@
     // the caption tracks and the reported duration belong to the ad. Wait it out.
     if (adShowing()) {
       store.setStatus(store.STATUS.LOADING, { reason: 'ad' });
-      overlay.setNotice('正在播放广告，广告结束后自动加载字幕', 6000);
+      overlay.setNotice(tr('正在播放广告，广告结束后自动加载字幕', 'runtime.adPlaying'), 6000);
       await waitForAdEnd();
       if (gen !== generation) return;
     }
@@ -625,7 +631,7 @@
     if (!tracks.length) {
       store.setStatus(store.STATUS.EMPTY, { reason: 'no-captions' });
       bridge.setBadge('');
-      overlay.setNotice('该视频没有可用字幕，无法翻译', 8000);
+      overlay.setNotice(tr('该视频没有可用字幕，无法翻译', 'runtime.videoNoCaptions'), 8000);
       return;
     }
 
@@ -662,8 +668,14 @@
       // bug behind a message that reads like a network hiccup.
       overlay.setNotice(
         meta.bytes > 0
-          ? '字幕数据已取回但无法解析，重试无效。请到诊断页复制信息上报'
-          : '未能获取字幕数据。请确认视频有字幕，或刷新页面后重试',
+          ? tr(
+              '字幕数据已取回但无法解析，重试无效。请到诊断页复制信息上报',
+              'runtime.captionUnparsed'
+            )
+          : tr(
+              '未能获取字幕数据。请确认视频有字幕，或刷新页面后重试',
+              'runtime.captionMissing'
+            ),
         9000
       );
       return;

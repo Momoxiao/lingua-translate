@@ -4,6 +4,7 @@
  * verbatim by the content scripts. No build step required.
  */
 importScripts(
+  '../shared/messages.js',
   '../shared/constants.js',
   '../shared/utils.js',
   '../shared/settings.js',
@@ -26,6 +27,7 @@ importScripts(
   const { MSG, ID } = NS.constants;
   const { getSettings, setSettings } = NS.settings;
   const translator = NS.bg.translator;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   /** jobId -> AbortController, so the content script can cancel work. */
   const jobs = new Map();
@@ -66,7 +68,7 @@ importScripts(
       log('translate done', { count: payload.texts.length, ms: stats.timing.totalMs, stats });
       return { ok: true, jobId, results, stats };
     } catch (err) {
-      const detail = (err && (err.message || err.name)) || String(err) || '翻译失败';
+      const detail = (err && (err.message || err.name)) || String(err) || tr('翻译失败', 'error.defaultProvider');
       const code = err && err.code ? ` [${err.code}]` : '';
       log('translate failed', detail, code);
       return { ok: false, jobId, error: detail + code };
@@ -156,10 +158,13 @@ importScripts(
             sendResponse({ ok: true });
             break;
           default:
-            sendResponse({ ok: false, error: `未知消息类型：${msg.type}` });
+            sendResponse({
+              ok: false,
+              error: tr(`未知消息类型：${msg.type}`, 'error.unknownMessage', { type: msg.type }),
+            });
         }
       } catch (err) {
-        sendResponse({ ok: false, error: (err && err.message) || '处理失败' });
+        sendResponse({ ok: false, error: (err && err.message) || tr('处理失败', 'error.handlerFailed') });
       }
     })();
 

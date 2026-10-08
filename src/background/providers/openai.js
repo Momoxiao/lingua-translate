@@ -13,10 +13,12 @@
   const { buildBatchText } = NS.subtitles;
   const { parseOutput, createStreamParser } = BG.llm;
   const { systemPrompt, profileSuffix } = BG.prompts;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
+  const label = () => tr('OpenAI 兼容接口', 'providerLabel.openai');
 
   function resolveUrl(baseUrl) {
     const base = String(baseUrl || '').trim().replace(/\/+$/, '');
-    if (!base) throw new Error('未填写 Base URL');
+    if (!base) throw new Error(tr('未填写 Base URL', 'error.baseUrl'));
     if (/\/chat\/completions$/.test(base)) return base;
     return `${base}/chat/completions`;
   }
@@ -43,8 +45,8 @@
 
   function postJson(url, headers, body, signal, onDelta) {
     const opts = { method: 'POST', headers, body: JSON.stringify(body), signal };
-    if (onDelta) return requestJsonStream(url, opts, 'OpenAI 兼容接口', onDelta);
-    return requestJson(url, opts, 'OpenAI 兼容接口');
+    if (onDelta) return requestJsonStream(url, opts, label(), onDelta);
+    return requestJson(url, opts, label());
   }
 
   async function translateBatch(texts, ctx) {
@@ -121,8 +123,11 @@
     if (!content) {
       const err = new Error(
         json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.reasoning_content
-          ? '模型只输出了推理过程、没有输出译文。请在设置里确认「模型推理」为关闭，或换用非推理模型'
-          : '接口返回为空（检查模型名是否正确）'
+          ? tr(
+              '模型只输出了推理过程、没有输出译文。请在设置里确认「模型推理」为关闭，或换用非推理模型',
+              'error.reasoningOnly'
+            )
+          : tr('接口返回为空（检查模型名是否正确）', 'error.emptyResponse')
       );
       err.retriable = true;
       throw err;

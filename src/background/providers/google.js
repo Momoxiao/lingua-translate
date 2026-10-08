@@ -9,6 +9,7 @@
   const BG = (NS.bg = NS.bg || {});
   const { requestJson } = BG.http;
   const { ENGINE_LANG } = NS.constants;
+  const tr = (zh, key, vars) => (NS.i18n ? NS.i18n.t(zh, key, vars) : zh);
 
   function targetCode(to) {
     return ENGINE_LANG.google[to] || to;
@@ -36,7 +37,11 @@
     url.searchParams.set('tl', targetCode(to));
     for (const t of texts) url.searchParams.append('q', t);
 
-    const json = await requestJson(url.toString(), { method: 'GET', signal }, 'Google 翻译');
+    const json = await requestJson(
+      url.toString(),
+      { method: 'GET', signal },
+      tr('Google 翻译', 'provider.google.label')
+    );
     return normalize(json, texts.length);
   }
 

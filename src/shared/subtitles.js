@@ -81,6 +81,43 @@
     return dedupe(cues);
   }
 
+  /**
+   * Parse a WebVTT document -> cues.
+   *
+   * Why this exists: we force `fmt=json3` on every track URL WE build, but the
+   * player's OWN caption requests are sniffed off the wire and handed to
+   * `parseTimedText` exactly as they arrived. If the player asked for a VTT
+   * flavour, the body is well-formed VTT with real cues — and `parseTimedText`
+   * used to fall through its three branches, return `[]`, and leave the caller
+   * unable to tell that apart from a genuinely empty response. That is the
+   * "HTTP 200, non-empty body, zero cues" shape.
+   *
+   * Times are `HH:MM:SS.mmm`, with the hours field optional in the spec.
+   */
+  function parseVtt(vtt) {
+    const text = String(vtt).replace(/\r\n?/g, '\n');
+    if (!/^WEBVTT/.test(text.trimStart())) return [];
+    const cues = [];
+    const TS = /(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{1,3})\s*-->\s*(?:(\d+):)?(\d{2}):(\d{2})[.,](\d{1,3})/;
+    const secs = (h, m, s, ms) => (+(h || 0)) * 3600 + (+m) * 60 + (+s) + (+ms) / 1000;
+    // Blocks are separated by a blank line: the header, NOTE/STYLE blocks, and
+    // one block per cue (optionally preceded by a cue identifier line).
+    for (const block of text.split(/\n{2,}/)) {
+      const lines = block.split('\n').filter((l) => l !== '');
+      if (!lines.length) continue;
+      const ti = lines.findIndex((l) => l.indexOf('-->') !== -1);
+      if (ti === -1) continue; // header / NOTE / STYLE — no timing
+      const m = TS.exec(lines[ti]);
+      if (!m) continue;
+      const start = secs(m[1], m[2], m[3], m[4]);
+      const end = secs(m[5], m[6], m[7], m[8]);
+      const body = cleanText(lines.slice(ti + 1).join(' '));
+      if (!body) continue;
+      cues.push({ start, end: end > start ? end : start + 2, text: body });
+    }
+    return dedupe(cues);
+  }
+
   /** Auto-detect the timedtext flavour and parse. */
   function parseTimedText(body) {
     if (!body) return [];
@@ -95,6 +132,9 @@
     }
     if (s.indexOf('<p ') !== -1 || s.indexOf('<p>') !== -1) return parseSrv3(s);
     if (s.indexOf('<text') !== -1) return parseXml(s);
+    // Checked last so a JSON/XML payload that merely mentions "WEBVTT" in some
+    // text field cannot be misrouted here.
+    if (s.indexOf('WEBVTT') !== -1) return parseVtt(s);
     return [];
   }
 
@@ -232,6 +272,7 @@
     parseJson3,
     parseSrv3,
     parseXml,
+    parseVtt,
     parseTimedText,
     dedupe,
     cueAt,

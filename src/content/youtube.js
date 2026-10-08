@@ -159,24 +159,44 @@
     }
   }
 
+  /**
+   * Fetch a caption track and parse it, keeping the response shape.
+   *
+   * Returning bare cues threw away the one fact that separates two very
+   * different failures: an empty body (the PoToken case — nothing came back) and
+   * a non-empty body we could not parse (a format gap — the data was there and
+   * we dropped it). Both surfaced as `cues.length === 0`, so the diagnostics
+   * page could only ever report the first, and a format gap looked like a
+   * network problem forever.
+   */
   async function tryFetch(url) {
     const res = await bridge.fetchTrack(url);
-    return subtitles.parseTimedText(res.body);
+    const body = (res && res.body) || '';
+    return { cues: subtitles.parseTimedText(body), bytes: body.length };
   }
 
   function waitForWireCaptions(timeoutMs = 9000) {
     return new Promise((resolve) => {
       let settled = false;
+      // The largest body the player fetched, even when we cannot parse it. This
+      // is the only place that sees the player's own response: if the player got
+      // 4 KB and our parser read none of it, the failure is ours, but without
+      // recording the size the caller counts only its own (empty) responses and
+      // reports the PoToken timing race instead. Same wrong-layer bug as the
+      // direct path, one layer further in.
+      let wireBytes = 0;
       const done = (payload) => {
         if (settled) return;
         settled = true;
         captionSniffers.delete(onCaption);
         transcriptSniffers.delete(onTranscript);
         clearTimeout(timer);
-        resolve(payload);
+        resolve({ wireBytes, ...payload });
       };
       const onCaption = ({ body, url }) => {
-        const cues = subtitles.parseTimedText(body);
+        const text = body || '';
+        if (text.length > wireBytes) wireBytes = text.length;
+        const cues = subtitles.parseTimedText(text);
         if (cues.length) done({ cues, url: url || null });
       };
       const onTranscript = (json) => {
@@ -269,24 +289,40 @@
     const wirePromise = waitForWireCaptions(10000);
     forceCaptionRequest(track);
 
+    // Track the largest body any attempt returned. A non-empty body that yields
+    // no cues means the format defeated us, which is a bug on our side and needs
+    // different advice from "the server sent nothing back".
+    let maxBytes = 0;
+
+    const attempts = [];
+    const record = (promise, source) =>
+      promise.then((result) => {
+        maxBytes = Math.max(maxBytes, (result && result.bytes) || 0);
+        return { ...result, source };
+      });
+
+    attempts.push(record(tryFetch(track.baseUrl), 'direct'));
+
     // Send all independent requests at once. On a cold load the plain baseUrl is
     // usually empty and the player-fetch path takes one round trip; racing them
     // means that path is no longer serialised behind the guaranteed-empty one.
     const prior = potParamsFrom(signedTemplateFor(videoId));
-    const fetches = [tryFetch(track.baseUrl).then((cues) => ({ cues, source: 'direct' }))];
     if (prior) {
-      fetches.push(
-        tryFetch(withParams(track.baseUrl, prior)).then((cues) => ({ cues, source: 'pot-reuse' }))
-      );
+      attempts.push(record(tryFetch(withParams(track.baseUrl, prior)), 'pot-reuse'));
     }
+
+    const wireAttempt = wirePromise.then((sniffed) => {
+      maxBytes = Math.max(maxBytes, (sniffed && sniffed.wireBytes) || 0);
+      return { cues: (sniffed && sniffed.cues) || [], sniffed, source: 'sniffed' };
+    });
+    attempts.push(wireAttempt);
+
     const valid = (p) => p.then((r) => (r && r.cues && r.cues.length ? r : Promise.reject(new Error('empty'))));
-    const sources = fetches.map(valid);
-    sources.push(
-      valid(wirePromise.then((sniffed) => ({ cues: sniffed && sniffed.cues, sniffed, source: 'sniffed' })))
-    );
+    const sources = attempts.map(valid);
     const winner = await Promise.any(sources).catch(() => null);
     if (winner && winner.cues && winner.cues.length) {
       if (winner.source === 'sniffed') {
+        if (winner.sniffed && winner.sniffed.url) rememberSignedTemplate(winner.sniffed.url);
         const got = langOf((winner.sniffed && winner.sniffed.url) || '');
         return {
           cues: winner.cues,
@@ -298,16 +334,31 @@
       return { cues: winner.cues, source: winner.source };
     }
 
-    const sniffed = await wirePromise;
+    const results = await Promise.all(
+      attempts.map((p) =>
+        p.catch((error) => ({ cues: [], bytes: 0, source: 'unknown', error }))
+      )
+    );
+    const settled = results.map((r) => (r && typeof r === 'object' ? r : { cues: [], bytes: 0 }));
+    const sniffedResult = settled.find((r) => r.source === 'sniffed');
+    const sniffed = (sniffedResult && sniffedResult.sniffed) || { cues: [], url: null };
     if (sniffed.url) rememberSignedTemplate(sniffed.url);
+    maxBytes = Math.max(maxBytes, (sniffed && sniffed.wireBytes) || 0);
 
     const signed = potParamsFrom(sniffed.url);
     if (signed) {
-      const cues = await tryFetch(withParams(track.baseUrl, signed));
-      if (cues.length) return { cues, source: 'pot-fresh' };
+      const fresh = await tryFetch(withParams(track.baseUrl, signed));
+      maxBytes = Math.max(maxBytes, fresh.bytes || 0);
+      if (fresh.cues.length) return { cues: fresh.cues, source: 'pot-fresh' };
     }
 
-    return { cues: [], source: 'none' };
+    // 4. last resort: use whatever track the player fetched for itself
+    if (sniffed.cues.length) {
+      const got = langOf(sniffed.url || '');
+      return { cues: sniffed.cues, source: 'sniffed', sniffedLang: got, langMismatch: !!got && got !== track.languageCode };
+    }
+
+    return { cues: [], source: 'none', bytes: maxBytes };
   }
 
   // ---------------------------------------------------------------------------
@@ -503,6 +554,20 @@
   // ---------------------------------------------------------------------------
   async function load() {
     cancelAll();
+    // Release the realtime fallback before re-attempting the whole-track path.
+    //
+    // Without this, the two renderers fight and the fast path loses: `overlay`
+    // renders `liveText` in preference to the cue list, and live.js's poller
+    // keeps calling `setLive()`. So after a retry succeeded, the overlay went on
+    // showing the scraped line and the popup went on saying "realtime" — the
+    // whole-track result was fetched, stored, translated, and never displayed.
+    // Clicking "重新翻译" looked like it did nothing.
+    //
+    // Deliberate tradeoff: the overlay is blank for as long as this attempt takes.
+    // Keeping the previous line up would mean not stopping here, and then loading
+    // a different video would leave the old video's poller running against the
+    // new one. A bounded blank that self-corrects is the better failure mode.
+    if (NS.live) NS.live.stop();
     consecutiveFailures = 0;
     const loadStarted = Date.now();
     let tracksAt = 0;
@@ -575,14 +640,32 @@
     if (gen !== generation) return;
 
     if (!cues.length) {
+      // Why we ended up here. `status: 'live'` says what we fell back TO, not
+      // what failed: a zero-byte body (the PoToken timing case) and a non-empty
+      // body we could not parse are both "whole-track fetch failed", and the
+      // diagnostics page described both as the PoToken problem. Recording the
+      // cause lets it name the layer that actually broke.
+      const cause = meta.bytes > 0 ? 'unparsed-track' : 'empty-track';
+      store.state.trackBytes = meta.bytes || 0;
+
       // Live / no-track fallback: realtime DOM scraping.
       if (NS.live && NS.live.canHandle()) {
-        store.setStatus(store.STATUS.LIVE);
+        // `setStatus` clears `reason` unless it is passed, so it must travel
+        // with the status that it explains.
+        store.setStatus(store.STATUS.LIVE, { reason: cause });
         NS.live.start(settings);
         return;
       }
-      store.setStatus(store.STATUS.EMPTY, { reason: 'empty-track' });
-      overlay.setNotice('未能获取字幕数据。请确认视频有字幕，或刷新页面后重试', 9000);
+      store.setStatus(store.STATUS.EMPTY, { reason: cause });
+      // Two causes, two instructions. Telling a user to refresh when the fault is
+      // our parser sends them to retry something that cannot work, and hides the
+      // bug behind a message that reads like a network hiccup.
+      overlay.setNotice(
+        meta.bytes > 0
+          ? '字幕数据已取回但无法解析，重试无效。请到诊断页复制信息上报'
+          : '未能获取字幕数据。请确认视频有字幕，或刷新页面后重试',
+        9000
+      );
       return;
     }
 

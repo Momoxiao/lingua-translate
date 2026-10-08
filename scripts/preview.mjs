@@ -80,6 +80,14 @@ const STUB = (tabUrl, patch) => `
   // page exists to report it — so it has to be assertable, not just eyeballed.
   const DEAD = !!PATCH.__dead;
   delete PATCH.__dead;
+  // Same idea for the state the tab reports. Some verdicts can only be asserted
+  // if the fixture can put the page into that state, and the one that matters
+  // most is "the video HAS caption tracks but the cue fetch came back empty":
+  // the popup and the diagnostics page both used to describe that as "该视频没有
+  // 可用字幕" while printing the track list an inch above it. Stripped before the
+  // patch reaches the settings store, like __dead.
+  const STATE_PATCH = PATCH.__state || {};
+  delete PATCH.__state;
   const store = {
     'lingua:settings:v1': mergeDeep({
       enabled: true, provider: 'openai', sourceLang: 'auto', targetLang: 'zh-Hans',
@@ -127,6 +135,7 @@ const STUB = (tabUrl, patch) => `
     },
     provider: 'openai', providerReady: true, targetLang: 'zh-Hans', enabled: true
   };
+  mergeDeep(STATE, STATE_PATCH);
   window.chrome = {
     storage: {
       local: {
@@ -274,6 +283,11 @@ const PAGES = [
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },
   { build: buildBallDemo, state: 'translating', width: 760, height: 420, name: 'ball' },
+
+  // The headline feature. Rendered at 16:9 in both sizes it is needed in: 2x for
+  // the README, and an exact 1280x800 for the store canvas composited later.
+  { build: buildPlayerDemo, width: 1280, height: 720, name: 'player-yt' },
+  { build: buildPlayerDemo, width: 1280, height: 720, scale: 1, name: 'player-yt-1x' },
 ];
 
 /**
@@ -336,6 +350,182 @@ function buildBallDemo() {
   // force the hover panel open for the screenshot
   var wrap = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap');
   wrap.classList.add('pinned');
+})();
+</script>
+</body></html>`;
+}
+
+/**
+ * The headline feature, finally with a picture.
+ *
+ * Why this is a fixture and not a capture: the caption pipeline cannot be
+ * driven in automation. As the README's "Known limitations" section records,
+ * the player only requests a caption track once it is genuinely playing and
+ * rendering captions, and neither a headless window nor a background tab ever
+ * gets there — so no automated run can photograph real captions.
+ *
+ * What is mocked is only the frame and the player chrome. The subtitle overlay
+ * is the real `src/content/overlay.js` running its real CSS through its real
+ * `setLive()` render path, so this cannot drift from what users actually see:
+ * change the overlay's font size, colours or spacing and this image changes too.
+ *
+ * `PLAYER_CUE=<n>` selects which pair of lines is on screen, which is how the
+ * animated demo is built — one render per cue, assembled afterwards.
+ */
+function buildPlayerDemo() {
+  const LINES = [
+    {
+      original: 'The caption request is signed, so a plain fetch comes back empty.',
+      translated: '字幕请求是带签名的，所以普通 fetch 会返回空。',
+    },
+    {
+      original: 'HTTP 200 with a zero-byte body — a failure that looks like success.',
+      translated: 'HTTP 200，响应体却是 0 字节——一个看起来像成功的失败。',
+    },
+    {
+      original: 'So we reuse the token the player already obtained.',
+      translated: '于是我们复用播放器已经拿到的那个令牌。',
+    },
+    {
+      original: 'Drag the scrubber and the priority re-sorts around the playhead.',
+      translated: '拖动进度条，优先级会围绕播放头重新排序。',
+    },
+  ];
+  const i = Math.max(0, Math.min(LINES.length - 1, Number(process.env.PLAYER_CUE) || 0));
+  const line = LINES[i];
+  const progress = [24, 38, 52, 66][i];
+  const clock = ['5:41', '7:12', '9:03', '10:48'][i];
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Lingua — bilingual YouTube subtitles</title>
+<style>
+  :root{ color-scheme: dark; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; overflow:hidden; background:#0f0f0f;
+    font-family:Roboto,"Segoe UI",ui-sans-serif,-apple-system,"PingFang SC",sans-serif; }
+
+  /* ---- the "video frame": an out-of-focus shot, so the captions carry it ----
+     Deliberately an empty, blurred room rather than a synthesised person: a
+     painted-on face reads as uncanny at a glance, and a mock that looks wrong
+     costs more trust than a plain one. Nothing here claims to be a capture. */
+  #movie_player{ position:relative; width:100vw; height:100vh; overflow:hidden; background:#000; }
+  .frame{ position:absolute; inset:0;
+    background:
+      radial-gradient(42% 58% at 20% 30%, rgba(255,192,126,.62), rgba(255,192,126,0) 70%),
+      radial-gradient(34% 48% at 83% 22%, rgba(104,140,186,.40), rgba(104,140,186,0) 74%),
+      radial-gradient(28% 40% at 62% 74%, rgba(226,150,96,.24), rgba(226,150,96,0) 72%),
+      linear-gradient(166deg,#413224 0%,#2a201a 44%,#131110 100%); }
+  /* Out-of-focus highlights, sized and placed like practical lights in a room,
+     with a shallow-depth spread so they do not read as flat circles. */
+  .bokeh{ position:absolute; border-radius:50%; filter:blur(17px);
+    background:radial-gradient(circle,rgba(255,226,186,.95),rgba(255,226,186,0) 68%); }
+  .b1{ width:74px;  height:74px;  left:7%;   top:14%;  opacity:.34; }
+  .b2{ width:46px;  height:46px;  left:15%;  top:26%;  opacity:.22; }
+  .b3{ width:58px;  height:58px;  left:88%;  top:58%;  opacity:.20; }
+  .b4{ width:38px;  height:38px;  left:70%;  top:11%;  opacity:.17; }
+  .b5{ width:52px;  height:52px;  left:93%;  top:30%;  opacity:.15; }
+  .b6{ width:34px;  height:34px;  left:76%;  top:40%;  opacity:.13; }
+  .vignette{ position:absolute; inset:0;
+    background:radial-gradient(126% 96% at 46% 44%, rgba(0,0,0,0) 36%, rgba(0,0,0,.74) 100%); }
+
+  /* ---- mocked YouTube player chrome ---- */
+  .ytp-gradient-top{ position:absolute; left:0; right:0; top:0; height:140px;
+    background:linear-gradient(rgba(0,0,0,.62),rgba(0,0,0,0)); }
+  .ytp-chrome-top{ position:absolute; left:0; right:0; top:0; padding:16px 20px; }
+  .ytp-title-text{ display:block; max-width:74%; color:#fff; font-size:18px; line-height:1.35;
+    font-weight:400; text-shadow:0 1px 2px rgba(0,0,0,.8);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ytp-chrome-bottom{ position:absolute; left:0; right:0; bottom:0; padding:0 20px 14px;
+    background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.72)); }
+  .ytp-progress-bar{ position:relative; height:5px; border-radius:3px;
+    background:rgba(255,255,255,.28); margin-bottom:11px; }
+  .ytp-play-progress{ position:absolute; left:0; top:0; bottom:0; border-radius:3px; background:#ff0033; }
+  .ytp-scrubber{ position:absolute; top:50%; width:13px; height:13px; margin:-6.5px 0 0 -6.5px;
+    border-radius:50%; background:#ff0033; }
+  .ytp-controls{ display:flex; align-items:center; gap:19px; color:#fff; font-size:15px; }
+  .ic{ opacity:.95; font-size:17px; line-height:1; }
+  .ic.cc{ font-size:14px; font-weight:700; letter-spacing:.5px;
+    border:1.5px solid rgba(255,255,255,.9); border-radius:3px; padding:1px 3px; }
+  .ytp-time{ font-size:14px; opacity:.92; font-variant-numeric:tabular-nums; }
+  .spacer{ flex:1; }
+</style></head>
+<body>
+<div id="movie_player" class="html5-video-player">
+  <div class="frame"></div>
+  <div class="bokeh b1"></div><div class="bokeh b2"></div><div class="bokeh b3"></div>
+  <div class="bokeh b4"></div><div class="bokeh b5"></div><div class="bokeh b6"></div>
+  <div class="vignette"></div>
+  <!-- pickVideo() needs a real <video> to exist; live mode drives the text, not currentTime -->
+  <video class="html5-main-video" muted playsinline></video>
+
+  <div class="ytp-gradient-top"></div>
+  <div class="ytp-chrome-top">
+    <span class="ytp-title-text">Signed caption requests — why a plain fetch returns nothing</span>
+  </div>
+  <div class="ytp-chrome-bottom">
+    <div class="ytp-progress-bar">
+      <div class="ytp-play-progress" style="width:${progress}%"></div>
+      <div class="ytp-scrubber" style="left:${progress}%"></div>
+    </div>
+    <div class="ytp-controls">
+      <span class="ic">&#9654;</span>
+      <span class="ic">&#9199;</span>
+      <span class="ic">&#128266;</span>
+      <span class="ytp-time">${clock} / 18:56</span>
+      <span class="spacer"></span>
+      <span class="ic cc">CC</span>
+      <span class="ic">&#9881;</span>
+      <span class="ic">&#9974;</span>
+    </div>
+  </div>
+</div>
+
+<!-- constants.js first: overlay.js reads its font stack from Lingua.constants.FONTS
+     at parse time, so loading overlay.js alone throws and nothing mounts. -->
+<script src="src/shared/constants.js"></script>
+<script src="src/content/overlay.js"></script>
+<script>
+(function () {
+  function report(e) {
+    var el = document.getElementById('__lingua_errs');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '__lingua_errs';
+      el.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#c0392b;color:#fff;' +
+        'font:11px/1.5 ui-monospace,monospace;padding:6px 8px;white-space:pre-wrap');
+      (document.body || document.documentElement).appendChild(el);
+    }
+    el.textContent += 'ERR ' + String(e) + '\\n';
+  }
+  window.addEventListener('error', function (e) { report(e.message); });
+
+  // Fail loudly rather than shipping a plausible-looking picture of nothing: if
+  // the overlay did not mount, the demo is worthless as a screenshot.
+  function fail(msg) { report(msg); }
+  try {
+    if (!Lingua || !Lingua.overlay) throw new Error('overlay.js did not register Lingua.overlay');
+    if (!Lingua.overlay.mount()) throw new Error('overlay.mount() found no #movie_player');
+
+    Lingua.overlay.applyStyles({
+      fontSize: 26, bottomOffset: 11, backgroundOpacity: 0.72,
+      textAlign: 'center', displayMode: 'bilingual', hideNativeCaptions: true
+    });
+    Lingua.overlay.setVisible(true);
+
+    // The real render path: live mode renders exactly what it is handed, so the
+    // screenshot does not depend on a <video> actually playing.
+    Lingua.overlay.setLive(${JSON.stringify(line.original)}, ${JSON.stringify(line.translated)});
+    Lingua.overlay.start();
+
+    // A frame that rendered nothing would still produce a screenshot, so assert
+    // the two lines are in the DOM before the capture.
+    setTimeout(function () {
+      var t = document.querySelector('.lingua-translated');
+      var o = document.querySelector('.lingua-original');
+      if (!t || !t.textContent) fail('translated line is empty after setLive()');
+      if (!o || !o.textContent) fail('original line is empty after setLive()');
+    }, 250);
+  } catch (e) { fail(e && e.message ? e.message : e); }
 })();
 </script>
 </body></html>`;
@@ -411,12 +601,70 @@ function buildPageDemo({ mode, style }) {
     el.textContent += 'ERR ' + String(e) + '\\n';
   }
   window.addEventListener('error', function (e) { report(e.message); });
+  /*
+   * Real translations, keyed by the fixture's English source text.
+   *
+   * This used to repeat one filler sentence until it reached the source length,
+   * purely to test line wrapping. That was fine as a layout test and wrong as a
+   * README screenshot: the hero image for every English reader showed the same
+   * Chinese sentence looping down the page, which reads as a machine that has
+   * lost the plot. The lengths still vary, so the wrap test still holds.
+   *
+   * A miss falls back to the old filler, so adding a paragraph to the fixture
+   * degrades to a layout test rather than to a blank unit.
+   */
+  var ZH = {
+    'Home': '首页',
+    'Documentation': '文档',
+    'Pricing': '定价',
+    'Build a translation extension that survives real websites': '做一个能在真实网站上活下来的翻译扩展',
+    'This paragraph mixes inline markup, a link and plain text, so the whole run must be treated as a single translation unit instead of three fragments.': '这一段混排了行内标记、一个链接和纯文本，所以整段必须当成一个翻译单元，而不是三个碎片。',
+    'What the layout test covers': '排版测试覆盖了什么',
+    'Flex & grid': '弹性盒与网格',
+    'Containers are never rewritten, so layout stays intact.': '容器永远不会被重写，所以版式保持不变。',
+    'Nested blocks': '嵌套块',
+    'Each leaf block becomes its own unit.': '每个叶子块各自成为一个单元。',
+    'Skip rules': '跳过规则',
+    'Code, forms and opt-out markers are left alone.': '代码、表单和退出标记一律不碰。',
+    'Priority follows the viewport, so visible text is translated first.': '优先级跟随视口，所以可见文本先被翻译。',
+    'Dynamically added content is picked up by a debounced observer.': '动态加入的内容由去抖观察器接住。',
+    'Mode': '模式',
+    'Result': '结果',
+    'Bilingual': '双语',
+    'Original text stays, translation is appended below.': '原文保留，译文附在下面。',
+    'Replace': '仅译文',
+    'Original is wrapped and hidden, toggling is a class flip.': '原文被包裹并隐藏，切换只是一个 class 翻转。',
+    'Lingua demo fixture — no network requests are made.': 'Lingua 演示页——不发起任何网络请求。'
+  };
+  /*
+   * Translations for blocks that contain a link.
+   *
+   * Keyed by the marker-stripped source, valued with the marker pair already in
+   * place around the translated link text. Writing these out by hand beats
+   * re-inserting the markers programmatically: where a link lands in the
+   * translated sentence is a translation decision (Chinese word order moves it),
+   * not something a position ratio can guess.
+   */
+  var ZH_LINKED = {
+    'This paragraph mixes inline markup, a link and plain text, so the whole run must be treated as a single translation unit instead of three fragments.':
+      '这一段混排了行内标记、一个⟦1⟧链接⟦/1⟧和纯文本，所以整段必须当成一个翻译单元，而不是三个碎片。'
+  };
   function fake(text) {
-    var n = Math.min(70, Math.max(2, Math.round(text.length / 2)));
-    var base = '这是用于验证双语排版的示例译文，长度与原文大致接近。';
+    if (ZH[text]) return ZH[text];
+    // Strip marker pairs, and the stray space units.js leaves before punctuation.
+    // Every backslash below is doubled on purpose: this fixture is ONE JS template
+    // literal, so the outer literal eats a lone backslash-d or backslash-s and the
+    // regex that reaches the page is a different (still valid) one matching
+    // nothing. That is how the translations above briefly vanished. For the same
+    // reason there must be no backtick anywhere in this fixture.
+    var plain = text.replace(/⟦\\/?\\d+⟧/g, '').replace(/\\s+([,.!?;:])/g, '$1');
+    if (ZH_LINKED[plain]) return ZH_LINKED[plain];
+    if (ZH[plain]) return ZH[plain];
+    var len = Math.min(70, Math.max(2, Math.round(text.length / 2)));
+    var base = '（未提供该句的示例译文）';
     var out = '';
-    while (out.length < n) out += base;
-    return out.slice(0, n);
+    while (out.length < len) out += base;
+    return out.slice(0, len);
   }
   var units = Lingua.page.units.collect(document.body, { skipSelectors: '' });
   Lingua.page.render.ensureStyle();
@@ -536,7 +784,10 @@ for (const page of PAGES) {
     '--allow-file-access-from-files',
     `--user-data-dir=${profileDir}`,
     `--window-size=${page.width},${height}`,
-    '--force-device-scale-factor=2',
+    // 2x by default, so README images stay crisp on retina. A page that has to
+    // come out at an exact pixel size (the 1280x800 store canvases) sets
+    // `scale: 1`, because a store screenshot is measured, not displayed.
+    `--force-device-scale-factor=${page.scale || 2}`,
     '--virtual-time-budget=3500',
     `--screenshot=${shotPath}`,
     '--dump-dom',

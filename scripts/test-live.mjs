@@ -38,7 +38,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 64;
+const EXPECTED_ASSERTIONS = 74;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -297,6 +297,111 @@ console.log('\n实时字幕兜底 · 流式结果与最新字幕优先');
     '旧响应不会覆盖新字幕，最新请求完成后显示完整译文',
     !calls.live.some(([o, t]) => o === 'line B' && t === '旧完整译文') &&
       calls.live.some(([o, t]) => o === 'line B' && t === '新完整译文'),
+    JSON.stringify(calls.live)
+  );
+}
+
+// ---------------------------------------------------------------------------
+console.log('\n实时字幕兜底 · 同一句增长时不能反复取消');
+
+{
+  // Live captions grow word by word: "The quick" -> "The quick brown" ->
+  // "The quick brown fox". Each growth is the same spoken sentence, not a new
+  // one. Cancelling and restarting on every growth guarantees the provider never
+  // gets to finish before the line disappears from screen.
+  const env = makeEnv({ captions: ['The quick'], duration: 300, tracklist: [{ languageCode: 'en' }] });
+  const resolvers = [];
+  const { live, calls, clock } = loadLive(env, {
+    bridge: {
+      translate: (texts, opts) => {
+        calls.translates.push({ arr: texts, opts });
+        return new Promise((resolve) => resolvers.push(resolve));
+      },
+    },
+  });
+  live.start({ enabled: true, sourceLang: 'en', targetLang: 'zh-Hans' });
+
+  calls.poll();
+  clock.advance(100);
+  calls.poll();
+  check(
+    '第一段增长后的文字已经发起翻译',
+    calls.translates.length === 1 && calls.translates[0].arr[0] === 'The quick',
+    JSON.stringify(calls.translates.map((t) => t.arr))
+  );
+
+  // The caption keeps growing while that request is still in flight.
+  env.setCaption('The quick brown');
+  clock.advance(100);
+  calls.poll();
+  env.setCaption('The quick brown fox');
+  clock.advance(100);
+  calls.poll();
+  check(
+    '同一句继续增长时不会取消在途请求',
+    calls.cancels.length === 0,
+    JSON.stringify(calls.cancels)
+  );
+  check(
+    '同一句继续增长时不会为每个词重新发请求',
+    calls.translates.length === 1,
+    JSON.stringify(calls.translates.map((t) => t.arr))
+  );
+
+  // The existing translation may still be partial, but it must be rendered
+  // against the latest caption text so the overlay tracks what is on screen.
+  calls.translates[0].opts.onPartial({ index: 0, text: '快速' });
+  check(
+    '增长后的字幕先显示短句的流式译文作为临时预览',
+    calls.live.some(([o, t]) => o === 'The quick brown fox' && t === '快速'),
+    JSON.stringify(calls.live)
+  );
+
+  // The request was for "The quick", not for the caption now on screen. If the
+  // model finishes that shorter source, its output must not become the final
+  // answer for the longer sentence; the finally path has to request a correction.
+  resolvers[0]({ results: ['快速'] });
+  await new Promise((r) => setTimeout(r, 0));
+  check(
+    '短句请求完成后会为当前完整句补发校正请求',
+    calls.translates.length === 2 && calls.translates[1].arr[0] === 'The quick brown fox',
+    JSON.stringify(calls.translates.map((t) => t.arr))
+  );
+  check(
+    '补发请求不会取消已经完成的短句请求',
+    calls.cancels.length === 0,
+    JSON.stringify(calls.cancels)
+  );
+
+  resolvers[1]({ results: ['快速的棕色狐狸'] });
+  await new Promise((r) => setTimeout(r, 0));
+  check(
+    '完整句完成后显示完整译文',
+    calls.live.some(([o, t]) => o === 'The quick brown fox' && t === '快速的棕色狐狸'),
+    JSON.stringify(calls.live)
+  );
+
+  // A genuinely new sentence must still cancel the old request. Otherwise a
+  // stale translation can arrive after the user is already reading the next line.
+  env.setCaption('A completely different sentence');
+  clock.advance(100);
+  calls.poll();
+  check(
+    '真正换句时会发起新句请求，且不会重复请求已完成的旧句',
+    calls.translates.length === 3 && calls.translates[2].arr[0] === 'A completely different sentence',
+    JSON.stringify({ translates: calls.translates.map((t) => t.arr) })
+  );
+
+  resolvers[2]({ results: ['完全不同的译文'] });
+  await new Promise((r) => setTimeout(r, 0));
+  check(
+    '同一句请求完成后不会再次请求同一句',
+    calls.translates.length === 3,
+    JSON.stringify(calls.translates.map((t) => t.arr))
+  );
+  check(
+    '真正的新句完成后显示完整译文',
+    calls.live.some(([o, t]) => o === 'A completely different sentence' && t === '完全不同的译文'),
     JSON.stringify(calls.live)
   );
 }

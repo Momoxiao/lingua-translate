@@ -31,6 +31,10 @@
         // Model answered without numbering — accept the cleaned text verbatim.
         return [clean.replace(/^\s*[\[\(]?\s*1\s*[\]\)]?\s*[.、:：)）\-—]?\s*/, '')];
       }
+      // Some live requests ask for no numbering, but a compatible gateway (or
+      // a model that ignored the instruction) may still answer "1. 译文". A
+      // visible index on screen is worse than a tiny rewrite here.
+      return [first];
     }
     return parsed;
   }

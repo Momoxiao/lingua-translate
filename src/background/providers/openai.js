@@ -70,7 +70,10 @@
       stream: false,
       messages: [
         { role: 'system', content: sys },
-        { role: 'user', content: buildBatchText(texts) },
+        // A live request is a single subtitle line and the prompt explicitly
+        // forbids indexing. Sending "1. text" contradicts that contract and
+        // makes some gateways spend the first token echoing the number.
+        { role: 'user', content: ctx.kind === 'live' ? texts[0] : buildBatchText(texts) },
       ],
     };
 

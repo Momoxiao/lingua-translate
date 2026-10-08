@@ -59,6 +59,20 @@
     const dst = langName(to);
     const ctx = profileLines(profile);
 
+    if (kind === 'live') {
+      return [
+        `You are a realtime subtitle translator. Translate from ${src} into ${dst}.`,
+        '',
+        'The user message is one subtitle line that may still be growing word by word.',
+        'Translate exactly what is present. Never invent a continuation.',
+        '',
+        'Rules:',
+        '1. Output ONLY the translation, with no index, quotes, explanation or markdown.',
+        '2. Keep names, numbers, units, timestamps and emoji exactly as they are.',
+        '3. Be concise and natural, like an on-screen subtitle.',
+      ].join('\n');
+    }
+
     if (kind === 'page') {
       const rules = [
         'Rules:',

@@ -56,7 +56,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **12,512 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **12,596 lines across 38 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -111,16 +111,16 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 
 `package.json` has no `dependencies` and no `devDependencies`. There is no bundler, no transpiler, and no `node_modules`. The extension is the source you read — `manifest.json` plus `src/`, loaded as-is. That is a deliberate constraint, not a gap:
 
-- **You can audit it.** 12,512 lines, plain ES2020, no generated code.
+- **You can audit it.** 12,596 lines, plain ES2020, no generated code.
 - **Nothing can rot.** No lockfile to drift, no transitive update to break the build in two years.
 - **Packaging is reproducible.** `npm run dist` produces a byte-identical zip for the same source (fixed timestamps, sorted entries), which is what makes a published SHA-256 meaningful.
 
 ## Tests
 
 ```bash
-npm run check       # 609 assertions across four suites, plus the docs, asset and i18n guards
-npm test            # 192 — core logic: batching, parsing, all five providers
-npm run test:live   #  64 — the realtime caption fallback, and when it must NOT engage
+npm run check       # 623 assertions across four suites, plus the docs, asset and i18n guards
+npm test            # 196 — core logic: batching, parsing, all five providers
+npm run test:live   #  74 — the realtime caption fallback, and when it must NOT engage
 npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
@@ -151,10 +151,10 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   So the whole-track path is **timing-dependent, not permanently broken**: `extractCues()` nudges the player and sniffs the token from the request the player then makes itself, and whether that lands inside the ~10 s window decides the outcome. The same command on the same video produced both `60/60 cues translated` (token sniffed in time) and a fall-through (token arrived too late) across consecutive runs.
 
-  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time. Streaming-compatible providers can show the translation as it is written, and a newer caption cancels the stale request so the overlay follows what is being said now.
+  **Which is why the realtime fallback exists.** When the token does not arrive in time, the player is often *still rendering the lines it is speaking* into `.ytp-caption-segment`, even though its own caption requests came back empty. `live.js` reads those and translates them one at a time. Streaming-compatible providers can show the translation as it is written; a genuinely new sentence cancels the stale request, while a line that is still growing keeps its request alive.
 
   **"Often", not "always" — and that distinction is measured, not hedged.** Across one evening of headed runs on the same video: three runs took the fast path (`pot=有`, ~1.2 KB responses, 60/60 cues); one run fell back and *did* read real lines (`实时兜底 读到 2 行 · 译出 1 行`) even though none of the requests in that run carried a `pot`; and one run failed completely — 8 caption requests, none with a `pot`, all 8 response bodies read as **0 bytes** (captured bodies, not a byte-count inference), the player created no caption container, and the fallback read 0 lines. So the fallback rescues the common case, not every case, and the earlier wording promised captions on both paths, and that was one measurement too confident. `npm run smoke` prints the DOM reading beside the line counters — container present or not, how many `.ytp-caption-segment` nodes, and their text — so a zero-line fallback now says which of the two it was instead of telling you to run it again.
-- On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path cannot pre-translate ahead of the playhead, though streaming output and latest-caption cancellation keep the delay bounded.
+- On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path cannot pre-translate ahead of the playhead, though streaming output and cancellation of genuinely stale sentences keep the delay bounded.
 - The extension UI ships in Chinese and English. Chinese is the source language and the fallback; every non-Chinese browser gets the English catalogue.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.

@@ -28,7 +28,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 192;
+const EXPECTED_ASSERTIONS = 196;
 const failures = [];
 
 function check(name, cond, detail) {
@@ -549,9 +549,12 @@ console.log('\nfull-page translation: prompts + unit heuristics');
 // ---------------------------------------------------------------------------
 const subPrompt = NS.bg.prompts.systemPrompt('en', 'zh-Hans', 'subtitle');
 const pagePrompt = NS.bg.prompts.systemPrompt('en', 'zh-Hans', 'page');
+const livePrompt = NS.bg.prompts.systemPrompt('en', 'zh-Hans', 'live');
 check('subtitle prompt says subtitle translator', /subtitle translator/i.test(subPrompt));
+check('live prompt says realtime subtitle translator', /realtime subtitle translator/i.test(livePrompt));
 check('page prompt says web page translator', /web page translator/i.test(pagePrompt));
 check('page prompt differs from subtitle prompt', subPrompt !== pagePrompt);
+check('live prompt omits the numbered-index contract', !/SAME index/.test(livePrompt) && /no index/i.test(livePrompt));
 check('page prompt keeps the numbering contract', /SAME index/.test(pagePrompt));
 check('prompt names the target language', /Simplified Chinese/.test(pagePrompt));
 check('page prompt documents the link placeholders', /⟦1⟧/.test(pagePrompt) && /⟦\/1⟧/.test(pagePrompt));
@@ -559,11 +562,21 @@ check('page prompt documents inline-code placeholders', /⟦c2⟧/.test(pageProm
 check('page prompt tells the model to keep the markers intact', /never translate, rename, renumber/.test(pagePrompt));
 check('subtitle prompt does NOT mention link placeholders', !/⟦/.test(subPrompt));
 
+// A live request has no numbering contract, but some compatible gateways still
+// answer with "1. translation". That prefix must never reach the overlay.
+check(
+  'single-line output strips an accidental numbered prefix',
+  NS.bg.llm.parseOutput('1. 你好', 1)[0] === '你好',
+  JSON.stringify(NS.bg.llm.parseOutput('1. 你好', 1))
+);
+
 // openai provider must send the page prompt when kind === 'page'
 let lastSystem = '';
+let lastUser = '';
 globalThis.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body);
   lastSystem = body.messages[0].content;
+  lastUser = body.messages[1].content;
   const lines = body.messages[1].content.split('\n');
   const out = lines.map((l) => l.replace(/^(\d+)\.\s*/, '$1. 译'));
   return new Response(JSON.stringify({ choices: [{ message: { content: out.join('\n') } }] }), { status: 200 });
@@ -580,6 +593,20 @@ await NS.bg.translator.translate(['Hello there', 'Second block'], {
   kind: 'page',
 });
 check('provider forwards kind to the prompt', /web page translator/i.test(lastSystem), lastSystem.slice(0, 60));
+
+globalThis.fetch = async (url, opts) => {
+  const body = JSON.parse(opts.body);
+  lastSystem = body.messages[0].content;
+  lastUser = body.messages[1].content;
+  return new Response(JSON.stringify({ choices: [{ message: { content: '你好' } }] }), { status: 200 });
+};
+await NS.bg.translator.translate(['Hello there'], {
+  settings: pageSettings,
+  from: 'en',
+  to: 'zh-Hans',
+  kind: 'live',
+});
+check('live provider sends the bare caption, not a numbered batch', lastUser === 'Hello there', lastUser);
 
 // unit heuristics (pure functions, no DOM needed)
 const U = NS.page.units;

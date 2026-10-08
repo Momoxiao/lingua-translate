@@ -30,7 +30,7 @@
   // long quiet period also misses captions that grow word by word. One poll is
   // enough to prove the line is stable before sending it.
   const POLL_MS = 100;
-  const SETTLE_MS = 60;
+  const SETTLE_MS = 40;
   const RETRY_MS = 1500;
   /**
    * How long to wait for a first line before telling the user anything. On a VOD
@@ -162,7 +162,36 @@
   }
 
   function isActive(gen, text) {
-    return !!inflight && inflight.gen === gen && text === currentOriginal && running;
+    return (
+      !!inflight &&
+      inflight.gen === gen &&
+      running &&
+      (text === currentOriginal || isContinuation(text, currentOriginal))
+    );
+  }
+
+  function isPrefixOf(previous, next) {
+    if (!previous || !next) return false;
+    const a = previous.trim().toLowerCase();
+    const b = next.trim().toLowerCase();
+    return !!a && !!b && a !== b && b.startsWith(a) &&
+      /^[\s.,!?;:，。！？；：'"“”‘’()[\]{}<>《》-]/.test(b.slice(a.length));
+  }
+
+  /**
+   * Is `next` the same spoken sentence as `previous`, just with more words?
+   *
+   * YouTube's live captions are rendered incrementally, so the DOM often goes
+   * "The quick" -> "The quick brown" -> "The quick brown fox". Treating each of
+   * those as a new line made live.js cancel and restart the translation several
+   * times per sentence; the provider could never finish one before the next
+   * cancellation arrived. Punctuation-only changes count as the same line too.
+   */
+  function isContinuation(previous, next) {
+    if (!previous || !next) return false;
+    const a = previous.trim().toLowerCase();
+    const b = next.trim().toLowerCase();
+    return a === b || isPrefixOf(previous, next);
   }
 
   function translateNow(text) {
@@ -173,13 +202,22 @@
       show(text, cache.get(text));
       return;
     }
-    if (inflight && inflight.text === text) return;
+    // Keep the in-flight request alive while the caption is still growing. A
+    // growth is not a new sentence and must not invalidate work already done.
+    // The partial belongs to the shorter source, though, so it is rendered as a
+    // temporary preview; `finally` below starts the correction for whatever the
+    // final caption turned out to be.
+    if (inflight && (inflight.text === text || isPrefixOf(inflight.text, text))) {
+      pendingText = text;
+      return;
+    }
 
     // Live mode is "latest caption wins": a request for a line that is no longer
     // on screen only wastes the provider's latency budget. Cancel it before
     // starting the current line, so the next streaming token belongs to what the
     // viewer is reading now.
     cancelInflight();
+    pendingText = text;
     const gen = ++requestGen;
     const jobId = `live_${Date.now()}_${gen}`;
     inflight = { text, jobId, gen };
@@ -187,10 +225,11 @@
       .translate([text], {
         from: settings.sourceLang,
         to: settings.targetLang,
+        kind: 'live',
         jobId,
         onPartial: ({ index, text: partial }) => {
           if (index !== 0 || !partial || !isActive(gen, text)) return;
-          show(text, partial, true);
+          show(currentOriginal, partial, true);
         },
       })
       .then(({ results }) => {
@@ -202,7 +241,11 @@
         }
         if (cache.size > MAX_CACHE) cache.clear();
         cache.set(text, out);
-        show(text, out);
+        if (text === currentOriginal) show(text, out);
+        // A translation of a prefix is not a translation of the sentence the
+        // viewer is now reading. Keep it as an interim hint, then let `finally`
+        // request the completed caption.
+        else show(currentOriginal, out, true);
       })
       .catch(() => {
         if (!isActive(gen, text)) return;
@@ -214,7 +257,19 @@
         }, RETRY_MS);
       })
       .finally(() => {
-        if (inflight && inflight.gen === gen) inflight = null;
+        if (inflight && inflight.gen === gen) {
+          inflight = null;
+          // The source grew while this request was finishing. Keep the partial
+          // on screen and start one follow-up for the latest, complete caption.
+          if (
+            running &&
+            currentOriginal &&
+            text !== currentOriginal &&
+            isContinuation(text, currentOriginal)
+          ) {
+            translateNow(currentOriginal);
+          }
+        }
       });
   }
 
@@ -258,6 +313,7 @@
     }
 
     if (text !== currentOriginal) {
+      const grew = isContinuation(currentOriginal, text);
       currentOriginal = text;
       currentSince = Date.now();
       if (!text) {
@@ -274,14 +330,21 @@
         show(text, cache.get(text));
         return;
       }
-      show(text, ''); // show original while the translation is in flight
+      // A growing caption keeps its translation visible while the in-flight
+      // request continues. A genuinely new line shows the original until the
+      // next request produces something.
+      show(text, grew && lastShownTranslated ? lastShownTranslated : '');
+      // Start on the first observation instead of waiting for another poll.
+      // The latest-caption logic still cancels this request if a new sentence
+      // arrives before it completes.
+      translateNow(text);
       return;
     }
 
     if (!text) return;
     // Caption has settled -> translate once. If a previous line is still in
     // flight, translateNow cancels it and starts this one instead.
-    if (Date.now() - currentSince >= SETTLE_MS && text !== pendingText) {
+    if (Date.now() - currentSince >= SETTLE_MS && text !== pendingText && !inflight) {
       pendingText = text;
       translateNow(text);
     }

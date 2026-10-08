@@ -288,7 +288,7 @@ function buildPage(unitsSource) {
 // ---------------------------------------------------------------------------
 // Run Chrome and grab the dumped DOM
 // ---------------------------------------------------------------------------
-function dumpDom(file, timeoutMs = 25000) {
+function dumpDomOnce(file, timeoutMs) {
   return new Promise((resolve) => {
     // One throwaway profile per run. A persistent --user-data-dir both leaks a
     // profile per invocation and caches file:// resources, so a changed fixture
@@ -300,14 +300,17 @@ function dumpDom(file, timeoutMs = 25000) {
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--no-first-run',
+      '--disable-background-networking',
       '--allow-file-access-from-files',
       `--user-data-dir=${profileDir}`,
       '--virtual-time-budget=2500',
       '--dump-dom',
       `file://${file}`,
     ];
-    const proc = spawn(chromePath, args, { stdio: ['ignore', 'pipe', 'ignore'] });
+    const proc = spawn(chromePath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
+    let stderr = '';
     let settled = false;
     const finish = () => {
       if (settled) return;
@@ -326,7 +329,7 @@ function dumpDom(file, timeoutMs = 25000) {
       } catch (e) {
         /* ignore */
       }
-      resolve(out);
+      resolve({ out, stderr, code: proc.exitCode, signal: proc.signalCode });
     };
     const timer = setTimeout(finish, timeoutMs);
     proc.stdout.on('data', (chunk) => {
@@ -334,8 +337,38 @@ function dumpDom(file, timeoutMs = 25000) {
       // Chrome hangs after dumping — bail out as soon as we have the document.
       if (out.includes('</html>')) setTimeout(finish, 60);
     });
+    proc.stderr.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on('error', (err) => {
+      stderr += `${err.name}: ${err.message}\n`;
+      finish();
+    });
     proc.on('exit', () => setTimeout(finish, 60));
   });
+}
+
+/**
+ * Chrome occasionally takes longer than the old 25-second budget to start on a
+ * cold CI runner and emits no DOM at all. That is a harness failure, not a
+ * product assertion, so retry once and include the runner's stderr when both
+ * attempts miss. Release and CI can run the browser suites concurrently, which
+ * makes the first-start race observable without being reproducible locally.
+ */
+async function dumpDom(file) {
+  let last = { out: '', stderr: '', code: null, signal: null };
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    last = await dumpDomOnce(file, 45000);
+    if (last.out.includes('</html>')) return last.out;
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  if (process.env.LINGUA_DOM_DEBUG) {
+    console.error(
+      `Chrome produced no DOM after 2 attempts (code=${last.code}, signal=${last.signal})` +
+        (last.stderr ? `\n${last.stderr}` : '')
+    );
+  }
+  return last.out;
 }
 
 // ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/player-yt-1x.png" width="860" alt="Lingua showing bilingual subtitles on top of a YouTube video">
+  <img src="docs/lingua-demo.gif" width="860" alt="Lingua showing bilingual subtitles on top of a YouTube video">
 </p>
 
 **No account. No server of ours. Your API key never leaves your machine.** Lingua is a Manifest V3 extension for Chrome and Edge that translates **YouTube captions in sync with playback** and **web pages without destroying the original**. Bring OpenAI-compatible (OpenAI, DeepSeek, Kimi, GLM, Qwen, SiliconFlow, OpenRouter, Groq, and your own Ollama / LM Studio / one-api), DeepL, Google, Microsoft Azure, or any HTTP endpoint you can describe.
@@ -123,6 +123,7 @@ npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
 
 npm run preview     # render every UI surface to PNG
+npm run demo:gif    # rebuild docs/lingua-demo.gif from real overlay frames
 npm run smoke       # live captions against real YouTube (throwaway profile)
 npm run inspect     # read the extension's real state out of YOUR browser
 ```

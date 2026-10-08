@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { resolveChrome } from './lib/chrome.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -486,9 +486,12 @@ function buildPlayerDemo() {
   </div>
 </div>
 
-<!-- constants.js first: overlay.js reads its font stack from Lingua.constants.FONTS
-     at parse time, so loading overlay.js alone throws and nothing mounts. -->
+<!-- constants.js and store.js first: overlay.js reads its font stack and its
+     settings store at render time, so loading overlay.js alone throws and nothing
+     mounts. This used to omit store.js and hide the error behind a delayed,
+     no-op assertion; the demo page now proves the real render path immediately. -->
 <script src="src/shared/constants.js"></script>
+<script src="src/content/store.js"></script>
 <script src="src/content/overlay.js"></script>
 <script>
 (function () {
@@ -523,14 +526,19 @@ function buildPlayerDemo() {
     Lingua.overlay.setLive(${JSON.stringify(line.original)}, ${JSON.stringify(line.translated)});
     Lingua.overlay.start();
 
-    // A frame that rendered nothing would still produce a screenshot, so assert
-    // the two lines are in the DOM before the capture.
-    setTimeout(function () {
+    // setLive() stores the text; the next animation frame writes it to the DOM.
+    // Check the actual rendered values, not the arguments, so a missing
+    // dependency or a broken overlay is reported by the demo itself.
+    requestAnimationFrame(function () {
       var t = document.querySelector('.lingua-translated');
       var o = document.querySelector('.lingua-original');
-      if (!t || !t.textContent) fail('translated line is empty after setLive()');
-      if (!o || !o.textContent) fail('original line is empty after setLive()');
-    }, 250);
+      if (!t || t.textContent !== ${JSON.stringify(line.translated)}) {
+        fail('translated line did not render through setLive()');
+      }
+      if (!o || o.textContent !== ${JSON.stringify(line.original)}) {
+        fail('original line did not render through setLive()');
+      }
+    });
   } catch (e) { fail(e && e.message ? e.message : e); }
 })();
 </script>
@@ -752,19 +760,30 @@ for (const page of PAGES) {
   if (ONLY && page.name !== ONLY) continue;
   let srcPath;
   let tmpPath;
+  let tmpDir;
   const override = page.dark ? themeOverride('dark') : page.light ? themeOverride('light') : '';
+  const baseHref = pathToFileURL(
+    page.build ? ROOT + path.sep : path.dirname(path.join(ROOT, page.html)) + path.sep
+  ).href;
+
+  // Keep generated pages out of the extension tree. Chrome refuses to load an
+  // unpacked extension while a sibling filename starts with "_", which made
+  // `npm run preview` and `npm run test:e2e` fail when run in parallel.
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-preview-${page.name}-`));
+  tmpPath = path.join(tmpDir, 'page.html');
 
   if (page.build) {
-    tmpPath = path.join(ROOT, '__preview-' + page.name + '.html');
     let html = page.build(page);
+    html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n<base href="${baseHref}">`);
     if (override) html = html.replace(/<\/head>/i, `${override}</head>`);
     fs.writeFileSync(tmpPath, html);
   } else {
     srcPath = path.join(ROOT, page.html);
-    const dir = path.dirname(srcPath);
-    tmpPath = path.join(dir, '__preview.html');
     let html = fs.readFileSync(srcPath, 'utf8');
-    html = html.replace(/<head([^>]*)>/i, (m) => `${m}\n${STUB(page.tabUrl || 'https://example.com/', page.patch)}`);
+    html = html.replace(
+      /<head([^>]*)>/i,
+      (m) => `${m}\n<base href="${baseHref}">\n${STUB(page.tabUrl || 'https://example.com/', page.patch)}`
+    );
     if (override) html = html.replace(/<\/head>/i, `${override}</head>`);
     // `script` lets a page entry drive the UI into the state worth photographing
     // (e.g. the popup's second panel) before the capture.
@@ -812,7 +831,7 @@ for (const page of PAGES) {
   }
   // PREVIEW_KEEP_TMP=1 keeps the generated page so it can be opened by hand —
   // the fastest way to see what the harness actually handed to Chrome.
-  if (!process.env.PREVIEW_KEEP_TMP) fs.unlinkSync(tmpPath);
+  if (!process.env.PREVIEW_KEEP_TMP) fs.rmSync(tmpDir, { recursive: true, force: true });
   else console.log('      kept: ' + tmpPath);
 
   const label = page.html || page.name;

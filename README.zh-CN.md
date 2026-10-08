@@ -26,7 +26,7 @@
 
 | YouTube · 字幕与播放同步翻译 |
 | --- |
-| ![YouTube 双语字幕，原文在上、译文在下](docs/player-yt-1x.png) |
+| ![YouTube 双语字幕，原文在上、译文在下](docs/lingua-demo.gif) |
 
 | 弹窗 · 视频字幕（YouTube） | 弹窗 · 网页翻译（YouTube，切过去） | 弹窗 · 网页翻译（普通页面） | 设置页 |
 | --- | --- | --- | --- |
@@ -429,6 +429,7 @@ npm run smoke:headed     # 同上，真实窗口 + GPU 开着（分辨环境问�
 npm run icons       # 重新生成图标
 npm run dist        # 打出可分发的 dist/lingua-<版本>.zip（发布时作为 Release 附件）
 npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效果并截图
+npm run demo:gif    # 用真实 overlay.js 渲染字幕帧，再合成 README 演示动图
 ```
 
 `npm test` 不需要浏览器，也不需要安装任何依赖。其余脚本需要一个 Chrome / Chromium / Edge——`scripts/lib/chrome.mjs` 会自动在 macOS 应用目录、常见 Linux 路径和 `PATH` 里找；装在别处时用 `CHROME_PATH=/path/to/chrome npm run check` 指定。

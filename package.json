@@ -18,6 +18,7 @@
     "inspect": "node scripts/inspect-live.mjs",
     "inspect:refresh": "node scripts/inspect-live.mjs --refresh",
     "preview": "node scripts/preview.mjs",
+    "demo:gif": "node scripts/demo-gif.mjs",
     "shots": "node scripts/store-shots.mjs",
     "release:assets": "node scripts/release-assets.mjs",
     "icons": "python3 scripts/make-icons.py",

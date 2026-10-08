@@ -28,7 +28,7 @@ let failed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 177;
+const EXPECTED_ASSERTIONS = 190;
 const failures = [];
 
 function check(name, cond, detail) {

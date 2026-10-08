@@ -1,6 +1,6 @@
 {
   "name": "lingua-translate",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -19,6 +19,7 @@
     "inspect:refresh": "node scripts/inspect-live.mjs --refresh",
     "preview": "node scripts/preview.mjs",
     "shots": "node scripts/store-shots.mjs",
+    "release:assets": "node scripts/release-assets.mjs",
     "icons": "python3 scripts/make-icons.py",
     "test:live": "node scripts/test-live.mjs",
     "probe:transcript": "node scripts/probe-transcript.mjs"

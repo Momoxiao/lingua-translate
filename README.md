@@ -4,22 +4,45 @@
 
 [![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![No dependencies](https://img.shields.io/badge/dependencies-0-brightgreen.svg)](#no-build-step-no-dependencies)
+[![Release](https://img.shields.io/github/v/release/Momoxiao/lingua-translate?include_prereleases&label=release)](https://github.com/Momoxiao/lingua-translate/releases/latest)
 
-> **Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.**
-> No account. No server of ours. Your API key never leaves your machine.
+<h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
-A Chrome / Edge extension (Manifest V3) that translates **YouTube captions in sync with playback** and **web pages without destroying the original**. You bring the translation service — OpenAI-compatible (OpenAI, DeepSeek, Kimi, GLM, Qwen, SiliconFlow, OpenRouter, Groq, or your own Ollama / LM Studio / one-api), DeepL, Google, Microsoft Azure, or literally any HTTP endpoint you describe yourself.
+<p align="center">
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip"><b>Download Lingua 0.2.0</b></a>
+  ·
+  <a href="#install">Install in 30 seconds</a>
+  ·
+  <a href="#configure">Configure a provider</a>
+</p>
 
-| YouTube · captions translated in sync with playback |
-| --- |
-| ![bilingual YouTube subtitles, original above and translation below](docs/player-yt-1x.png) |
+<p align="center">
+  <a href="https://github.com/Momoxiao/lingua-translate/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/Momoxiao/lingua-translate?style=social"></a>
+</p>
 
-| Web page · bilingual | Web page · translated only | Popup · video panel | Diagnostics |
-| --- | --- | --- | --- |
-| ![bilingual web page](docs/page-bilingual.png) | ![translated-only web page](docs/page-replace.png) | ![popup video panel](docs/popup.png) | ![diagnostics page](docs/diagnostics.png) |
+<p align="center">
+  <img src="docs/player-yt-1x.png" width="860" alt="Lingua showing bilingual subtitles on top of a YouTube video">
+</p>
 
-More: [floating ball](docs/ball.png) · [settings](docs/options.png) · [custom provider](docs/options-custom.png) · [dark mode](docs/options-dark.png)
+**No account. No server of ours. Your API key never leaves your machine.** Lingua is a Manifest V3 extension for Chrome and Edge that translates **YouTube captions in sync with playback** and **web pages without destroying the original**. Bring OpenAI-compatible (OpenAI, DeepSeek, Kimi, GLM, Qwen, SiliconFlow, OpenRouter, Groq, and your own Ollama / LM Studio / one-api), DeepL, Google, Microsoft Azure, or any HTTP endpoint you can describe.
+
+## Why people keep it installed
+
+- **The line is already translated when it is spoken.** Lingua ingests the whole caption track up front, then translates ahead of the playhead; drag the scrubber and the priority re-sorts around the new position.
+- **A translated page is still the page.** Nothing is overwritten: the original stays in the DOM and can be restored with one class flip. Links, hover states and click handlers survive because Lingua moves the real element instead of cloning it.
+- **Bring your own key, keep the whole product.** Every feature is unlocked, including local Ollama / LM Studio endpoints, so sensitive text can stay on your machine.
+- **It tells you where it broke.** The built-in diagnostics page reports the exact layer — content script, worker, caption track, response body, or provider request.
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/page-bilingual.png" alt="Bilingual web page translation"><br><sub>Web page · bilingual</sub></td>
+    <td width="50%"><img src="docs/page-replace.png" alt="Translated-only web page"><br><sub>Web page · translated only</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/popup-yt-page.png" alt="Lingua popup"><br><sub>Popup · live controls</sub></td>
+    <td><img src="docs/diagnostics.png" alt="Lingua diagnostics"><br><sub>Diagnostics · one-click report</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -31,7 +54,7 @@ Translation extensions usually make one of three trades. This one refuses all th
 | --- | --- | --- |
 | **Data** | Text (and often the page URL) passes through the vendor's own servers | Text goes **directly** from your browser to the service **you** configured. There is no server of ours to pass through. |
 | **Money** | A free tier that is really an upsell, with your own key locked behind a subscription | **Bring your own key, every feature unlocked.** MIT licensed, no paid tier, nothing withheld. |
-| **Opacity** | Minified bundle, "trust us" | **10,757 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
+| **Opacity** | Minified bundle, "trust us" | **11,374 lines across 37 files, zero build step, zero dependencies.** Read the whole extension in an afternoon. |
 
 It is also honest about the one thing it cannot promise — see [Known limitations](#known-limitations).
 
@@ -46,20 +69,23 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 ## Install
 
-**From the store** *(coming — see [the launch playbook](docs/launch-playbook.md))*
+**Download the extension**
 
-**From source** (works today):
+[**Lingua 0.2.0 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.0.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+
+1. Unzip the download.
+2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
+3. Click **Load unpacked** and choose the unzipped folder.
+4. The settings page opens on first install. Pick a provider and paste your API key.
+
+**From source** — clone the repository and load the repo root as an unpacked extension:
 
 ```bash
 git clone https://github.com/Momoxiao/lingua-translate.git
 ```
 
-Then `chrome://extensions` → enable **Developer mode** → **Load unpacked** → pick the repo root. On Edge use `edge://extensions`. On first install the settings page opens by itself.
-
-Or grab `lingua-<version>.zip` from [Releases](https://github.com/Momoxiao/lingua-translate/releases/latest), unzip it, and point **Load unpacked** at the unzipped folder. Verify the download with the `.sha256` published next to it:
-
 ```bash
-shasum -a 256 -c lingua-0.1.2.zip.sha256
+shasum -a 256 -c lingua-0.2.0.zip.sha256
 ```
 
 ## Configure
@@ -88,10 +114,10 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 ## Tests
 
 ```bash
-npm run check       # 552 assertions across four suites, plus the docs-drift guard
-npm test            # 177 — core logic: batching, parsing, all five providers
+npm run check       # 569 assertions across four suites, plus the docs-drift guard
+npm test            # 190 — core logic: batching, parsing, all five providers
 npm run test:live   #  49 — the realtime caption fallback, and when it must NOT engage
-npm run test:dom    # 164 — paragraph detection, link handling, real doc sites
+npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 162 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  74 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
@@ -122,7 +148,7 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
   **"Often", not "always" — and that distinction is measured, not hedged.** Across one evening of headed runs on the same video: three runs took the fast path (`pot=有`, ~1.2 KB responses, 60/60 cues); one run fell back and *did* read real lines (`实时兜底 读到 2 行 · 译出 1 行`) even though none of the requests in that run carried a `pot`; and one run failed completely — 8 caption requests, none with a `pot`, all 8 response bodies read as **0 bytes** (captured bodies, not a byte-count inference), the player created no caption container, and the fallback read 0 lines. So the fallback rescues the common case, not every case, and the earlier wording promised captions on both paths, and that was one measurement too confident. `npm run smoke` prints the DOM reading beside the line counters — container present or not, how many `.ytp-caption-segment` nodes, and their text — so a zero-line fallback now says which of the two it was instead of telling you to run it again.
 - On some videos the whole-track path may still fall back to realtime even when the token is available; the realtime path is slower and translates line by line rather than ahead of the playhead.
-- Only the Chinese UI ships today. `_locales` is on the roadmap; the settings page and popup are Chinese until then.
+- The extension UI is Chinese today. The README, store listing and diagnostics report are available in English; `_locales` is on the roadmap.
 - Subtitles work on `youtube.com` / `youtube-nocookie.com` watch pages only.
 - Web-page translation runs in the top document — iframes and text inside images are not translated.
 - Live streams use the same realtime path by necessity — there is no whole track to pre-fetch.
@@ -135,7 +161,7 @@ CI runs the four offline suites. `test:e2e` and `smoke` are deliberately not in 
 
 ## Contributing
 
-**The most useful thing you could contribute right now:** a screenshot or a 10-second GIF of the subtitle overlay captured from a **real** YouTube page on **Windows or Linux** — this has only ever been verified on macOS. The overlay itself is no longer the gap it once was (the harness renders it from the real `overlay.js`, so the README image cannot drift from the code), but every screenshot here was produced on one machine, and a real capture from another platform is worth more than another mock.
+**The most useful thing you could contribute right now:** a screenshot or a 10-second GIF of the subtitle overlay captured from a **real** YouTube page on **Windows or Linux** — this has only ever been verified on macOS. The harness renders the overlay from the real `overlay.js`, so the README image cannot drift from the code, but every screenshot here was produced on one machine, and a real capture from another platform is worth more than another mock.
 
 Issues and PRs welcome. Before reporting a caption problem, please run the **diagnostics page** (extension icon → 诊断 → **copy**) and paste the output: "no captions found" and "captions found but the fetch came back empty" are entirely different failures with entirely different fixes, and that report is the only thing that tells them apart. It contains no API key and no translated text.
 

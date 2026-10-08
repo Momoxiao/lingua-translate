@@ -135,6 +135,13 @@ function walk(dir, out) {
 const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
 const version = manifest.version;
 
+// Chrome Web Store rejects a description longer than 132 characters before a
+// human ever reviews the package. Catch it at build time, not at upload time.
+if (typeof manifest.description !== 'string' || manifest.description.length > 132) {
+  console.error(`manifest.description must be 1-132 characters; got ${manifest.description ? manifest.description.length : 0}`);
+  process.exit(1);
+}
+
 const entries = [];
 for (const dir of INCLUDE_DIRS) walk(path.join(ROOT, dir), entries);
 for (const file of INCLUDE_FILES) {

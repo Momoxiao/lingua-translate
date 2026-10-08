@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml/badge.svg)](https://github.com/Momoxiao/lingua-translate/actions/workflows/ci.yml)
 
-> **早期版本（0.1.2）。** 功能完整，有 460 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.0）。** 功能完整，有 540 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -79,7 +79,7 @@
 安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，43 个文件、约 124 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
 ```bash
-shasum -a 256 -c lingua-0.1.2.zip.sha256
+shasum -a 256 -c lingua-0.2.0.zip.sha256
 ```
 
 **方式二：直接用源码**
@@ -366,8 +366,8 @@ yt-subtitle-translator/
 ├── store/SUBMISSION.md            上架提交材料：单句用途、权限理由、数据用途声明
 ├── scripts/
 │   ├── make-icons.py              纯 stdlib 图标生成（4x 超采样）
-│   ├── test-core.mjs              核心逻辑测试（177 项，无需浏览器）
-│   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（164 项，真实浏览器）
+│   ├── test-core.mjs              核心逻辑测试（190 项，无需浏览器）
+│   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（168 项，真实浏览器）
 │   ├── check-pages.mjs            弹窗、设置页与诊断页的启动 + 交互检查（72 项）
 │   ├── e2e-extension.mjs          真机端到端（74 项，自建 CDP 客户端）
 │   ├── smoke-youtube.mjs          对真实 YouTube 的字幕链路冒烟（一次性 profile）
@@ -415,10 +415,10 @@ MV3 的 Service Worker 支持 `importScripts`，内容脚本则只能加载普�
 ## 七、开发
 
 ```bash
-npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 552 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
-npm test            # 核心逻辑测试（177 项，无需浏览器、无依赖）
+npm run check       # 一条命令跑完下面四套不需要真机扩展的测试，共 569 项，末尾再核对一遍文档里的数字（CI 跑的就是这个）
+npm test            # 核心逻辑测试（190 项，无需浏览器、无依赖）
 npm run test:live   # 实时字幕兜底：什么时候该接管、什么时候必须拒绝接管（49 项）
-npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（164 项，真实 Chrome）
+npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（162 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
 npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（51 项）

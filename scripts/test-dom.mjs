@@ -354,7 +354,7 @@ let passed = 0;
  * reads this constant statically, so all four figures are verifiable even on a
  * machine with no browser.
  */
-const EXPECTED_ASSERTIONS = 164;
+const EXPECTED_ASSERTIONS = 168;
 const failures = [];
 
 function check(name, cond, detail) {

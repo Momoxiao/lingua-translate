@@ -189,7 +189,28 @@ const PROBE = `(function () {
       return {
         container: !!document.querySelector('.ytp-caption-window-container'),
         segs: segs.length,
-        text: String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+        text: String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+        details: Array.prototype.slice.call(segs, 0, 4).map(function (x) {
+          var p = x.parentElement;
+          var w = x.closest('.ytp-caption-window-bottom') || x.closest('.ytp-caption-window-container');
+          var chain = [];
+          var n = x;
+          while (n && chain.length < 8) {
+            chain.push(n.tagName.toLowerCase() + (n.className ? '.' + String(n.className).replace(/\s+/g, '.') : ''));
+            if (n === w) break;
+            n = n.parentElement;
+          }
+          return {
+            text: String(x.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+            cls: String(x.className || ''),
+            parent: p ? String(p.className || '') : '',
+            window: w ? String(w.className || '') : '',
+            aria: x.getAttribute('aria-hidden') || '',
+            role: w ? w.getAttribute('role') || '' : '',
+            live: w ? w.getAttribute('aria-live') || '' : '',
+            chain: chain.join(' < ')
+          };
+        })
       };
     })()
   });
@@ -210,6 +231,16 @@ function verdict(state, net, capLog) {
   const p = state.player || {};
   if (s.error) return { ok: false, tone: 'err', text: `取字幕报错：${s.error}` };
   if (!s.trackCount) {
+    if (!p.moviePlayer && !state.hasPlayerResponse) {
+      return {
+        ok: false,
+        tone: 'warn',
+        text:
+          '页面没有加载出 YouTube 播放器（movie_player=false，也没有 ytInitialPlayerResponse）。' +
+          '这次运行不能用于判断扩展：先看下面的 console error；headless 环境尤其容易被 consent/JS 加载挡住。' +
+          '要验证真实字幕链路，请运行 `npm run smoke:headed`。',
+      };
+    }
     return {
       ok: false,
       tone: 'warn',
@@ -531,6 +562,8 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
     let final = null;
     let isoWorld = null;
     let capLog = [];
+    const capSamples = [];
+    const capSeen = new Set();
     while (Date.now() - started < TIMEOUT_MS) {
       await sleep(2000);
       const iso = await view.findWorld();
@@ -549,6 +582,13 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
         continue;
       }
       final = state;
+      for (const d of ((state.capDom && state.capDom.details) || [])) {
+        const key = [d.text, d.cls, d.parent, d.window, d.aria].join('|');
+        if (!capSeen.has(key)) {
+          capSeen.add(key);
+          capSamples.push(d);
+        }
+      }
       const s = state.subtitle || {};
       const L = s.live || {};
       const line = `${s.status || '?'}${s.reason ? '/' + s.reason : ''} · 轨 ${s.trackCount || 0} · cue ${s.cueCount || 0} · 译 ${s.translated || 0} · 字幕请求 ${net.all.length}${L.lines ? ` · 实时 ${L.lines}行/译${L.translated}` : ''}`;
@@ -604,11 +644,18 @@ const TONE_MARK = { ok: 'OK  ', warn: 'WARN', err: 'FAIL' };
       if (s.live && (s.live.lines || s.live.translated || s.status === 'live')) {
         const L = s.live;
         console.log(`  ${'实时兜底'.padEnd(12)} 读到 ${L.lines} 行 · 译出 ${L.translated} 行`);
-        const cd = state.capDom || {};
+        const cd = final.capDom || {};
         console.log(
           `  ${'播放器字幕DOM'.padEnd(12)} 容器=${cd.container ? '有' : '无'} · ${cd.segs || 0} 段` +
             (cd.text ? ` · 「${cd.text}」` : '')
         );
+        for (const d of capSamples) {
+          console.log(
+            `  ${''.padEnd(12)} 段「${d.text}」 window=${d.window || '(无)'} parent=${d.parent || '(无)'}` +
+              ` aria-hidden=${d.aria || '(无)'} role=${d.role || '(无)'} aria-live=${d.live || '(无)'}` +
+              ` 链路=${d.chain || '(无)'}`
+          );
+        }
         if (L.lastOriginal) {
           console.log(`  ${''.padEnd(12)} 最后一行：${L.lastOriginal.slice(0, 50)}`);
           console.log(`  ${''.padEnd(12)}        →  ${(L.lastTranslated || '(未译)').slice(0, 50)}`);

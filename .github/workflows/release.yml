@@ -48,6 +48,10 @@ jobs:
       # --generate-notes keeps the body derived from real commits. Do not mark
       # this pre-release: the whole point is that the repository's "Latest"
       # badge and the downloads page point at an installable build.
+      #
+      # A release can already exist when a tag is pushed from a local release
+      # prepared manually. Treat that as an upload/update step instead of
+      # leaving a red workflow next to a perfectly valid release.
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -57,10 +61,21 @@ jobs:
           if [ -f "docs/releases/${GITHUB_REF_NAME}.md" ]; then
             notes_args=(--notes-file "docs/releases/${GITHUB_REF_NAME}.md")
           fi
-          gh release create "${GITHUB_REF_NAME}" \
-            "dist/lingua-${version}.zip" \
-            "dist/lingua-${version}.zip.sha256" \
-            --verify-tag \
-            --latest \
-            "${notes_args[@]}" \
-            --title "Lingua ${version}"
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" \
+              "dist/lingua-${version}.zip" \
+              "dist/lingua-${version}.zip.sha256" \
+              --clobber
+            gh release edit "${GITHUB_REF_NAME}" \
+              "${notes_args[@]}" \
+              --latest \
+              --title "Lingua ${version}"
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              "dist/lingua-${version}.zip" \
+              "dist/lingua-${version}.zip.sha256" \
+              --verify-tag \
+              --latest \
+              "${notes_args[@]}" \
+              --title "Lingua ${version}"
+          fi

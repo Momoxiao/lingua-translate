@@ -167,14 +167,14 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - **不要在 README 里点名踩同行。**
 - **不要承诺「支持 YouTube 字幕」而不写那条已知限制。** 这条链路随时可能被 YouTube 改坏；写清楚反而涨信任——开发者会 star 一个诚实说明边界的项目，不会 star 一个假装没有边界的项目。
 
-## 七、仓库设置清单（这些只能在网页后台点，我改不了）
+## 七、仓库设置清单
 
 - [x] **Topics**：已设置 13 个，覆盖 `chrome-extension`、`edge-extension`、`browser-extension`、`translation`、`youtube`、`subtitles`、`bilingual-subtitles`、`webpage-translation`、`openai`、`deepseek`、`ollama`、`manifest-v3`、`privacy`
 - [x] **About 描述**：已设置为英文，与 README 的定位一致
 - [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.5` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
+- [x] **Releases**：`v0.2.6` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）

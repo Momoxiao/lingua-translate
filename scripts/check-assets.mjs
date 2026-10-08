@@ -158,6 +158,8 @@ const readmeZh = readText('README.zh-CN.md');
 const zipName = `lingua-${manifest.version}.zip`;
 const checksumName = `${zipName}.sha256`;
 const releaseNotes = `docs/releases/v${manifest.version}.md`;
+const releaseVersions = (text) =>
+  [...text.matchAll(/lingua-(\d+\.\d+\.\d+)\.zip(?:\.sha256)?/g)].map((match) => match[1]);
 const referencedDocs = [
   ...readme.matchAll(/<img[^>]+src="(docs\/[^"]+)"[^>]*>/g),
   ...readme.matchAll(/!\[[^\]]*\]\((docs\/[^)]+)\)/g),
@@ -186,11 +188,23 @@ check(
 // without the version, the README and latest-release button can keep pointing
 // at bytes that no longer match the repository. Keep every public entry point
 // on the same version before a tag is pushed.
-check(readme.includes(zipName) && readme.includes(checksumName), 'English README points at the current release');
-check(readmeZh.includes(zipName) && readmeZh.includes(checksumName), 'Chinese README points at the current release');
+const readmeVersions = releaseVersions(readme);
+const readmeZhVersions = releaseVersions(readmeZh);
+const siteVersions = releaseVersions(siteHtml);
 check(
-  siteHtml.includes(`"softwareVersion": "${manifest.version}"`) && siteHtml.includes(`/download/${zipName}`),
-  'the project homepage points at the current release'
+  readme.includes(zipName) && readme.includes(checksumName) && readmeVersions.every((v) => v === manifest.version),
+  'English README points only at the current release'
+);
+check(
+  readmeZh.includes(zipName) && readmeZh.includes(checksumName) && readmeZhVersions.every((v) => v === manifest.version),
+  'Chinese README points only at the current release'
+);
+check(
+  siteHtml.includes(`"softwareVersion": "${manifest.version}"`) &&
+    siteHtml.includes(`/download/${zipName}`) &&
+    siteVersions.length >= 3 &&
+    siteVersions.every((v) => v === manifest.version),
+  'the project homepage points only at the current release'
 );
 check(fs.existsSync(path.join(ROOT, releaseNotes)), 'release notes exist for the current version');
 

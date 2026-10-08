@@ -56,7 +56,7 @@
 2. 先用页面上下文直接请求该轨的 `baseUrl`（部分视频仍然可用）
 3. 失败则**复用已经截获到的播放器的 `pot`**，把它合并进目标轨的 URL 再请求
 4. 还没有 `pot` 就**主动触发一次播放器的字幕请求**（用播放器 API 切到目标轨 + 循环一次 CC 开关，原生字幕被我们的 CSS 隐藏所以用户看不到闪烁），截获它的 `pot` 后重试
-5. 再兜底 `/youtubei/v1/get_transcript`
+5. 顺带监听播放器自己打开的 `/youtubei/v1/get_transcript`；扩展不会主动请求它（这条路径还没有在有真实播放器的环境里验证成功）
 6. 直播场景读取页面已渲染的字幕行做实时翻译
 
 对应代码：`src/content/inject.js`（MAIN world 拦截）与 `src/content/youtube.js` 的 `extractCues()`。

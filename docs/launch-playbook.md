@@ -172,9 +172,9 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [x] **Topics**：已设置 13 个，覆盖 `chrome-extension`、`edge-extension`、`browser-extension`、`translation`、`youtube`、`subtitles`、`bilingual-subtitles`、`webpage-translation`、`openai`、`deepseek`、`ollama`、`manifest-v3`、`privacy`
 - [x] **About 描述**：已设置为英文，与 README 的定位一致
 - [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
-- [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
+- [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）。GitHub REST API 没有这个字段，必须走仓库 Settings 的网页表单；当前浏览器桥接报 `Codex auth token is unavailable`，所以这一步保留给仓库所有者手动完成。
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.6` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
+- [x] **Releases**：`v0.2.6` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`。发布后已用 `gh release download` 下载附件并本地重算 SHA-256，再与 GitHub 附件对照，确认上传字节与本地 `npm run dist` 产物一致。
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）
@@ -188,3 +188,12 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 6. 拿第一波反馈修一轮
 7. Show HN                                         ← 英文打磨好再打，只有一次机会
 ```
+
+## 九、当前未完成事项
+
+高 star 的瓶颈已经不在仓库素材，而在分发和真实兼容性。剩余项按影响排序：
+
+1. **提交 Chrome Web Store 与 Edge Add-ons**：这是唯一可持续带来用户和 star 的渠道，也是必须由仓库所有者登录完成的步骤。表单内容已经全部备好，见 [`store/SUBMISSION.md`](../store/SUBMISSION.md)。
+2. **上传 Social preview**：`docs/social-preview.png` 已符合尺寸；GitHub 没有对应 API，需要在仓库 Settings 里手动上传。
+3. **在真实播放器环境验证转写后备**：`scripts/probe-transcript.mjs` 已写好，但当前网络落到 YouTube “unusual traffic” 页，未能拿到有效结果；验证成功前不要把 `/youtubei/v1/get_transcript` 写成已启用的兜底。
+4. **发布第一轮渠道内容**：先 V2EX，再根据反馈决定 Reddit 与 Show HN；不要在准备好守着评论区之前发。

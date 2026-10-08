@@ -208,5 +208,12 @@ check(
 );
 check(fs.existsSync(path.join(ROOT, releaseNotes)), 'release notes exist for the current version');
 
+const siteImages = [...siteHtml.matchAll(/<img[^>]+src="([^"]+)"/g)]
+  .map((match) => match[1])
+  .filter((file) => !/^(?:https?:|data:)/.test(file));
+for (const file of [...new Set(siteImages)].sort()) {
+  check(fs.existsSync(path.join(ROOT, 'docs', file)), `homepage image exists: ${file}`);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode = failed ? 1 : 0;

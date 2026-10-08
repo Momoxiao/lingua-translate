@@ -125,7 +125,7 @@ npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
-npm run check:assets #  54 — store, social, homepage, and release metadata checks pass
+npm run check:assets #  60 — store, social, homepage, and release metadata checks pass
 npm run check:i18n  #   8 — no missing references, no Chinese fallbacks in English
 
 npm run preview     # render every UI surface to PNG

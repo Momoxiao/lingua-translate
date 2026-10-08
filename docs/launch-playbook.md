@@ -153,7 +153,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 | # | 素材 | 现状 | 说明 |
 |---|---|---|---|
 | 1 | **YouTube 字幕覆盖层截图 / GIF** | ✅ README 动图已补齐；真机录像仍可加分 | `docs/lingua-demo.gif` 由 `npm run demo:gif` 生成：四段播放位置、四组双语字幕，全部走真实 `overlay.js` 的 `setLive()` 渲染路径；`docs/e2e-real-page.png` 则是真实 Chrome + 本地 fixture。两者都不是真实 YouTube 录像，**所以真机录像仍值得做**，但现在不再是零演示。 |
-| 2 | 商店截图 1280×800 | ✅ 已补齐 | `store/screenshots/` 5 张，全部恰好 1280×800、无 alpha，按商店尺寸重新构图（非缩放）。`npm run shots` 重新生成。详见 [`store/SUBMISSION.md`](../store/SUBMISSION.md) |
+| 2 | 商店截图 1280×800 | ✅ 已补齐 | 中文界面 `store/screenshots/` 5 张、英文界面 `store/screenshots-en/` 5 张；两套都恰好 1280×800、无 alpha，按商店尺寸重新构图（非缩放）。`npm run shots` 一次重新生成两套。详见 [`store/SUBMISSION.md`](../store/SUBMISSION.md) |
 | 3 | 300×300 商店图标 | ✅ 已补齐 | `store/icon-300.png`，由 `npm run release:assets` 单独重绘，未放大 128×128。 |
 | 4 | GitHub social preview | ✅ 已补齐 | `docs/social-preview.png`，1280×640，由 `npm run release:assets` 单独排版。 |
 | 5 | 商店促销图 440×280 / 1400×560 | ✅ 已补齐 | `store/promo-440x280.png`、`store/promo-1400x560.png`，由 `npm run release:assets` 重新生成 |

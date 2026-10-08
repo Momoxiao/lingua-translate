@@ -45,9 +45,16 @@
 
 ### 摘要（≤132 字符，改 `manifest.json` 的 `description` 即可同步）
 
-现用值 104 字符，合规，无需改动：
+现用值是英文，130 字符，合规：
+
+> Bilingual YouTube subtitles and whole-page translation using your own OpenAI-compatible, DeepL, Google, or custom translation API.
+
+在英文商店 Listing 里直接使用这一句；中文 Listing 可以使用下面这句：
 
 > YouTube 双语字幕 + 网页翻译。接入你自己的翻译服务（OpenAI 兼容 / DeepL / Google / 微软 / 自定义供应商）：全片预取、并发翻译、缓存加速；网页译文不破坏原文，随时可还原。
+
+修改 `manifest.json` 的 `description` 后，商店摘要要同步改；不一致会被当成
+bait-and-switch。
 
 ### 详细描述
 
@@ -96,12 +103,18 @@
 | 商店图标（Edge 单独上传） | 300×300 推荐 | ✅ `store/icon-300.png`，按 300×300 单独重绘，未放大 128×128 |
 | 小促销图（可选） | 440×280 | ✅ `store/promo-440x280.png`，由 `npm run release:assets` 生成 |
 | 大幅促销图（可选） | 1400×560 | ✅ `store/promo-1400x560.png`，由 `npm run release:assets` 生成 |
-| **截图** | **Chrome：1280×800 或 640×400；Edge：640×480 或 1280×800** | ✅ `store/screenshots/` 5 张，全部 1280×800、无 alpha |
+| **截图** | **Chrome：1280×800 或 640×400；Edge：640×480 或 1280×800** | ✅ 中文界面 `store/screenshots/` 5 张、英文界面 `store/screenshots-en/` 5 张，全部 1280×800、无 alpha |
 
-截图已经不缺了：`store/screenshots/` 下 5 张是**按商店尺寸重新构图**的，不是缩放
-出来的，且全部恰好 1280×800（商店要的 16:10）、无 alpha 通道。
-用 `npm run shots` 重新生成（它会先读 `docs/` 里的界面图，所以改完 UI 先跑
-`npm run preview` 再跑 `npm run shots`）。
+截图已经不缺了：两套各 5 张都是**按商店尺寸重新构图**的，不是缩放出来的，且
+全部恰好 1280×800（商店要的 16:10）、无 alpha 通道。
+
+- `store/screenshots/`：中文界面，给中文 Listing 使用。
+- `store/screenshots-en/`：英文界面，给英文 Listing 使用。YouTube 和网页翻译
+  这两张保留英文原文 + 中文译文，因为截图要展示的正是双语效果；其余三张的
+  扩展界面为英文。
+
+用 `npm run shots` 一次重新生成两套（它会先读 `docs/` 里的界面图，所以改完 UI
+先跑 `npm run preview` 再跑 `npm run shots`）。
 
 顺序就是商店里的展示顺序：
 
@@ -111,7 +124,15 @@
 4. `04-popup.png` — 弹窗（视频字幕面板）
 5. `05-diagnostics.png` — 诊断页（差异点，占一张）
 
-`docs/` 下那些仍是**文档配图**（2x 渲染、比例各异），不要拿去上架：
+`docs/` 下还有三张英文界面源图，供 `npm run shots` 合成英文套使用：
+
+```
+docs/popup-yt-page-en.png 712×1156
+docs/options-en.png        2360×5240
+docs/diagnostics-en.png    1800×1800
+```
+
+其余 `docs/` 图片仍是**文档配图**（2x 渲染、比例各异），不要拿去上架：
 
 ```
 docs/popup.png              712×998      ← 2x of 356×499
@@ -134,5 +155,5 @@ docs/e2e-real-page.png      756×469
 - [ ] zip 根目录直接是 `manifest.json`，不是套一层文件夹（`npm run dist` 已经是对的）
 - [ ] zip 里不含 `scripts/`、`docs/`、`.github/`、`dist/` 自身——审阅者会看包里的东西，多出来的文件只会招问题
 - [ ] 商店里的名称与描述和 `manifest.json` 一致（不一致会被当成 bait-and-switch）
-- [ ] 隐私政策 URL 可公开访问（GitHub 上的 `PRIVACY.md` 链接即可）
+- [ ] 隐私政策 URL 可公开访问：`https://github.com/Momoxiao/lingua-translate/blob/main/PRIVACY.md`
 - [ ] 隐私政策里的说法和实际行为逐条对得上——**这一条是两个商店最常拒的原因**，也是唯一能靠自查消除的

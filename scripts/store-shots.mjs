@@ -18,7 +18,8 @@
  *
  * Usage:
  *   node scripts/preview.mjs docs          # refresh the UI images first
- *   node scripts/store-shots.mjs [outDir] # default: store/screenshots
+ *   node scripts/store-shots.mjs [outDir] # default: both store/screenshots and
+ *                                         # store/screenshots-en
  */
 import fs from 'node:fs';
 import os from 'node:os';
@@ -28,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { resolveChrome } from './lib/chrome.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.resolve(process.argv[2] || path.join(ROOT, 'store', 'screenshots'));
+const REQUESTED_OUT = process.argv[2] ? path.resolve(process.argv[2]) : '';
 const DOCS = path.join(ROOT, 'docs');
 
 const W = 1280;
@@ -85,6 +86,7 @@ const SHOTS = [
     title: 'Everything live, next to the video',
     body: 'Progress, source track, display mode and language — shown for the page you are actually on, not a generic settings screen.',
     src: 'popup-yt-page.png',
+    srcEn: 'popup-yt-page-en.png',
     url: 'chrome-extension://lingua/popup.html',
     fit: 'contain',
   },
@@ -94,18 +96,37 @@ const SHOTS = [
     title: 'When it fails, it tells you which layer failed',
     body: 'Was the content script injected? Is the worker alive? How many cues arrived? Which stage stalled? One click, pasteable.',
     src: 'diagnostics.png',
+    srcEn: 'diagnostics-en.png',
     url: 'chrome-extension://lingua/diagnostics.html',
     fit: 'natural',
   },
 ];
+
+/**
+ * Chrome Web Store and Edge Add-ons are shown according to the listing
+ * language. Keep a full English-UI set beside the original Chinese one instead
+ * of forcing an English listing to show Chinese controls.
+ *
+ * The two product shots (the player and the bilingual page) are deliberately
+ * shared: their point is the source text plus translation, so replacing the UI
+ * locale there would not make the feature clearer.
+ */
+const ENGLISH_SHOTS = SHOTS.map((shot) => (
+  shot.srcEn ? { ...shot, src: shot.srcEn } : shot
+));
+
+const SETS = REQUESTED_OUT
+  ? [{ out: REQUESTED_OUT, shots: SHOTS }]
+  : [
+      { out: path.join(ROOT, 'store', 'screenshots'), shots: SHOTS },
+      { out: path.join(ROOT, 'store', 'screenshots-en'), shots: ENGLISH_SHOTS },
+    ];
 
 const chromePath = resolveChrome();
 if (!chromePath) {
   console.error('No Chrome/Chromium/Edge binary found — cannot compose store screenshots.');
   process.exit(0);
 }
-fs.mkdirSync(OUT, { recursive: true });
-
 /** Inline a PNG as a data URI, or null when the UI image has not been rendered yet. */
 function dataUri(file) {
   const p = path.join(DOCS, file);
@@ -223,46 +244,52 @@ function render(args, timeoutMs = 60000) {
 }
 
 let failed = 0;
-for (const shot of SHOTS) {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-page-${shot.name}-`));
-  const tmp = path.join(tmpDir, 'page.html');
-  fs.writeFileSync(tmp, canvasHtml(shot));
-  const out = path.join(OUT, `${shot.name}.png`);
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-${shot.name}-`));
+for (const set of SETS) {
+  fs.mkdirSync(set.out, { recursive: true });
+  console.log(`\n${set.shots.length} store screenshots -> ${set.out}`);
 
-  await render([
-    '--headless=new',
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-gpu',
-    '--hide-scrollbars',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--allow-file-access-from-files',
-    `--user-data-dir=${profile}`,
-    `--window-size=${W},${H}`,
-    // 1x: the store measures the file, so 1280x800 must be the real pixel size.
-    '--force-device-scale-factor=1',
-    '--virtual-time-budget=4000',
-    `--screenshot=${out}`,
-    `file://${tmp}`,
-  ]);
+  for (const shot of set.shots) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-page-${shot.name}-`));
+    const tmp = path.join(tmpDir, 'page.html');
+    fs.writeFileSync(tmp, canvasHtml(shot));
+    const out = path.join(set.out, `${shot.name}.png`);
+    const profile = fs.mkdtempSync(path.join(os.tmpdir(), `lingua-store-${shot.name}-`));
 
-  try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* ignore */ }
-  fs.rmSync(tmpDir, { recursive: true, force: true });
+    await render([
+      '--headless=new',
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--hide-scrollbars',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--allow-file-access-from-files',
+      `--user-data-dir=${profile}`,
+      `--window-size=${W},${H}`,
+      // 1x: the store measures the file, so 1280x800 must be the real pixel size.
+      '--force-device-scale-factor=1',
+      '--virtual-time-budget=4000',
+      `--screenshot=${out}`,
+      `file://${tmp}`,
+    ]);
 
-  if (!dataUri(shot.src)) {
-    failed++;
-    console.log(`FAIL ${shot.name} — docs/${shot.src} is missing`);
-  } else if (!fs.existsSync(out)) {
-    failed++;
-    console.log(`FAIL ${shot.name} — no screenshot produced`);
-  } else {
-    const bytes = fs.statSync(out).size;
-    console.log(`ok   ${shot.name} — ${W}x${H}, ${Math.round(bytes / 1024)} KB`);
+    try { fs.rmSync(profile, { recursive: true, force: true }); } catch (e) { /* ignore */ }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+
+    if (!dataUri(shot.src)) {
+      failed++;
+      console.log(`FAIL ${shot.name} — docs/${shot.src} is missing`);
+    } else if (!fs.existsSync(out)) {
+      failed++;
+      console.log(`FAIL ${shot.name} — no screenshot produced`);
+    } else {
+      const bytes = fs.statSync(out).size;
+      console.log(`ok   ${shot.name} — ${W}x${H}, ${Math.round(bytes / 1024)} KB`);
+    }
   }
 }
 
-console.log(`\n${SHOTS.length - failed}/${SHOTS.length} store screenshots in ${OUT}`);
+const total = SETS.reduce((n, set) => n + set.shots.length, 0);
+console.log(`\n${total - failed}/${total} store screenshots rendered`);
 process.exitCode = failed ? 1 : 0;

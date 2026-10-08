@@ -219,6 +219,22 @@ function assertStubParses() {
 }
 assertStubParses();
 
+const POPUP_PAGE_SCRIPT = `(async () => {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  await new Promise((r) => window.addEventListener('load', r, { once: true }));
+  await sleep(400);
+  const tab = Array.prototype.slice.call(document.querySelectorAll('.tabs button'))
+    .filter((b) => b.dataset.tab === 'page')[0];
+  if (!tab) return;
+  tab.click();
+  await sleep(60);
+  // The capture runs under --virtual-time-budget, which fast-forwards timers
+  // but does not advance CSS transitions — a highlight that just started
+  // would be photographed at its OLD value, making the screenshot disagree
+  // with the DOM. Dropping the transition snaps it to the final state.
+  document.querySelectorAll('.tabs button').forEach((b) => { b.style.transition = 'none'; });
+})();`;
+
 const PAGES = [
   // The light/dark flags are explicit: headless Chrome follows the OS
   // appearance, so without them the "light" screenshots would silently turn
@@ -233,25 +249,23 @@ const PAGES = [
     height: 578,
     name: 'popup-yt-page',
     light: true,
-    script: `(async () => {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-      await new Promise((r) => window.addEventListener('load', r, { once: true }));
-      await sleep(400);
-      const tab = Array.prototype.slice.call(document.querySelectorAll('.tabs button'))
-        .filter((b) => b.dataset.tab === 'page')[0];
-      if (!tab) return;
-      tab.click();
-      await sleep(60);
-      // The capture runs under --virtual-time-budget, which fast-forwards timers
-      // but does not advance CSS transitions — a highlight that just started
-      // would be photographed at its OLD value, making the screenshot disagree
-      // with the DOM. Dropping the transition snaps it to the final state.
-      document.querySelectorAll('.tabs button').forEach((b) => { b.style.transition = 'none'; });
-    })();`,
+    script: POPUP_PAGE_SCRIPT,
+  },
+  {
+    // The English store listing uses the same page panel with an English UI.
+    html: 'src/popup/popup.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    width: 356,
+    height: 578,
+    name: 'popup-yt-page-en',
+    light: true,
+    patch: { __lang: 'en-US' },
+    script: POPUP_PAGE_SCRIPT,
   },
   { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 527, name: 'popup-page', light: true },
   { html: 'src/popup/popup.html', tabUrl: 'https://news.ycombinator.com/item?id=1', width: 356, height: 527, name: 'popup-page-dark', dark: true },
   { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options', light: true },
+  { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options-en', light: true, patch: { __lang: 'en-US' } },
   { html: 'src/options/options.html', width: 1180, height: 2620, name: 'options-dark', dark: true },
   // the custom provider is the one pane with hand-written HTTP in it, so it gets
   // its own screenshot (configured, so the diagnostics have something to say)
@@ -285,6 +299,15 @@ const PAGES = [
     height: 900,
     name: 'diagnostics',
     light: true,
+  },
+  {
+    html: 'src/diagnostics/diagnostics.html',
+    tabUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    width: 900,
+    height: 900,
+    name: 'diagnostics-en',
+    light: true,
+    patch: { __lang: 'en-US' },
   },
   { build: buildPageDemo, mode: 'bilingual', style: 'underline', width: 900, height: 1180, name: 'page-bilingual' },
   { build: buildPageDemo, mode: 'replace', style: 'highlight', width: 900, height: 1180, name: 'page-replace' },

@@ -151,9 +151,9 @@ docs/e2e-real-page.png      756×469
 
 ## 五、提交前自查
 
-- [ ] `manifest.json` 的 `version` 严格高于已上传过的任何版本（**不可复用标签，不可回退**）
-- [ ] zip 根目录直接是 `manifest.json`，不是套一层文件夹（`npm run dist` 已经是对的）
-- [ ] zip 里不含 `scripts/`、`docs/`、`.github/`、`dist/` 自身——审阅者会看包里的东西，多出来的文件只会招问题
-- [ ] 商店里的名称与描述和 `manifest.json` 一致（不一致会被当成 bait-and-switch）
-- [ ] 隐私政策 URL 可公开访问：`https://github.com/Momoxiao/lingua-translate/blob/main/PRIVACY.md`
-- [ ] 隐私政策里的说法和实际行为逐条对得上——**这一条是两个商店最常拒的原因**，也是唯一能靠自查消除的
+- [x] `manifest.json` 的 `version` 严格高于已上传过的任何版本（**不可复用标签，不可回退**）
+- [x] zip 根目录直接是 `manifest.json`，不是套一层文件夹（`npm run dist` 已经是对的）
+- [x] zip 里不含 `scripts/`、`docs/`、`.github/`、`dist/` 自身——审阅者会看包里的东西，多出来的文件只会招问题
+- [x] 商店里的名称与描述和 `manifest.json` 一致（不一致会被当成 bait-and-switch）
+- [x] 隐私政策 URL 可公开访问：`https://github.com/Momoxiao/lingua-translate/blob/main/PRIVACY.md`
+- [x] 隐私政策里的说法和实际行为逐条对得上——只有翻译文本会发往用户选定的供应商；设置、凭据与缓存都走 `chrome.storage.local`；诊断报告不含 Key 和译文

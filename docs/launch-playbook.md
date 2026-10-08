@@ -174,7 +174,7 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [x] **About 里的 Website**：已指向 GitHub Pages 官网 `https://momoxiao.github.io/lingua-translate/`；商店上架后可改为商店链接
 - [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [x] **Discussions**：已打开
-- [x] **Releases**：`v0.2.2` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
+- [x] **Releases**：`v0.2.3` 已上传 zip + `.sha256`，发布说明保存在 `docs/releases/`
 - [x] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（已识别为 MIT）
 
 ## 八、执行顺序（建议）

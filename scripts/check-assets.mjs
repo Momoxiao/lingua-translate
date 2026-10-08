@@ -154,6 +154,10 @@ check(
 );
 
 const readme = readText('README.md');
+const readmeZh = readText('README.zh-CN.md');
+const zipName = `lingua-${manifest.version}.zip`;
+const checksumName = `${zipName}.sha256`;
+const releaseNotes = `docs/releases/v${manifest.version}.md`;
 const referencedDocs = [
   ...readme.matchAll(/<img[^>]+src="(docs\/[^"]+)"[^>]*>/g),
   ...readme.matchAll(/!\[[^\]]*\]\((docs\/[^)]+)\)/g),
@@ -177,6 +181,18 @@ check(
     /\.hero-media img\s*\{[\s\S]*?object-position:\s*center 72%/.test(siteCss),
   'the project homepage keeps the caption demo legible on phones'
 );
+
+// A release is public truth, not a filename convention. If the source moves
+// without the version, the README and latest-release button can keep pointing
+// at bytes that no longer match the repository. Keep every public entry point
+// on the same version before a tag is pushed.
+check(readme.includes(zipName) && readme.includes(checksumName), 'English README points at the current release');
+check(readmeZh.includes(zipName) && readmeZh.includes(checksumName), 'Chinese README points at the current release');
+check(
+  siteHtml.includes(`"softwareVersion": "${manifest.version}"`) && siteHtml.includes(`/download/${zipName}`),
+  'the project homepage points at the current release'
+);
+check(fs.existsSync(path.join(ROOT, releaseNotes)), 'release notes exist for the current version');
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exitCode = failed ? 1 : 0;

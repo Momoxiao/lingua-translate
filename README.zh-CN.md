@@ -6,7 +6,7 @@
 
 **官网：** [Lingua 项目主页](https://momoxiao.github.io/lingua-translate/) · **源码：** [GitHub](https://github.com/Momoxiao/lingua-translate)
 
-> **早期版本（0.2.2）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
+> **早期版本（0.2.3）。** 功能完整，有 600 多项自动化断言，但尚未经过真实用户的广泛使用——欢迎反馈问题。
 >
 > **视频字幕依赖 YouTube 的私有接口**（播放器内的 PoToken、字幕轨请求），不是公开 API。**YouTube 一更新就可能失效**，而且这条链路无法在 CI 里覆盖（见第九节），只能靠人工实测。遇到失效请开 Issue。
 
@@ -80,10 +80,10 @@
 
 安装包里只有运行需要的文件（`manifest.json` + `src/` + `icons/` + `LICENSE`，44 个文件、约 154 KB）。想核对下载是否完整，可以和 Release 里的 `.sha256` 比对：
 
-下载后，把 `lingua-0.2.2.zip` 和 `lingua-0.2.2.zip.sha256` 放在同一目录，从该目录执行：
+下载后，把 `lingua-0.2.3.zip` 和 `lingua-0.2.3.zip.sha256` 放在同一目录，从该目录执行：
 
 ```bash
-shasum -a 256 -c lingua-0.2.2.zip.sha256
+shasum -a 256 -c lingua-0.2.3.zip.sha256
 ```
 
 **方式二：直接用源码**
@@ -426,7 +426,7 @@ npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
 npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）
 npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（51 项）
-npm run check:assets # 商店与社交图尺寸、alpha 通道、引用路径及主页素材是否符合要求（50 项）
+npm run check:assets # 商店素材、主页与发布版本元数据是否符合要求（54 项）
 npm run check:i18n  # 英文引用是否有缺失、英文目录是否混入中文（8 项，未引用条目单独告警）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
 npm run inspect:refresh  # 同上，并从零重载一次字幕，数每条 timedtext 请求（只读）

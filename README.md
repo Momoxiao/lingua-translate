@@ -11,7 +11,7 @@
 <h3 align="center">Bilingual YouTube subtitles and whole-page translation, powered by your own translation API.</h3>
 
 <p align="center">
-  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip"><b>Download Lingua 0.2.2</b></a>
+  <a href="https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip"><b>Download Lingua 0.2.3</b></a>
   ·
   <a href="#install">Install in 30 seconds</a>
   ·
@@ -73,7 +73,7 @@ It is also honest about the one thing it cannot promise — see [Known limitatio
 
 **Download the extension**
 
-[**Lingua 0.2.2 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.2.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
+[**Lingua 0.2.3 (zip)**](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip) · [checksum](https://github.com/Momoxiao/lingua-translate/releases/latest/download/lingua-0.2.3.zip.sha256) · [all releases](https://github.com/Momoxiao/lingua-translate/releases)
 
 1. Unzip the download.
 2. Open `chrome://extensions` (Edge: `edge://extensions`) and turn on **Developer mode**.
@@ -89,7 +89,7 @@ git clone https://github.com/Momoxiao/lingua-translate.git
 To verify the download, run this from the folder containing **both** downloaded files:
 
 ```bash
-shasum -a 256 -c lingua-0.2.2.zip.sha256
+shasum -a 256 -c lingua-0.2.3.zip.sha256
 ```
 
 ## Configure
@@ -125,7 +125,7 @@ npm run test:dom    # 168 — paragraph detection, link handling, real doc sites
 npm run test:pages  # 185 — popup, settings page, diagnostics verdicts
 npm run test:e2e    #  75 — real Chrome, unpacked extension, real HTTP page
 npm run check:docs  #  51 — the numbers quoted in this file are still true
-npm run check:assets #  50 — store, social, and homepage assets pass the required checks
+npm run check:assets #  54 — store, social, homepage, and release metadata checks pass
 npm run check:i18n  #   8 — no missing references, no Chinese fallbacks in English
 
 npm run preview     # render every UI surface to PNG

@@ -58,6 +58,22 @@ bait-and-switch。
 
 ### 详细描述
 
+**英文商店 Listing 用这一份：**
+
+> Lingua is a translation extension that does not make decisions for you or hold your credentials.
+>
+> **Video subtitles:** overlay bilingual captions on YouTube (or show the translation only / the original only). The full caption track is fetched up front, translated concurrently and cached locally; the first four lines appear first and the rest fill in while you watch. Manual and auto-generated tracks both work, and the source language can be pinned from the popup.
+>
+> **Web-page translation:** bilingual or translation-only mode. The translation never replaces the original — it is wrapped and styled with CSS, so "temporarily hide the translation" is one flicker-free toggle and a failed translation can never lose the original text. The register adapts to the page type (technical documentation, academic paper, news, community discussion, e-commerce, or general prose), keeping API names, citation markers, code identifiers and real links intact. A link in the translation is the **original clickable element itself**, not a copy.
+>
+> **Bring your own translation service:** OpenAI-compatible (OpenAI, DeepSeek, Kimi, Zhipu GLM, Qwen, SiliconFlow, OpenRouter, Groq, and self-hosted Ollama, LM Studio or one-api), DeepL, Google, Microsoft Azure, or any HTTP endpoint you can describe (your own URL, method, headers, body template and response path). **Credentials stay local and never pass through a third-party server.**
+>
+> **No guessing when it breaks:** the built-in diagnostics page reports how far the extension got on the current page — whether the content script was injected, whether the worker is alive, how many caption tracks were found, how many cues arrived, and which stage stalled — and copies it as text you can paste into an issue.
+>
+> Open source, no analytics, no account, no backend.
+
+**中文商店 Listing 用这一份：**
+
 > Lingua 是一个不代替你做决定、也不替你保管凭据的翻译扩展。
 >
 > **视频字幕**：在 YouTube 上叠加双语字幕（或只显示译文 / 只显示原文）。整片预取 + 并发翻译 + 本地缓存，首屏先出 4 句，剩下的边看边补。支持手动字幕轨与自动生成轨，可在弹窗里手动指定源语言。

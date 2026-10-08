@@ -41,8 +41,8 @@
     <td width="50%"><img src="docs/page-replace.png" alt="Translated-only web page"><br><sub>Web page · translated only</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/popup-yt-page.png" alt="Lingua popup"><br><sub>Popup · live controls</sub></td>
-    <td><img src="docs/diagnostics.png" alt="Lingua diagnostics"><br><sub>Diagnostics · one-click report</sub></td>
+    <td><img src="docs/popup-yt-page-en.png" alt="Lingua popup"><br><sub>Popup · live controls</sub></td>
+    <td><img src="docs/diagnostics-en.png" alt="Lingua diagnostics"><br><sub>Diagnostics · one-click report</sub></td>
   </tr>
 </table>
 

@@ -111,7 +111,7 @@ Since 2025 `/api/timedtext` is signed with a Proof-of-Origin token minted by Bot
 
 `package.json` has no `dependencies` and no `devDependencies`. There is no bundler, no transpiler, and no `node_modules`. The extension is the source you read — `manifest.json` plus `src/`, loaded as-is. That is a deliberate constraint, not a gap:
 
-- **You can audit it.** ~10k lines, plain ES2020, no generated code.
+- **You can audit it.** 12,400 lines, plain ES2020, no generated code.
 - **Nothing can rot.** No lockfile to drift, no transitive update to break the build in two years.
 - **Packaging is reproducible.** `npm run dist` produces a byte-identical zip for the same source (fixed timestamps, sorted entries), which is what makes a published SHA-256 meaningful.
 

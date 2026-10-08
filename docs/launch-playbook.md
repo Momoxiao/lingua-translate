@@ -107,7 +107,7 @@ Two things that turned out to be genuinely hard, in case they're useful:
    navbars onto two lines. The rule now treats "inline tag + flex/grid parent" as
    still inline, but only for short text.
 
-There's no build step and no dependencies — manifest.json plus src/, ~10k lines.
+There's no build step and no dependencies — manifest.json plus src/, 12,400 lines.
 package.json has no dependencies field at all, and the zip is byte-reproducible so
 the published SHA-256 means something. 601 assertions, including a real Chrome e2e.
 

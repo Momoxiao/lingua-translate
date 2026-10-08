@@ -369,7 +369,7 @@ yt-subtitle-translator/
 │   ├── test-core.mjs              核心逻辑测试（190 项，无需浏览器）
 │   ├── test-dom.mjs               段落识别 / 标签矩阵 / 标题（168 项，真实浏览器）
 │   ├── check-pages.mjs            弹窗、设置页与诊断页的启动 + 交互检查（72 项）
-│   ├── e2e-extension.mjs          真机端到端（74 项，自建 CDP 客户端）
+│   ├── e2e-extension.mjs          真机端到端（75 项，自建 CDP 客户端）
 │   ├── smoke-youtube.mjs          对真实 YouTube 的字幕链路冒烟（一次性 profile）
 │   ├── inspect-live.mjs           读真实页面里扩展的状态；--refresh 做只读体检
 │   ├── package.mjs                打可分发的 zip + .sha256（输出确定性）
@@ -420,7 +420,7 @@ npm test            # 核心逻辑测试（190 项，无需浏览器、无依赖
 npm run test:live   # 实时字幕兜底：什么时候该接管、什么时候必须拒绝接管（49 项）
 npm run test:dom    # 段落识别 + 标签矩阵 + 真实文档站标题（168 项，真实 Chrome）
 npm run test:pages  # 弹窗面板切换 + 高度预算 + 设置页交互 + 自定义供应商校验 + 诊断页判断（185 项）
-npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（74 项）
+npm run test:e2e    # 真机端到端：起本地假接口 + 加载扩展 + 真实 HTTP 页面（75 项）
 npm run check:docs  # 上面这些数字本身还成立吗——直接量 src/，并让中英 README 与 ci.yml 互相对账（51 项）
 npm run inspect     # 连接你正在用的 Chrome，读某个页面里扩展的真实状态
 npm run inspect:refresh  # 同上，并从零重载一次字幕，数每条 timedtext 请求（只读）
@@ -433,7 +433,7 @@ npm run preview     # 无头 Chrome 渲染弹窗、设置页与网页翻译效�
 
 `npm test` 不需要浏览器，也不需要安装任何依赖。其余脚本需要一个 Chrome / Chromium / Edge——`scripts/lib/chrome.mjs` 会自动在 macOS 应用目录、常见 Linux 路径和 `PATH` 里找；装在别处时用 `CHROME_PATH=/path/to/chrome npm run check` 指定。
 
-**测试覆盖到哪里，不覆盖哪里**：字幕解析、批次构建与解析、五个翻译供应商的请求构造、段落识别、译文渲染、弹窗与设置页的交互、诊断页的判断文案都有断言；而**视频字幕的获取链路（`youtube.js` / `inject.js` / `bridge.js`）没有任何自动化覆盖**——它依赖 YouTube 的私有接口，没法在 CI 里跑。端到端那 74 项走的是本地假接口与本地 fixture 页，不是真实的 YouTube 或真实的翻译服务。改这部分只能靠 `npm run smoke`（离线可跑的真机冒烟）和 `npm run inspect`（对着你自己的浏览器）验证。
+**测试覆盖到哪里，不覆盖哪里**：字幕解析、批次构建与解析、五个翻译供应商的请求构造、段落识别、译文渲染、弹窗与设置页的交互、诊断页的判断文案都有断言；而**视频字幕的获取链路（`youtube.js` / `inject.js` / `bridge.js`）没有任何自动化覆盖**——它依赖 YouTube 的私有接口，没法在 CI 里跑。端到端那 75 项走的是本地假接口与本地 fixture 页，不是真实的 YouTube 或真实的翻译服务。改这部分只能靠 `npm run smoke`（离线可跑的真机冒烟）和 `npm run inspect`（对着你自己的浏览器）验证。
 
 ### 真机冒烟：字幕链路还活着吗
 

@@ -635,10 +635,24 @@ async function main() {
     evalPage(
       `getComputedStyle(document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap')).transform`
     );
+  const waitForTransform = async (want, attempts = 20, gap = 50) => {
+    let value = '';
+    for (let i = 0; i < attempts; i++) {
+      value = await wrapTransform();
+      if (value === want) return value;
+      await sleep(gap);
+    }
+    return value;
+  };
   const ballBox = JSON.parse(
     await evalPage(`(function () {
       var r = document.getElementById('lingua-ball').getBoundingClientRect();
-      return JSON.stringify({ x: r.left, y: r.top, w: r.width, h: r.height, vw: window.innerWidth });
+      var doc = document.documentElement;
+      return JSON.stringify({
+        x: r.left, y: r.top, w: r.width, h: r.height,
+        vw: doc.clientWidth || window.innerWidth,
+        vh: doc.clientHeight || window.innerHeight
+      });
     })()`)
   );
   check('the ball starts docked against an edge', dotGeo.dockRight || dotGeo.dockLeft, JSON.stringify(dotGeo));
@@ -646,7 +660,17 @@ async function main() {
   // The strip between the ball's resting position and the screen edge: the
   // popped-out ball no longer covers it, but the pointer is still "on" the ball
   // as far as the user is concerned.
-  const stripX = dotGeo.dockRight ? ballBox.vw - 4 : 4;
+  const dockedBox = JSON.parse(
+    await evalPage(`(function () {
+      var r = document.getElementById('lingua-ball').shadowRoot.querySelector('.wrap').getBoundingClientRect();
+      var doc = document.documentElement;
+      return JSON.stringify({ left: r.left, right: r.right, vw: doc.clientWidth || window.innerWidth });
+    })()`)
+  );
+  const visibleLeft = Math.max(0, dockedBox.left);
+  const visibleRight = Math.min(dockedBox.vw, dockedBox.right);
+  const visibleX = Math.round((visibleLeft + visibleRight) / 2);
+  const stripX = dotGeo.dockRight ? dockedBox.vw - 4 : 4;
   const stripY = Math.round(ballBox.y + ballBox.h / 2);
   // A single synthetic move cannot reproduce the stutter: Chrome only
   // re-evaluates :hover when the pointer MOVES, and a hand resting on a mouse
@@ -666,16 +690,29 @@ async function main() {
       pageSession
     );
 
-  // Warm-up: let the 220ms slide-out finish. Sampling through it would just
-  // record the animation, which is not the bug.
-  for (let i = 0; i < 16; i++) {
-    await jitter(i);
-    await sleep(70);
-  }
+  // Put the pointer on the visible sliver and let the 220ms slide-out finish
+  // before measuring. Starting at the vacated strip made the assertion race the
+  // animation itself: on a slow first frame, the whole sample window could land
+  // mid-slide and fail even though the resting state was stable.
+  await cdp.send(
+    'Input.dispatchMouseEvent',
+    { type: 'mouseMoved', x: visibleX, y: stripY, button: 'none', buttons: 0 },
+    pageSession
+  );
+  const slidOut = await waitForTransform('matrix(1, 0, 0, 1, 0, 0)');
+  check(
+    'the ball slides out when the pointer reaches its visible edge',
+    slidOut === 'matrix(1, 0, 0, 1, 0, 0)',
+    slidOut
+  );
+
+  // Now move into the strip the ball just vacated. The dock bridge has to hold
+  // :hover across that band; otherwise the ball snaps back under the pointer and
+  // starts the flicker this regression test exists for.
   const frames = [];
   for (let i = 0; i < 8; i++) {
     await jitter(i);
-    await sleep(90);
+    await sleep(140);
     frames.push(await wrapTransform());
   }
   const distinct = Array.from(new Set(frames));

@@ -152,10 +152,10 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 
 | # | 素材 | 现状 | 说明 |
 |---|---|---|---|
-| 1 | **YouTube 字幕覆盖层截图 / GIF** | ⚠️ 已有合成图，仍缺真机录像 | `scripts/preview.mjs` 的 `buildPlayerDemo` 现在能渲染播放器+字幕层（`docs/player-yt.png`），但**播放器 chrome 是仿的，不是真 YouTube 页面**。真机录像仍然值得做：它是唯一能证明「在真的 YouTube 上确实能用」的东西。 |
+| 1 | **YouTube 字幕覆盖层截图 / GIF** | ⚠️ 已有合成图和 e2e 真机截图，仍缺真机录像 | `scripts/preview.mjs` 的 `buildPlayerDemo` 能渲染播放器+字幕层（`docs/player-yt.png`），`docs/e2e-real-page.png` 是真实 Chrome + 本地 fixture 的真机截图，但**播放器 chrome 是仿的，也不是 YouTube**。真机录像仍然值得做：它是唯一能证明「在真的 YouTube 上确实能用」的东西。 |
 | 2 | 商店截图 1280×800 | ✅ 已补齐 | `store/screenshots/` 5 张，全部恰好 1280×800、无 alpha，按商店尺寸重新构图（非缩放）。`npm run shots` 重新生成。详见 [`store/SUBMISSION.md`](../store/SUBMISSION.md) |
-| 3 | 300×300 商店图标 | ⚠️ 只有 128×128 | Edge 后台单独上传，别把 128 放大糊上去 |
-| 4 | GitHub social preview | ❌ 未做 | 1280×640，分享到社交平台时的卡片图 |
+| 3 | 300×300 商店图标 | ✅ 已补齐 | `store/icon-300.png`，由 `npm run release:assets` 单独重绘，未放大 128×128。 |
+| 4 | GitHub social preview | ✅ 已补齐 | `docs/social-preview.png`，1280×640，由 `npm run release:assets` 单独排版。 |
 | 5 | 小促销图 440×280 | ❌ 未做 | 可选，商店列表位 |
 
 ## 六、不要做的事
@@ -172,9 +172,9 @@ PR 只要一行，但要**先确认它真的在收**（很多列表已经不维�
 - [ ] **Topics**：`chrome-extension` `translation` `youtube` `subtitles` `bilingual` `openai` `ollama` `manifest-v3` `privacy` `edge-extension`
 - [ ] **About 描述**：一句话英文，和 README 首行一致
 - [ ] **About 里的 Website**：商店链接（上架后再填）
-- [ ] **Social preview 图片**：1280×640
+- [ ] **Social preview 图片**：上传 `docs/social-preview.png`（1280×640）
 - [ ] **Discussions**：打开，收集反馈比 issue 轻
-- [ ] **Releases**：0.1.2 上传 zip + `.sha256`（`npm run dist` 已经把两个都生成好了）
+- [ ] **Releases**：0.2.1 上传 zip + `.sha256`（`npm run dist` 已经把两个都生成好了）
 - [ ] 确认 `LICENSE` 在仓库根目录能被 GitHub 识别（现在已识别为 MIT ✓）
 
 ## 八、执行顺序（建议）

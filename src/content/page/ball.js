@@ -202,13 +202,27 @@
   // ---------------------------------------------------------------------------
   // Position
   // ---------------------------------------------------------------------------
+  function viewport() {
+    // innerWidth/innerHeight include the classic scrollbar. Positioning against
+    // them leaves a docked ball under the scrollbar on Windows and in narrow
+    // browser windows, where it looks present but cannot be clicked. The
+    // document element's client box is the area the pointer can actually reach.
+    const doc = document.documentElement;
+    return {
+      width: doc.clientWidth || window.innerWidth,
+      height: doc.clientHeight || window.innerHeight,
+    };
+  }
+
   function defaultPos() {
-    return { x: window.innerWidth - SIZE - MARGIN, y: Math.round(window.innerHeight * 0.42) };
+    const vp = viewport();
+    return { x: vp.width - SIZE - MARGIN, y: Math.round(vp.height * 0.42) };
   }
 
   function clampPos(p) {
-    const maxX = Math.max(MARGIN, window.innerWidth - SIZE - MARGIN);
-    const maxY = Math.max(MARGIN, window.innerHeight - SIZE - MARGIN);
+    const vp = viewport();
+    const maxX = Math.max(MARGIN, vp.width - SIZE - MARGIN);
+    const maxY = Math.max(MARGIN, vp.height - SIZE - MARGIN);
     return {
       x: Math.min(Math.max(p.x, MARGIN), maxX),
       y: Math.min(Math.max(p.y, MARGIN), maxY),
@@ -227,12 +241,13 @@
     // including mid-drag coordinates, where it only escaped being visible
     // because `.dragging` happens to neutralise the transform. Splitting the two
     // means the transform can only ever apply where it means something.
-    const maxX = Math.max(MARGIN, window.innerWidth - SIZE - MARGIN);
+    const vp = viewport();
+    const maxX = Math.max(MARGIN, vp.width - SIZE - MARGIN);
     const nearRight = p.x >= maxX - DOCK_ZONE;
     const nearLeft = p.x <= MARGIN + DOCK_ZONE;
     dock = nearRight && !nearLeft ? 'right' : nearLeft && !nearRight ? 'left' : 'none';
     // the pill opens towards the middle of the screen
-    const opensRight = dock === 'left' || (dock === 'none' && p.x + SIZE / 2 <= window.innerWidth / 2);
+    const opensRight = dock === 'left' || (dock === 'none' && p.x + SIZE / 2 <= vp.width / 2);
     el.wrap.classList.toggle('dock-left', dock === 'left');
     el.wrap.classList.toggle('dock-right', dock === 'right');
     el.wrap.classList.toggle('open-right', opensRight);
@@ -446,8 +461,9 @@
     drag = null;
     if (moved) {
       // dock to whichever horizontal edge is closer
+      const vp = viewport();
       const p = clampPos(pos);
-      p.x = p.x + SIZE / 2 > window.innerWidth / 2 ? window.innerWidth - SIZE - MARGIN : MARGIN;
+      p.x = p.x + SIZE / 2 > vp.width / 2 ? vp.width - SIZE - MARGIN : MARGIN;
       pos = clampPos(p);
       applyPos();
       savePos();

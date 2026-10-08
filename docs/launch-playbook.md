@@ -131,18 +131,18 @@ interface and is not covered by CI. It can break without warning.
 
 ### 4.3 中文渠道
 
-- **V2EX**（分享创造节点）：开发者密度最高，技术细节受欢迎。同一份「两个坑」的叙述直接可用。
+- **V2EX**（分享创造节点）：开发者密度最高，技术细节受欢迎。可直接使用 [`launch-copy.md`](launch-copy.md) 里的短版文案和标题。
 - **少数派**：要成稿，适合放 GIF + 完整体验流程，review 周期长但长尾好。
 - **小众软件**：投稿制，接受度高，适合工具类。
 - **阮一峰周刊**：不是直接投稿，是被收录。**做法是先把 README 和技术写作做好，等人来收。**
 
 ### 4.4 awesome-list（可以提 PR，成本极低）
 
-- `awesome-chrome-extensions`
-- `awesome-translation`（如果有活跃的）
-- `awesome-browser-extensions`
+- **`xyNNN/awesome-chrome`**：目前最值得提交的目标。README 持续更新，已有 **Language & Translation** 分类，最近一次合并 PR 是 2026-08-02。
+- **`mbiesiad/awesome-translations`**：仍在维护，但更偏 i18n / l10n 工具链；只有在条目描述能贴合其分类时才提交。
+- **`stefanbuck/awesome-browser-extensions-for-github`**：与 Lingua 的用途不匹配，不提交。
 
-PR 只要一行，但要**先确认它真的在收**（很多列表已经不维护了）。
+PR 只要一行，但要**先确认它真的在收**（很多列表已经不维护了）。已准备好的目标、单行条目、标题和正文在 [`awesome-list-submission.md`](awesome-list-submission.md)；**公开提交前需要仓库所有者明确同意**。
 
 ### 4.5 Product Hunt
 
